@@ -99,9 +99,16 @@ func (bs *BufferList) Idx(title string) (idx int) {
 	return
 }
 
-func (bs *BufferList) AddLine(idx int, line string, t time.Time) {
-	bs.List[idx].Content = append(bs.List[idx].Content, Line{
-		Time:    t,
-		Content: line,
-	})
+func (bs *BufferList) AddLine(idx int, line string, t time.Time, isStatus bool) {
+	n := len(bs.List[idx].Content)
+
+	if isStatus && n != 0 && bs.List[idx].Content[n-1].IsStatus {
+		bs.List[idx].Content[n-1].Content += " " + line
+	} else {
+		bs.List[idx].Content = append(bs.List[idx].Content, Line{
+			Time:     t,
+			IsStatus: isStatus,
+			Content:  line,
+		})
+	}
 }

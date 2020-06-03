@@ -527,7 +527,17 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				s.users[lNick] = User{Nick: nick}
 			}
 			c.Members[lNick] = ""
-			ev = UserJoinEvent{ChannelEvent: channelEv, UserEvent: UserEvent{Nick: nick}}
+
+			t, ok := msg.Time()
+			if !ok {
+				t = time.Now()
+			}
+
+			ev = UserJoinEvent{
+				ChannelEvent: channelEv,
+				UserEvent:    UserEvent{Nick: nick},
+				Time:         t,
+			}
 		}
 	case "PART":
 		nick, _, _ := FullMask(msg.Prefix)
@@ -540,7 +550,17 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			ev = SelfPartEvent{ChannelEvent: channelEv}
 		} else if c, ok := s.channels[channel]; ok {
 			delete(c.Members, lNick)
-			ev = UserPartEvent{ChannelEvent: channelEv, UserEvent: UserEvent{Nick: nick}}
+
+			t, ok := msg.Time()
+			if !ok {
+				t = time.Now()
+			}
+
+			ev = UserPartEvent{
+				ChannelEvent: channelEv,
+				UserEvent:    UserEvent{Nick: nick},
+				Time:         t,
+			}
 		}
 	case "353": // RPL_NAMREPLY
 		channel := strings.ToLower(msg.Params[2])

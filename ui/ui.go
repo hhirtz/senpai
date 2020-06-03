@@ -112,13 +112,13 @@ func (ui *UI) RemoveBuffer(title string) {
 	}
 }
 
-func (ui *UI) AddLine(buffer string, line string, t time.Time) {
+func (ui *UI) AddLine(buffer string, line string, t time.Time, isStatus bool) {
 	idx := ui.bufferList.Idx(buffer)
 	if idx < 0 {
 		return
 	}
 
-	ui.bufferList.AddLine(idx, line, t)
+	ui.bufferList.AddLine(idx, line, t, isStatus)
 
 	if idx == ui.bufferList.Current {
 		ui.drawBuffer()

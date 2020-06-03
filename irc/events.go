@@ -32,6 +32,7 @@ func (c ChannelEvent) ChannelMapped() (channel string) {
 type UserJoinEvent struct {
 	UserEvent
 	ChannelEvent
+	Time time.Time
 }
 
 type SelfPartEvent struct {
@@ -41,6 +42,7 @@ type SelfPartEvent struct {
 type UserPartEvent struct {
 	UserEvent
 	ChannelEvent
+	Time time.Time
 }
 
 type SelfJoinEvent struct {

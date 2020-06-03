@@ -34,7 +34,7 @@ func main() {
 	defer app.Close()
 
 	addr := cfg.Addr
-	app.AddLine("home", fmt.Sprintf("Connecting to %s...", addr), time.Now())
+	app.AddLine("home", fmt.Sprintf("Connecting to %s...", addr), time.Now(), false)
 
 	conn, err := tls.Dial("tcp", addr, nil)
 	if err != nil {
@@ -57,14 +57,20 @@ func main() {
 		case ev := <-s.Poll():
 			switch ev := ev.(type) {
 			case irc.RegisteredEvent:
-				app.AddLine("home", "Connected to the server", time.Now())
+				app.AddLine("home", "Connected to the server", time.Now(), false)
 			case irc.SelfJoinEvent:
 				app.AddBuffer(ev.Channel)
+			case irc.UserJoinEvent:
+				line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
+				app.AddLine(ev.Channel, line, ev.Time, true)
 			case irc.SelfPartEvent:
 				app.RemoveBuffer(ev.Channel)
+			case irc.UserPartEvent:
+				line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
+				app.AddLine(ev.Channel, line, ev.Time, true)
 			case irc.ChannelMessageEvent:
 				line := formatIRCMessage(ev.Nick, ev.Content)
-				app.AddLine(ev.Channel, line, ev.Time)
+				app.AddLine(ev.Channel, line, ev.Time, false)
 			case error:
 				log.Panicln(ev)
 			}
