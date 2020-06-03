@@ -34,7 +34,7 @@ func New() (ui *UI, err error) {
 	ui.screen.Clear()
 	ui.screen.ShowCursor(0, h-2)
 
-	ui.Events = make(chan tcell.Event)
+	ui.Events = make(chan tcell.Event, 128)
 	go func() {
 		for !ui.ShouldExit() {
 			ui.Events <- ui.screen.PollEvent()
@@ -123,6 +123,10 @@ func (ui *UI) AddLine(buffer string, line string, t time.Time) {
 	if idx == ui.bufferList.Current {
 		ui.drawBuffer()
 	}
+}
+
+func (ui *UI) Input() string {
+	return string(ui.textInput)
 }
 
 func (ui *UI) InputRune(r rune) {

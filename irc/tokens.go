@@ -201,6 +201,12 @@ func (msg *Message) Validate() (err error) {
 		} else if msg.Prefix == "" {
 			err = errNoPrefix
 		}
+	case "PART":
+		if len(msg.Params) < 1 {
+			err = errNotEnoughParams
+		} else if msg.Prefix == "" {
+			err = errNoPrefix
+		}
 	case "353":
 		if len(msg.Params) < 4 {
 			err = errNotEnoughParams

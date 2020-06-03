@@ -59,6 +59,8 @@ func main() {
 				app.AddLine("home", "Connected to the server", time.Now())
 			case irc.SelfJoinEvent:
 				app.AddBuffer(ev.Channel)
+			case irc.SelfPartEvent:
+				app.RemoveBuffer(ev.Channel)
 			case irc.ChannelMessageEvent:
 				line := formatIRCMessage(ev.Nick, ev.Content)
 				app.AddLine(ev.Channel, line, ev.Time)
@@ -94,11 +96,14 @@ func main() {
 				case tcell.KeyBackspace2:
 					app.InputBackspace()
 				case tcell.KeyEnter:
-					content := app.InputEnter()
-					handleInput(app, &s, content)
+					buffer := app.CurrentBuffer()
+					input := app.InputEnter()
+					handleInput(&s, buffer, input)
 				case tcell.KeyRune:
 					app.InputRune(ev.Rune())
-					s.Typing(app.CurrentBuffer())
+					if app.CurrentBuffer() != "home" && !strings.HasPrefix(app.Input(), "/") {
+						s.Typing(app.CurrentBuffer())
+					}
 				}
 			}
 		}
@@ -117,35 +122,44 @@ func parseCommand(s string) (command, args string) {
 
 	i := strings.IndexByte(s, ' ')
 	if i < 0 {
-		i = len(s) - 1
+		i = len(s)
 	}
 
 	command = strings.ToUpper(s[1:i])
-	args = s[i+1:]
+	args = strings.TrimLeft(s[i:], " ")
 
 	return
 }
 
-func handleInput(app *ui.UI, s *irc.Session, content string) {
+func handleInput(s *irc.Session, buffer, content string) {
 	cmd, args := parseCommand(content)
 
 	switch cmd {
 	case "":
-		ch := app.CurrentBuffer()
-		if ch == "home" {
+		if buffer == "home" {
 			return
 		}
 
-		s.PrivMsg(ch, args)
+		s.PrivMsg(buffer, args)
+	case "J", "JOIN":
+		s.Join(args)
+	case "PART":
+		if buffer == "home" {
+			return
+		}
+
+		if args == "" {
+			args = buffer
+		}
+
+		s.Part(args)
 	case "ME":
-		ch := app.CurrentBuffer()
-		if ch == "home" {
+		if buffer == "home" {
 			return
 		}
 
 		line := fmt.Sprintf("\x01ACTION %s\x01", args)
-		s.PrivMsg(ch, line)
-	default:
+		s.PrivMsg(buffer, line)
 	}
 }
 

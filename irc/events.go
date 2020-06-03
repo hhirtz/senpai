@@ -34,6 +34,15 @@ type UserJoinEvent struct {
 	ChannelEvent
 }
 
+type SelfPartEvent struct {
+	ChannelEvent
+}
+
+type UserPartEvent struct {
+	UserEvent
+	ChannelEvent
+}
+
 type SelfJoinEvent struct {
 	ChannelEvent
 }

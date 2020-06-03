@@ -84,16 +84,23 @@ type Channel struct {
 type action interface{}
 
 type (
+	actionJoin struct {
+		Channel string
+	}
+	actionPart struct {
+		Channel string
+	}
+
 	actionPrivMsg struct {
-		To      string
+		Channel string
 		Content string
 	}
 
 	actionTyping struct {
-		To string
+		Channel string
 	}
 	actionTypingStop struct {
-		To string
+		Channel string
 	}
 )
 
@@ -137,9 +144,9 @@ type Session struct {
 func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err error) {
 	s = Session{
 		conn:          conn,
-		msgs:          make(chan Message, 10),
-		acts:          make(chan action, 10),
-		evts:          make(chan Event, 10),
+		msgs:          make(chan Message, 128),
+		acts:          make(chan action, 128),
+		evts:          make(chan Event, 128),
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
 		lNick:         strings.ToLower(params.Nickname),
@@ -205,17 +212,35 @@ func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }
 
-func (s *Session) PrivMsg(to, content string) {
-	s.acts <- actionPrivMsg{to, content}
+func (s *Session) Join(channel string) {
+	s.acts <- actionJoin{channel}
 }
 
-func (s *Session) privMsg(act actionPrivMsg) (err error) {
-	err = s.send("PRIVMSG %s :%s\r\n", act.To, act.Content)
+func (s *Session) join(act actionJoin) (err error) {
+	err = s.send("JOIN %s\r\n", act.Channel)
 	return
 }
 
-func (s *Session) Typing(to string) {
-	s.acts <- actionTyping{to}
+func (s *Session) Part(channel string) {
+	s.acts <- actionPart{channel}
+}
+
+func (s *Session) part(act actionPart) (err error) {
+	err = s.send("PART %s\r\n", act.Channel)
+	return
+}
+
+func (s *Session) PrivMsg(channel, content string) {
+	s.acts <- actionPrivMsg{channel, content}
+}
+
+func (s *Session) privMsg(act actionPrivMsg) (err error) {
+	err = s.send("PRIVMSG %s :%s\r\n", act.Channel, act.Content)
+	return
+}
+
+func (s *Session) Typing(channel string) {
+	s.acts <- actionTyping{channel}
 }
 
 func (s *Session) typing(act actionTyping) (err error) {
@@ -223,13 +248,16 @@ func (s *Session) typing(act actionTyping) (err error) {
 		return
 	}
 
-	to := strings.ToLower(act.To)
+	to := strings.ToLower(act.Channel)
+	now := time.Now()
 
-	if t, ok := s.typingStamps[to]; ok && time.Now().Sub(t) < 3 {
+	if t, ok := s.typingStamps[to]; ok && now.Sub(t).Seconds() < 3.0 {
 		return
 	}
 
-	err = s.send("@+typing=active TAGMSG %s\r\n", act.To)
+	s.typingStamps[to] = now
+
+	err = s.send("@+typing=active TAGMSG %s\r\n", act.Channel)
 	return
 }
 
@@ -242,7 +270,7 @@ func (s *Session) typingStop(act actionTypingStop) (err error) {
 		return
 	}
 
-	err = s.send("@+typing=done TAGMSG %s\r\n", act.To)
+	err = s.send("@+typing=done TAGMSG %s\r\n", act.Channel)
 	return
 }
 
@@ -256,6 +284,10 @@ func (s *Session) run() {
 		select {
 		case act := <-s.acts:
 			switch act := act.(type) {
+			case actionJoin:
+				err = s.join(act)
+			case actionPart:
+				err = s.part(act)
 			case actionPrivMsg:
 				err = s.privMsg(act)
 			case actionTyping:
@@ -497,6 +529,19 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			c.Members[lNick] = ""
 			ev = UserJoinEvent{ChannelEvent: channelEv, UserEvent: UserEvent{Nick: nick}}
 		}
+	case "PART":
+		nick, _, _ := FullMask(msg.Prefix)
+		lNick := strings.ToLower(nick)
+		channel := strings.ToLower(msg.Params[0])
+		channelEv := ChannelEvent{Channel: msg.Params[0]}
+
+		if lNick == s.lNick {
+			delete(s.channels, channel)
+			ev = SelfPartEvent{ChannelEvent: channelEv}
+		} else if c, ok := s.channels[channel]; ok {
+			delete(c.Members, lNick)
+			ev = UserPartEvent{ChannelEvent: channelEv, UserEvent: UserEvent{Nick: nick}}
+		}
 	case "353": // RPL_NAMREPLY
 		channel := strings.ToLower(msg.Params[2])
 
@@ -622,4 +667,11 @@ func (s *Session) send(format string, args ...interface{}) (err error) {
 	return
 }
 
+// */
+
+/*
+func (s *Session) send(format string, args ...interface{}) (err error) {
+	go fmt.Fprintf(s.conn, format, args...)
+	return
+}
 // */
