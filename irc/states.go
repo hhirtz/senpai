@@ -562,6 +562,26 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				Time:         t,
 			}
 		}
+	case "QUIT":
+		nick, _, _ := FullMask(msg.Prefix)
+		lNick := strings.ToLower(nick)
+
+		t, ok := msg.Time()
+		if !ok {
+			t = time.Now()
+		}
+
+		for _, c := range s.channels {
+			if _, ok := c.Members[lNick]; !ok {
+				continue
+			}
+
+			ev = UserPartEvent{
+				ChannelEvent: ChannelEvent{Channel: c.Name},
+				UserEvent:    UserEvent{Nick: nick},
+				Time:         t,
+			}
+		}
 	case "353": // RPL_NAMREPLY
 		channel := strings.ToLower(msg.Params[2])
 
