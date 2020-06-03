@@ -94,7 +94,10 @@ func main() {
 						app.InputLeft()
 					}
 				case tcell.KeyBackspace2:
-					app.InputBackspace()
+					ok := app.InputBackspace()
+					if ok && app.InputLen() == 0 {
+						s.TypingStop(app.CurrentBuffer())
+					}
 				case tcell.KeyEnter:
 					buffer := app.CurrentBuffer()
 					input := app.InputEnter()

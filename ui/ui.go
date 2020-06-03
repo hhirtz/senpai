@@ -129,6 +129,10 @@ func (ui *UI) Input() string {
 	return string(ui.textInput)
 }
 
+func (ui *UI) InputLen() int {
+	return len(ui.textInput)
+}
+
 func (ui *UI) InputRune(r rune) {
 	ui.textInput = append(ui.textInput, r)
 	ui.textCursor++
@@ -149,14 +153,18 @@ func (ui *UI) InputLeft() {
 	}
 }
 
-func (ui *UI) InputBackspace() {
-	if 0 < len(ui.textInput) {
+func (ui *UI) InputBackspace() (ok bool) {
+	ok = 0 < len(ui.textInput)
+
+	if ok {
 		ui.textInput = ui.textInput[:len(ui.textInput)-1]
 		if len(ui.textInput) < ui.textCursor {
 			ui.textCursor = len(ui.textInput)
 		}
 		ui.drawEditor()
 	}
+
+	return
 }
 
 func (ui *UI) InputEnter() (content string) {
