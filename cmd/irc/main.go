@@ -7,6 +7,7 @@ import (
 	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
 	"github.com/gdamore/tcell"
+	"hash/fnv"
 	"log"
 	"os/user"
 	"strings"
@@ -167,8 +168,10 @@ func handleInput(s *irc.Session, buffer, content string) {
 }
 
 func formatIRCMessage(nick, content string) (line string) {
+	c := color(nick)
+
 	if content == "" {
-		line = fmt.Sprintf("\x02%s\x00:", nick)
+		line = fmt.Sprintf("%s%s\x00:", string(c[:]), nick)
 		return
 	}
 
@@ -176,15 +179,35 @@ func formatIRCMessage(nick, content string) (line string) {
 		content = strings.TrimSuffix(content[1:], "\x01")
 
 		if strings.HasPrefix(content, "ACTION") {
-			line = fmt.Sprintf("*\x02%s\x00%s", nick, content[6:])
+			line = fmt.Sprintf("%s%s\x00%s", string(c[:]), nick, content[6:])
 		} else {
-			line = fmt.Sprintf("\x1dCTCP request from\x1d \x02%s\x00: %s", nick, content)
+			line = fmt.Sprintf("\x1dCTCP request from\x1d %s%s\x00: %s", string(c[:]), nick, content)
 		}
 
 		return
 	}
 
-	line = fmt.Sprintf("\x02%s\x00  %s", nick, content)
+	line = fmt.Sprintf("%s%s\x00:  %s", string(c[:]), nick, content)
+
+	return
+}
+
+func color(nick string) (c [3]rune) {
+	h := fnv.New32()
+	_, _ = h.Write([]byte(nick))
+
+	sum := h.Sum32() % 14
+
+	if 1 <= sum {
+		sum++
+	}
+	if 8 <= sum {
+		sum++
+	}
+
+	c[0] = '\x03'
+	c[1] = rune(sum/10) + '0'
+	c[2] = rune(sum%10) + '0'
 
 	return
 }

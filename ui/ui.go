@@ -364,7 +364,8 @@ func (ui *UI) drawBuffer() {
 				bold = false
 				italic = false
 				underline = false
-				st = st.Normal()
+				colorState = 0
+				st = tcell.StyleDefault
 				continue
 			}
 			if r == 0x02 {
