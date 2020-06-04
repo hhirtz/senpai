@@ -253,7 +253,8 @@ func (msg *Message) Time() (t time.Time, ok bool) {
 		return
 	}
 
-	t = time.Date(year, time.Month(month), day, hour, minute, second, millis*1000000, time.Local)
+	t = time.Date(year, time.Month(month), day, hour, minute, second, millis*1000000, time.UTC)
+	t = t.Local()
 
 	return
 }
