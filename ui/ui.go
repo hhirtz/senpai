@@ -384,7 +384,7 @@ func (ui *UI) drawBuffer() {
 			}
 			if r == 0x1F {
 				underline = !underline
-				//st = st.Underline(underline)
+				st = st.Underline(underline)
 				continue
 			}
 
