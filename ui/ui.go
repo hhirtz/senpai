@@ -466,41 +466,19 @@ func (ui *UI) drawStatus() {
 }
 
 func colorFromCode(code int) (color tcell.Color) {
-	switch code {
-	case 0:
-		color = tcell.ColorWhite
-	case 1:
-		color = tcell.ColorBlack
-	case 2:
-		color = tcell.ColorBlue
-	case 3:
-		color = tcell.ColorGreen
-	case 4:
-		color = tcell.ColorRed
-	case 5:
-		color = tcell.ColorBrown
-	case 6:
-		color = tcell.ColorFuchsia
-	case 7:
-		color = tcell.ColorOrange
-	case 8:
-		color = tcell.ColorYellow
-	case 9:
-		color = tcell.ColorLime
-	case 10:
-		color = tcell.ColorAqua
-	case 11:
-		color = tcell.ColorLightCyan
-	case 12:
-		color = tcell.ColorLightBlue
-	case 13:
-		color = tcell.ColorPink
-	case 14:
-		color = tcell.ColorGrey
-	case 15:
-		color = tcell.ColorLightGrey
-	default:
-		color = tcell.Color(code)
+	colors := [...]int32{15, 0, 1, 2, 12, 4, 5, 6, 14, 10, 3, 11, 9, 13, 8, 7,
+		/* 16-27 */ 52, 94, 100, 58, 22, 29, 23, 24, 17, 54, 53, 89,
+		/* 28-39 */ 88, 130, 142, 64, 28, 35, 30, 25, 18, 91, 90, 125,
+		/* 40-51 */ 124, 166, 184, 106, 34, 49, 37, 33, 19, 129, 127, 161,
+		/* 52-63 */ 196, 208, 226, 154, 46, 86, 51, 75, 21, 171, 201, 198,
+		/* 64-75 */ 203, 215, 227, 191, 83, 122, 87, 111, 63, 177, 207, 205,
+		/* 76-87 */ 217, 223, 229, 193, 157, 158, 159, 153, 147, 183, 219, 212,
+		/* 88-98 */ 16, 233, 235, 237, 239, 241, 244, 247, 250, 254, 231, -1}
+
+	if 0 <= code && code < len(colors) {
+		color = tcell.Color(colors[code])
+	} else {
+		color = tcell.ColorDefault
 	}
 
 	return
