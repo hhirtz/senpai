@@ -58,7 +58,7 @@ func New() (ui *UI, err error) {
 
 	ui.textInput = []rune{}
 
-	ui.Draw()
+	ui.Resize()
 
 	return
 }
@@ -177,7 +177,12 @@ func (ui *UI) InputEnter() (content string) {
 	return
 }
 
-func (ui *UI) Draw() {
+func (ui *UI) Resize() {
+	ui.bufferList.Invalidate()
+	ui.draw()
+}
+
+func (ui *UI) draw() {
 	ui.drawStatus()
 	ui.drawEditor()
 	ui.drawBuffer()
@@ -220,7 +225,7 @@ func (ui *UI) drawEditor() {
 func (ui *UI) drawBuffer() {
 	st := tcell.StyleDefault
 	w, h := ui.screen.Size()
-	if h < 2 {
+	if h < 3 {
 		return
 	}
 
@@ -236,67 +241,30 @@ func (ui *UI) drawBuffer() {
 		return
 	}
 
-	y := h - 2
-	start := len(b.Content) - 1
-	for {
-		lw := runewidth.StringWidth(b.Content[start].Content)
-
-		if y-(lw/w+1) < 0 {
-			break
-		}
-
-		y -= lw/w + 1
-
-		if start <= 0 {
-			break
-		}
-		start--
-	}
-	if start > 0 {
-		start++
-	}
-
 	var bold, italic, underline bool
 	var colorState int
 	var fgColor, bgColor int
 
-	var lastHour, lastMinute int
+	y0 := h - 2
 
-	for _, line := range b.Content[start:] {
+	for i := len(b.Content) - 1; 0 <= i; i-- {
+		line := &b.Content[i]
+
+		lineHeight := line.RenderedHeight(w)
+		y0 -= lineHeight
+		y := y0
+
 		rs := []rune(line.Content)
 		x := 0
-
-		hour := line.Time.Hour()
-		minute := line.Time.Minute()
-
-		if hour != lastHour || minute != lastMinute {
-			t := []rune{rune(hour/10) + '0', rune(hour%10) + '0', ':', rune(minute/10) + '0', rune(minute%10) + '0', ' '}
-			tst := tcell.StyleDefault.Bold(true)
-
-			for _, r := range t {
-				if w <= x {
-					y++
-					x = 0
-				}
-				if h-2 <= y {
-					break
-				}
-
-				ui.screen.SetContent(x, y, r, nil, tst)
-				x += runewidth.RuneWidth(r)
-			}
-
-			lastHour = hour
-			lastMinute = minute
-		}
 
 		for _, r := range rs {
 			if w <= x {
 				y++
 				x = 0
 			}
-			if h-2 <= y {
-				break
+
+			if x == 0 && IsSplitRune(r) {
+				continue
 			}
 
 			if colorState == 1 {
@@ -345,19 +313,16 @@ func (ui *UI) drawBuffer() {
 				ui.screen.SetContent(x, y, ',', nil, st)
 				x++
 			} else if colorState == 5 {
+				colorState = 0
+				st = st.Foreground(colorFromCode(fgColor))
+
 				if '0' <= r && r <= '9' {
 					bgColor = bgColor*10 + int(r-'0')
-					colorState = 6
+					st = st.Background(colorFromCode(bgColor))
 					continue
 				}
 
-				st = st.Foreground(colorFromCode(fgColor))
 				st = st.Background(colorFromCode(bgColor))
-				colorState = 0
-			} else if colorState == 6 {
-				st = st.Foreground(colorFromCode(fgColor))
-				st = st.Background(colorFromCode(bgColor))
-				colorState = 0
 			}
 
 			if r == 0x00 {
@@ -388,19 +353,21 @@ func (ui *UI) drawBuffer() {
 				continue
 			}
 
-			ui.screen.SetContent(x, y, r, nil, st)
+			if 0 <= y {
+				ui.screen.SetContent(x, y, r, nil, st)
+			}
 			x += runewidth.RuneWidth(r)
 		}
 
-		y++
+		if y0 < 0 {
+			break
+		}
+
 		st = tcell.StyleDefault
 		bold = false
 		italic = false
 		underline = false
 		colorState = 0
-		if h-2 <= y {
-			break
-		}
 	}
 
 	ui.screen.Show()

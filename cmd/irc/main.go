@@ -77,13 +77,13 @@ func main() {
 		case ev := <-app.Events:
 			switch ev := ev.(type) {
 			case *tcell.EventResize:
-				app.Draw()
+				app.Resize()
 			case *tcell.EventKey:
 				switch ev.Key() {
 				case tcell.KeyCtrlC:
 					app.Exit()
 				case tcell.KeyCtrlL:
-					app.Draw()
+					app.Resize()
 				case tcell.KeyCtrlN:
 					app.NextBuffer()
 				case tcell.KeyCtrlP:
@@ -193,7 +193,7 @@ func formatIRCMessage(nick, content string) (line string) {
 		return
 	}
 
-	line = fmt.Sprintf("%s%s\x00:  %s", string(c[:]), nick, content)
+	line = fmt.Sprintf("%s%s\x00: %s", string(c[:]), nick, content)
 
 	return
 }

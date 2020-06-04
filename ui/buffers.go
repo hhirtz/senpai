@@ -1,6 +1,10 @@
 package ui
 
-import "time"
+import (
+	"fmt"
+	"strings"
+	"time"
+)
 
 var homeMessages = []string{
 	"\x1dYou open an IRC client.",
@@ -11,10 +15,74 @@ var homeMessages = []string{
 	"Student? No, I'm an IRC \x02client\x02!",
 }
 
+func IsSplitRune(c rune) bool {
+	return c == ' ' || c == '\t'
+}
+
+type Point struct {
+	X int
+	I int
+}
+
 type Line struct {
 	Time     time.Time
 	IsStatus bool
 	Content  string
+
+	SplitPoints    []Point
+	renderedHeight int
+}
+
+func (line *Line) Invalidate() {
+	line.renderedHeight = -1
+}
+
+func (line *Line) RenderedHeight(screenWidth int) (height int) {
+	if line.renderedHeight < 0 {
+		line.computeRenderedHeight(screenWidth)
+	}
+	height = line.renderedHeight
+	return
+}
+
+func (line *Line) computeRenderedHeight(screenWidth int) {
+	line.renderedHeight = 1
+	residualWidth := 0
+
+	for _, sp := range line.SplitPoints {
+		w := sp.X + residualWidth
+
+		if line.renderedHeight*screenWidth < w {
+			line.renderedHeight += 1
+			residualWidth = w % screenWidth
+		}
+	}
+}
+
+func (line *Line) computeSplitPoints() {
+	var wb widthBuffer
+	lastWasSplit := true
+
+	for i, r := range line.Content {
+		curIsSplit := IsSplitRune(r)
+
+		if !lastWasSplit && curIsSplit {
+			line.SplitPoints = append(line.SplitPoints, Point{
+				X: wb.Width(),
+				I: i,
+			})
+		}
+
+		lastWasSplit = curIsSplit
+		wb.WriteRune(r)
+	}
+
+	if !lastWasSplit {
+		line.SplitPoints = append(line.SplitPoints, Point{
+			X: wb.Width(),
+			I: len(line.Content),
+		})
+	}
 }
 
 type Buffer struct {
@@ -100,15 +168,49 @@ func (bs *BufferList) Idx(title string) (idx int) {
 }
 
 func (bs *BufferList) AddLine(idx int, line string, t time.Time, isStatus bool) {
+	b := &bs.List[idx]
 	n := len(bs.List[idx].Content)
 
-	if isStatus && n != 0 && bs.List[idx].Content[n-1].IsStatus {
-		bs.List[idx].Content[n-1].Content += " " + line
+	line = strings.TrimRight(line, "\t ")
+
+	if isStatus && n != 0 && b.Content[n-1].IsStatus {
+		l := &b.Content[n-1]
+		l.Content += " " + line
+
+		lineWidth := StringWidth(line)
+		lastSP := l.SplitPoints[len(l.SplitPoints)-1]
+		sp := Point{
+			X: lastSP.X + 1 + lineWidth,
+			I: len(l.SplitPoints),
+		}
+
+		l.SplitPoints = append(l.SplitPoints, sp)
+		l.Invalidate()
 	} else {
-		bs.List[idx].Content = append(bs.List[idx].Content, Line{
+		if n == 0 || b.Content[n-1].Time.Truncate(time.Minute) != t.Truncate(time.Minute) {
+			hour := t.Hour()
+			minute := t.Minute()
+
+			line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
+		}
+
+		l := Line{
 			Time:     t,
 			IsStatus: isStatus,
 			Content:  line,
-		})
+		}
+
+		l.computeSplitPoints()
+		l.Invalidate()
+
+		b.Content = append(b.Content, l)
+	}
+}
+
+func (bs *BufferList) Invalidate() {
+	for i := range bs.List {
+		for j := range bs.List[i].Content {
+			bs.List[i].Content[j].Invalidate()
+		}
 	}
 }
