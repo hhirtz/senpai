@@ -33,6 +33,22 @@ type Line struct {
 	renderedHeight int
 }
 
+func NewLine(t time.Time, isStatus bool, content string) (line Line) {
+	line.Time = t
+	line.IsStatus = isStatus
+	line.Content = content
+
+	line.Invalidate()
+	line.computeSplitPoints()
+
+	return
+}
+
+func NewLineNow(content string) (line Line) {
+	line = NewLine(time.Now(), false, content)
+	return
+}
+
 func (line *Line) Invalidate() {
 	line.renderedHeight = -1
 }
@@ -194,15 +210,7 @@ func (bs *BufferList) AddLine(idx int, line string, t time.Time, isStatus bool) 
 			line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
 		}
 
-		l := Line{
-			Time:     t,
-			IsStatus: isStatus,
-			Content:  line,
-		}
-
-		l.computeSplitPoints()
-		l.Invalidate()
-
+		l := NewLine(t, isStatus, line)
 		b.Content = append(b.Content, l)
 	}
 }

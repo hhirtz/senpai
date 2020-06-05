@@ -48,10 +48,7 @@ func New() (ui *UI, err error) {
 			{
 				Title:      "home",
 				Highlights: 0,
-				Content: []Line{{
-					Time:    time.Now(),
-					Content: homeMessages[0],
-				}},
+				Content:    []Line{NewLineNow(homeMessages[0])},
 			},
 		},
 	}
@@ -256,15 +253,29 @@ func (ui *UI) drawBuffer() {
 
 		rs := []rune(line.Content)
 		x := 0
+		spIdx := 0
+		hasLineHadSplit := false
 
-		for _, r := range rs {
-			if w <= x {
+		for i, r := range rs {
+			if hasLineHadSplit && (y-y0+1)*w <= line.SplitPoints[spIdx].X {
 				y++
 				x = 0
+				hasLineHadSplit = false
+			} else if w <= x {
+				y++
+				x = 0
+				hasLineHadSplit = false
 			}
 
-			if x == 0 && IsSplitRune(r) {
-				continue
+			if IsSplitRune(r) {
+				if i == line.SplitPoints[spIdx].I {
+					spIdx++
+				}
+				if x == 0 {
+					continue
+				}
+
+				hasLineHadSplit = true
 			}
 
 			if colorState == 1 {
