@@ -84,6 +84,10 @@ func main() {
 					app.Exit()
 				case tcell.KeyCtrlL:
 					app.Resize()
+				case tcell.KeyCtrlU:
+					app.ScrollUp()
+				case tcell.KeyCtrlD:
+					app.ScrollDown()
 				case tcell.KeyCtrlN:
 					app.NextBuffer()
 				case tcell.KeyCtrlP:
@@ -202,7 +206,7 @@ func color(nick string) (c [3]rune) {
 	h := fnv.New32()
 	_, _ = h.Write([]byte(nick))
 
-	sum := h.Sum32() % 14
+	sum := h.Sum32() % 96
 
 	if 1 <= sum {
 		sum++

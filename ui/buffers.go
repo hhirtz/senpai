@@ -22,6 +22,8 @@ func IsSplitRune(c rune) bool {
 type Point struct {
 	X int
 	I int
+
+	Split bool
 }
 
 type Line struct {
@@ -62,30 +64,43 @@ func (line *Line) RenderedHeight(screenWidth int) (height int) {
 }
 
 func (line *Line) computeRenderedHeight(screenWidth int) {
+	var lastSP Point
 	line.renderedHeight = 1
-	residualWidth := 0
+	x := 0
 
+	fmt.Printf("\n%d %q\n", screenWidth, line.Content)
 	for _, sp := range line.SplitPoints {
-		w := sp.X + residualWidth
+		l := sp.X - lastSP.X
 
-		if line.renderedHeight*screenWidth < w {
-			line.renderedHeight += 1
-			residualWidth = w % screenWidth
+		if !sp.Split && x == 0 {
+			// Don't add space at the beginning of a row
+		} else if screenWidth < l {
+			line.renderedHeight += (x + l) / screenWidth
+			x = (x + l) % screenWidth
+		} else if screenWidth < x+l {
+			line.renderedHeight++
+			x = l % screenWidth
+		} else {
+			x = (x + l) % screenWidth
 		}
+
+		fmt.Printf("%d %d %t occupied by %q\n", line.renderedHeight, x, sp.Split, line.Content[:sp.I])
+		lastSP = sp
 	}
 }
 
 func (line *Line) computeSplitPoints() {
 	var wb widthBuffer
-	lastWasSplit := true
+	lastWasSplit := false
 
 	for i, r := range line.Content {
 		curIsSplit := IsSplitRune(r)
 
-		if !lastWasSplit && curIsSplit {
+		if lastWasSplit != curIsSplit {
 			line.SplitPoints = append(line.SplitPoints, Point{
-				X: wb.Width(),
-				I: i,
+				X:     wb.Width(),
+				I:     i,
+				Split: curIsSplit,
 			})
 		}
 
@@ -95,8 +110,9 @@ func (line *Line) computeSplitPoints() {
 
 	if !lastWasSplit {
 		line.SplitPoints = append(line.SplitPoints, Point{
-			X: wb.Width(),
-			I: len(line.Content),
+			X:     wb.Width(),
+			I:     len(line.Content),
+			Split: true,
 		})
 	}
 }

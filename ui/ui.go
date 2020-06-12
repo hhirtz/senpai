@@ -13,6 +13,8 @@ type UI struct {
 	exit   atomic.Value // bool
 
 	bufferList BufferList
+	scrollAmt  int
+
 	textInput  []rune
 	textCursor int
 }
@@ -80,6 +82,7 @@ func (ui *UI) CurrentBuffer() (title string) {
 func (ui *UI) NextBuffer() {
 	ok := ui.bufferList.Next()
 	if ok {
+		ui.scrollAmt = 0
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
@@ -88,9 +91,30 @@ func (ui *UI) NextBuffer() {
 func (ui *UI) PreviousBuffer() {
 	ok := ui.bufferList.Previous()
 	if ok {
+		ui.scrollAmt = 0
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
+}
+
+func (ui *UI) ScrollUp() {
+	w, _ := ui.screen.Size()
+	ui.scrollAmt += w / 2
+	ui.drawBuffer()
+}
+
+func (ui *UI) ScrollDown() {
+	if ui.scrollAmt == 0 {
+		return
+	}
+
+	w, _ := ui.screen.Size()
+	ui.scrollAmt -= w / 2
+	if ui.scrollAmt < 0 {
+		ui.scrollAmt = 0
+	}
+
+	ui.drawBuffer()
 }
 
 func (ui *UI) AddBuffer(title string) {
@@ -118,7 +142,11 @@ func (ui *UI) AddLine(buffer string, line string, t time.Time, isStatus bool) {
 	ui.bufferList.AddLine(idx, line, t, isStatus)
 
 	if idx == ui.bufferList.Current {
-		ui.drawBuffer()
+		if 0 < ui.scrollAmt {
+			ui.scrollAmt++
+		} else {
+			ui.drawBuffer()
+		}
 	}
 }
 
@@ -176,6 +204,7 @@ func (ui *UI) InputEnter() (content string) {
 
 func (ui *UI) Resize() {
 	ui.bufferList.Invalidate()
+	ui.scrollAmt = 0
 	ui.draw()
 }
 
@@ -242,17 +271,25 @@ func (ui *UI) drawBuffer() {
 	var colorState int
 	var fgColor, bgColor int
 
-	y0 := h - 2
+	yEnd := h - 2
+	y0 := ui.scrollAmt + h - 2
 
 	for i := len(b.Content) - 1; 0 <= i; i-- {
 		line := &b.Content[i]
 
+		if y0 < 0 {
+			break
+		}
+
 		lineHeight := line.RenderedHeight(w)
 		y0 -= lineHeight
-		y := y0
+		if yEnd <= y0 {
+			continue
+		}
 
 		rs := []rune(line.Content)
 		x := 0
+		y := y0
 		spIdx := 0
 		hasLineHadSplit := false
 
@@ -267,7 +304,7 @@ func (ui *UI) drawBuffer() {
 				hasLineHadSplit = false
 			}
 
-			if IsSplitRune(r) {
+			if line.SplitPoints[spIdx].Split {
 				if i == line.SplitPoints[spIdx].I {
 					spIdx++
 				}
@@ -368,10 +405,6 @@ func (ui *UI) drawBuffer() {
 				ui.screen.SetContent(x, y, r, nil, st)
 			}
 			x += runewidth.RuneWidth(r)
-		}
-
-		if y0 < 0 {
-			break
 		}
 
 		st = tcell.StyleDefault
