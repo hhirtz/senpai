@@ -419,7 +419,7 @@ func (ui *UI) drawBuffer() {
 				st = st.Background(colorFromCode(bgColor))
 			}
 
-			if r == 0x00 {
+			if r == 0x00 || r == 0x0F {
 				bold = false
 				italic = false
 				underline = false
