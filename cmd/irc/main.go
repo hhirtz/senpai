@@ -222,6 +222,15 @@ func handleInput(s *irc.Session, buffer, content string) {
 
 		line := fmt.Sprintf("\x01ACTION %s\x01", args)
 		s.PrivMsg(buffer, line)
+	case "MSG":
+		split := strings.SplitN(args, " ", 2)
+		if len(split) < 2 {
+			return
+		}
+
+		target := split[0]
+		content := split[1]
+		s.PrivMsg(target, content)
 	}
 }
 
