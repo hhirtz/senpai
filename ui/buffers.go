@@ -63,12 +63,13 @@ func (line *Line) RenderedHeight(screenWidth int) (height int) {
 	return
 }
 
+// TODO clean and understand the fucking function
 func (line *Line) computeRenderedHeight(screenWidth int) {
 	var lastSP Point
 	line.renderedHeight = 1
 	x := 0
 
-	fmt.Printf("\n%d %q\n", screenWidth, line.Content)
+	//fmt.Printf("\n%d %q\n", screenWidth, line.Content)
 	for _, sp := range line.SplitPoints {
 		l := sp.X - lastSP.X
 
@@ -77,15 +78,33 @@ func (line *Line) computeRenderedHeight(screenWidth int) {
 		} else if screenWidth < l {
 			line.renderedHeight += (x + l) / screenWidth
 			x = (x + l) % screenWidth
+		} else if screenWidth == l {
+			if x == 0 {
+				line.renderedHeight++
+			} else {
+				line.renderedHeight += 2
+				x = 0
+			}
 		} else if screenWidth < x+l {
 			line.renderedHeight++
-			x = l % screenWidth
+			if sp.Split {
+				x = l % screenWidth
+			} else {
+				x = 0
+			}
+		} else if screenWidth == x+l {
+			line.renderedHeight++
+			x = 0
 		} else {
-			x = (x + l) % screenWidth
+			x = x + l
 		}
 
-		fmt.Printf("%d %d %t occupied by %q\n", line.renderedHeight, x, sp.Split, line.Content[:sp.I])
+		//fmt.Printf("%d %d %t occupied by %q\n", line.renderedHeight, x, sp.Split, line.Content[:sp.I])
 		lastSP = sp
+	}
+
+	if x == 0 && 1 < line.renderedHeight {
+		line.renderedHeight--
 	}
 }
 

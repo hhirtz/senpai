@@ -104,7 +104,7 @@ func TestRenderedHeight(t *testing.T) {
 	assertRenderedHeight(t, "have a good day!", 2, 7)  // |ha|ve|a |go|od|da|y!|
 	assertRenderedHeight(t, "have a good day!", 3, 5)  // |hav|e a|goo|d d|ay!|
 	assertRenderedHeight(t, "have a good day!", 4, 4)  // |have|a   |good|day!|
-	assertRenderedHeight(t, "have a good day!", 5, 3)  // |have |a good|day! |
+	assertRenderedHeight(t, "have a good day!", 5, 4)  // |have |a    |good |day! |
 	assertRenderedHeight(t, "have a good day!", 6, 3)  // |have a|good  |day!  |
 	assertRenderedHeight(t, "have a good day!", 7, 3)  // |have a |good   |day!   |
 	assertRenderedHeight(t, "have a good day!", 8, 3)  // |have a  |good    |day!    |
