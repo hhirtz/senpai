@@ -12,8 +12,9 @@ type UI struct {
 	Events chan tcell.Event
 	exit   atomic.Value // bool
 
-	bufferList BufferList
-	scrollAmt  int
+	bufferList  BufferList
+	scrollAmt   int
+	scrollAtTop bool
 
 	textInput  []rune
 	textCursor int
@@ -83,6 +84,7 @@ func (ui *UI) NextBuffer() {
 	ok := ui.bufferList.Next()
 	if ok {
 		ui.scrollAmt = 0
+		ui.scrollAtTop = false
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
@@ -92,12 +94,17 @@ func (ui *UI) PreviousBuffer() {
 	ok := ui.bufferList.Previous()
 	if ok {
 		ui.scrollAmt = 0
+		ui.scrollAtTop = false
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
 }
 
 func (ui *UI) ScrollUp() {
+	if ui.scrollAtTop {
+		return
+	}
+
 	w, _ := ui.screen.Size()
 	ui.scrollAmt += w / 2
 	ui.drawBuffer()
@@ -113,6 +120,7 @@ func (ui *UI) ScrollDown() {
 	if ui.scrollAmt < 0 {
 		ui.scrollAmt = 0
 	}
+	ui.scrollAtTop = false
 
 	ui.drawBuffer()
 }
@@ -264,6 +272,7 @@ func (ui *UI) drawBuffer() {
 	b := ui.bufferList.List[ui.bufferList.Current]
 
 	if len(b.Content) == 0 {
+		ui.scrollAtTop = true
 		return
 	}
 
@@ -363,6 +372,10 @@ func (ui *UI) drawBuffer() {
 
 				ui.screen.SetContent(x, y, ',', nil, st)
 				x++
+				if w <= x {
+					y++
+					x = 0
+				}
 			} else if colorState == 5 {
 				colorState = 0
 				st = st.Foreground(colorFromCode(fgColor))
@@ -417,6 +430,7 @@ func (ui *UI) drawBuffer() {
 		colorState = 0
 	}
 
+	ui.scrollAtTop = true
 	ui.screen.Show()
 }
 
