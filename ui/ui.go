@@ -290,29 +290,32 @@ func (ui *UI) drawBuffer() {
 		rs := []rune(line.Content)
 		x := 0
 		y := y0
+		var lastSP Point
 		spIdx := 0
-		hasLineHadSplit := false
 
 		for i, r := range rs {
-			if hasLineHadSplit && (y-y0+1)*w <= line.SplitPoints[spIdx].X {
-				y++
-				x = 0
-				hasLineHadSplit = false
-			} else if w <= x {
-				y++
-				x = 0
-				hasLineHadSplit = false
+			if i == line.SplitPoints[spIdx].I {
+				lastSP = line.SplitPoints[spIdx]
+				spIdx++
+
+				l := line.SplitPoints[spIdx].X - lastSP.X
+
+				if w < l {
+				} else if w == l {
+					if x == 0 {
+						y++
+					}
+				} else if w < x+l {
+					y++
+					x = 0
+				}
 			}
-
-			if line.SplitPoints[spIdx].Split {
-				if i == line.SplitPoints[spIdx].I {
-					spIdx++
-				}
-				if x == 0 {
-					continue
-				}
-
-				hasLineHadSplit = true
+			if !line.SplitPoints[spIdx].Split && x == 0 {
+				continue
+			}
+			if w <= x {
+				y++
+				x = 0
 			}
 
 			if colorState == 1 {
