@@ -117,4 +117,22 @@ func TestRenderedHeight(t *testing.T) {
 	assertRenderedHeight(t, "have a good day!", 15, 2) // |have a good    |day!           |
 	assertRenderedHeight(t, "have a good day!", 16, 1) // |have a good day!|
 	assertRenderedHeight(t, "have a good day!", 17, 1) // |have a good day! |
+
+	// LEN=15, WIDTH=11
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 1, 10) // |b|a|r|m|a|n|d|:|c|c|
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 2, 5)  // |ba|rm|an|d:|cc|
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 3, 4)  // |bar|man|d: |cc |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 4, 3)  // |barm|and:|cc  |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 5, 3)  // |barma|nd:  |cc   |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 6, 2)  // |barman|d: cc |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 7, 2)  // |barmand|: cc   |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 8, 2)  // |barmand:|cc      |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 9, 2)  // |barmand: |cc       |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 10, 2) // |barmand:  |cc        |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 11, 1) // |barmand: cc|
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 12, 1) // |barmand: cc |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 13, 1) // |barmand: cc  |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 14, 1) // |barmand: cc   |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 15, 1) // |barmand: cc    |
+	assertRenderedHeight(t, "\x0342barmand\x03: cc", 16, 1) // |barmand: cc     |
 }
