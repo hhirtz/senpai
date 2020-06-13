@@ -90,6 +90,7 @@ var (
 )
 
 var (
+	errEmptyBatchID    = errors.New("empty BATCH ID")
 	errNoPrefix        = errors.New("missing prefix")
 	errNotEnoughParams = errors.New("not enough params")
 	errUnknownCommand  = errors.New("unknown command")
@@ -223,6 +224,26 @@ func (msg *Message) Validate() (err error) {
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
 		}
+	case "BATCH":
+		if len(msg.Params) < 1 {
+			err = errNotEnoughParams
+			break
+		}
+		if len(msg.Params[0]) < 2 {
+			err = errEmptyBatchID
+			break
+		}
+		if msg.Params[0][0] == '+' {
+			if len(msg.Params) < 2 {
+				err = errNotEnoughParams
+				break
+			}
+			if msg.Params[1] == "chathistory" && len(msg.Params) < 3 {
+				err = errNotEnoughParams
+			}
+		} else if msg.Params[0][0] != '-' {
+			err = errEmptyBatchID
+		}
 	case "PING":
 		if len(msg.Params) < 1 {
 			err = errNotEnoughParams
@@ -253,7 +274,7 @@ func (msg *Message) Time() (t time.Time, ok bool) {
 		return
 	}
 
-	t = time.Date(year, time.Month(month), day, hour, minute, second, millis*1000000, time.UTC)
+	t = time.Date(year, time.Month(month), day, hour, minute, second, millis*1e6, time.UTC)
 	t = t.Local()
 
 	return

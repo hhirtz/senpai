@@ -80,24 +80,36 @@ func (ui *UI) CurrentBuffer() (title string) {
 	return
 }
 
-func (ui *UI) NextBuffer() {
-	ok := ui.bufferList.Next()
-	if ok {
-		ui.scrollAmt = 0
-		ui.scrollAtTop = false
-		ui.drawBuffer()
-		ui.drawStatus()
+func (ui *UI) CurrentBufferOldestTime() (t time.Time) {
+	b := ui.bufferList.List[ui.bufferList.Current].Content
+	if len(b) == 0 {
+		t = time.Now()
+	} else {
+		t = b[0].Time
 	}
+	return
 }
 
-func (ui *UI) PreviousBuffer() {
-	ok := ui.bufferList.Previous()
+func (ui *UI) NextBuffer() (ok bool) {
+	ok = ui.bufferList.Next()
 	if ok {
 		ui.scrollAmt = 0
 		ui.scrollAtTop = false
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
+	return
+}
+
+func (ui *UI) PreviousBuffer() (ok bool) {
+	ok = ui.bufferList.Previous()
+	if ok {
+		ui.scrollAmt = 0
+		ui.scrollAtTop = false
+		ui.drawBuffer()
+		ui.drawStatus()
+	}
+	return
 }
 
 func (ui *UI) ScrollUp() {
@@ -105,8 +117,8 @@ func (ui *UI) ScrollUp() {
 		return
 	}
 
-	w, _ := ui.screen.Size()
-	ui.scrollAmt += w / 2
+	_, h := ui.screen.Size()
+	ui.scrollAmt += h / 2
 	ui.drawBuffer()
 }
 
@@ -115,14 +127,18 @@ func (ui *UI) ScrollDown() {
 		return
 	}
 
-	w, _ := ui.screen.Size()
-	ui.scrollAmt -= w / 2
+	_, h := ui.screen.Size()
+	ui.scrollAmt -= h / 2
 	if ui.scrollAmt < 0 {
 		ui.scrollAmt = 0
 	}
 	ui.scrollAtTop = false
 
 	ui.drawBuffer()
+}
+
+func (ui *UI) IsAtTop() bool {
+	return ui.scrollAtTop
 }
 
 func (ui *UI) AddBuffer(title string) {
@@ -155,6 +171,20 @@ func (ui *UI) AddLine(buffer string, line string, t time.Time, isStatus bool) {
 		} else {
 			ui.drawBuffer()
 		}
+	}
+}
+
+func (ui *UI) AddHistoryLines(buffer string, lines []Line) {
+	idx := ui.bufferList.Idx(buffer)
+	if idx < 0 {
+		return
+	}
+
+	ui.bufferList.AddHistoryLines(idx, lines)
+
+	if idx == ui.bufferList.Current {
+		ui.scrollAtTop = false
+		ui.drawBuffer()
 	}
 }
 
@@ -430,7 +460,7 @@ func (ui *UI) drawBuffer() {
 		colorState = 0
 	}
 
-	ui.scrollAtTop = true
+	ui.scrollAtTop = 0 <= y0
 	ui.screen.Show()
 }
 

@@ -61,3 +61,8 @@ type ChannelMessageEvent struct {
 	Content string
 	Time    time.Time
 }
+
+type HistoryEvent struct {
+	Target   string
+	Messages []Event
+}

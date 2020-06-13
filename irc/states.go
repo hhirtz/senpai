@@ -47,6 +47,7 @@ var SupportedCapabilities = map[string]struct{}{
 	"away-notify":       {},
 	"batch":             {},
 	"cap-notify":        {},
+	"draft/chathistory": {},
 	"echo-message":      {},
 	"extended-join":     {},
 	"invite-notify":     {},
@@ -92,7 +93,7 @@ type (
 	}
 
 	actionPrivMsg struct {
-		Channel string
+		Target  string
 		Content string
 	}
 
@@ -101,6 +102,11 @@ type (
 	}
 	actionTypingStop struct {
 		Channel string
+	}
+
+	actionRequestHistory struct {
+		Target string
+		Before time.Time
 	}
 )
 
@@ -137,16 +143,17 @@ type Session struct {
 	enabledCaps   map[string]struct{}
 	features      map[string]string
 
-	users    map[string]User
-	channels map[string]Channel
+	users     map[string]User
+	channels  map[string]Channel
+	chBatches map[string]HistoryEvent
 }
 
 func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err error) {
 	s = Session{
 		conn:          conn,
-		msgs:          make(chan Message, 128),
-		acts:          make(chan action, 128),
-		evts:          make(chan Event, 128),
+		msgs:          make(chan Message, 16),
+		acts:          make(chan action, 16),
+		evts:          make(chan Event, 16),
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
 		lNick:         strings.ToLower(params.Nickname),
@@ -158,6 +165,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 		features:      map[string]string{},
 		users:         map[string]User{},
 		channels:      map[string]Channel{},
+		chBatches:     map[string]HistoryEvent{},
 	}
 
 	s.running.Store(true)
@@ -230,12 +238,12 @@ func (s *Session) part(act actionPart) (err error) {
 	return
 }
 
-func (s *Session) PrivMsg(channel, content string) {
-	s.acts <- actionPrivMsg{channel, content}
+func (s *Session) PrivMsg(target, content string) {
+	s.acts <- actionPrivMsg{target, content}
 }
 
 func (s *Session) privMsg(act actionPrivMsg) (err error) {
-	err = s.send("PRIVMSG %s :%s\r\n", act.Channel, act.Content)
+	err = s.send("PRIVMSG %s :%s\r\n", act.Target, act.Content)
 	return
 }
 
@@ -261,8 +269,8 @@ func (s *Session) typing(act actionTyping) (err error) {
 	return
 }
 
-func (s *Session) TypingStop(to string) {
-	s.acts <- actionTypingStop{to}
+func (s *Session) TypingStop(channel string) {
+	s.acts <- actionTypingStop{channel}
 }
 
 func (s *Session) typingStop(act actionTypingStop) (err error) {
@@ -271,6 +279,21 @@ func (s *Session) typingStop(act actionTypingStop) (err error) {
 	}
 
 	err = s.send("@+typing=done TAGMSG %s\r\n", act.Channel)
+	return
+}
+
+func (s *Session) RequestHistory(target string, before time.Time) {
+	s.acts <- actionRequestHistory{target, before}
+}
+
+func (s *Session) requestHistory(act actionRequestHistory) (err error) {
+	if _, ok := s.enabledCaps["draft/chathistory"]; !ok {
+		return
+	}
+
+	t := act.Before
+	err = s.send("CHATHISTORY BEFORE %s timestamp=%04d-%02d-%02dT%02d:%02d:%02d.%03dZ 100\r\n", act.Target, t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1e6)
+
 	return
 }
 
@@ -294,6 +317,8 @@ func (s *Session) run() {
 				err = s.typing(act)
 			case actionTypingStop:
 				err = s.typingStop(act)
+			case actionRequestHistory:
+				err = s.requestHistory(act)
 			}
 		case msg := <-s.msgs:
 			if s.state == ConnStart {
@@ -415,6 +440,16 @@ func (s *Session) handleStart(msg Message) (ev Event, err error) {
 }
 
 func (s *Session) handle(msg Message) (ev Event, err error) {
+	if id, ok := msg.Tags["batch"]; ok {
+		if b, ok := s.chBatches[id]; ok {
+			s.chBatches[id] = HistoryEvent{
+				Target:   b.Target,
+				Messages: append(b.Messages, s.privmsgToEvent(msg)),
+			}
+			return
+		}
+	}
+
 	switch msg.Command {
 	case "001": // RPL_WELCOME
 		s.nick = msg.Params[0]
@@ -608,33 +643,19 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			c.Topic = msg.Params[2]
 		}
 	case "PRIVMSG":
-		nick, _, _ := FullMask(msg.Prefix)
-		target := strings.ToLower(msg.Params[0])
+		ev = s.privmsgToEvent(msg)
+	case "BATCH":
+		batchStart := msg.Params[0][0] == '+'
+		id := msg.Params[0][1:]
 
-		if target == s.lNick {
-			// PRIVMSG to self
-			t, ok := msg.Time()
-			if !ok {
-				t = time.Now()
-			}
-			ev = QueryMessageEvent{
-				UserEvent: UserEvent{Nick: nick},
-				Content:   msg.Params[1],
-				Time:      t,
-			}
-		} else if _, ok := s.channels[target]; ok {
-			// PRIVMSG to channel
-			t, ok := msg.Time()
-			if !ok {
-				t = time.Now()
-			}
-			ev = ChannelMessageEvent{
-				UserEvent:    UserEvent{Nick: nick},
-				ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
-				Content:      msg.Params[1],
-				Time:         t,
-			}
+		if batchStart && msg.Params[1] == "chathistory" {
+			s.chBatches[id] = HistoryEvent{Target: msg.Params[2]}
+		} else if b, ok := s.chBatches[id]; ok {
+			ev = b
+			delete(s.chBatches, id)
 		}
+	case "FAIL":
+		fmt.Println("FAIL", msg.Params)
 	case "PING":
 		err = s.send("PONG :%s\r\n", msg.Params[0])
 		if err != nil {
@@ -648,6 +669,38 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 		s.state = ConnQuit
 	default:
 	}
+	return
+}
+
+func (s *Session) privmsgToEvent(msg Message) (ev Event) {
+	nick, _, _ := FullMask(msg.Prefix)
+	target := strings.ToLower(msg.Params[0])
+
+	if target == s.lNick {
+		// PRIVMSG to self
+		t, ok := msg.Time()
+		if !ok {
+			t = time.Now()
+		}
+		ev = QueryMessageEvent{
+			UserEvent: UserEvent{Nick: nick},
+			Content:   msg.Params[1],
+			Time:      t,
+		}
+	} else if _, ok := s.channels[target]; ok {
+		// PRIVMSG to channel
+		t, ok := msg.Time()
+		if !ok {
+			t = time.Now()
+		}
+		ev = ChannelMessageEvent{
+			UserEvent:    UserEvent{Nick: nick},
+			ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
+			Content:      msg.Params[1],
+			Time:         t,
+		}
+	}
+
 	return
 }
 

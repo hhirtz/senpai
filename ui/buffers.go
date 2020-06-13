@@ -52,11 +52,11 @@ func NewLineNow(content string) (line Line) {
 }
 
 func (line *Line) Invalidate() {
-	line.renderedHeight = -1
+	line.renderedHeight = 0
 }
 
 func (line *Line) RenderedHeight(screenWidth int) (height int) {
-	if line.renderedHeight < 0 {
+	if line.renderedHeight <= 0 {
 		line.computeRenderedHeight(screenWidth)
 	}
 	height = line.renderedHeight
@@ -248,6 +248,31 @@ func (bs *BufferList) AddLine(idx int, line string, t time.Time, isStatus bool) 
 		l := NewLine(t, isStatus, line)
 		b.Content = append(b.Content, l)
 	}
+}
+
+func (bs *BufferList) AddHistoryLines(idx int, lines []Line) {
+	if len(lines) == 0 {
+		return
+	}
+
+	b := &bs.List[idx]
+	limit := -1
+
+	if len(b.Content) != 0 {
+		firstTime := b.Content[0].Time.Round(time.Millisecond)
+		for i := len(lines) - 1; i >= 0; i-- {
+			if firstTime == lines[i].Time.Round(time.Millisecond) {
+				limit = i
+				break
+			}
+		}
+	}
+
+	if limit == -1 {
+		limit = len(lines)
+	}
+
+	bs.List[idx].Content = append(lines[:limit], b.Content...)
 }
 
 func (bs *BufferList) Invalidate() {

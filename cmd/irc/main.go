@@ -42,9 +42,9 @@ func main() {
 	}
 
 	s, err := irc.NewSession(conn, irc.SessionParams{
-		Nickname: "taiite",
-		Username: "taiitent",
-		RealName: "Taiite Ier",
+		Nickname: "ME",
+		Username: "MEMEMEMEMEM",
+		RealName: "Le me",
 		Auth:     &irc.SASLPlain{Username: cfg.User, Password: cfg.Password},
 	})
 	if err != nil {
@@ -71,6 +71,29 @@ func main() {
 			case irc.ChannelMessageEvent:
 				line := formatIRCMessage(ev.Nick, ev.Content)
 				app.AddLine(ev.Channel, line, ev.Time, false)
+			case irc.HistoryEvent:
+				var lines []ui.Line
+				var lastT time.Time
+				isChannel := ev.Target[0] == '#'
+				for _, m := range ev.Messages {
+					switch m := m.(type) {
+					case irc.ChannelMessageEvent:
+						if isChannel {
+							line := formatIRCMessage(m.Nick, m.Content)
+							line = strings.TrimRight(line, "\t ")
+							if lastT.Truncate(time.Minute) != m.Time.Truncate(time.Minute) {
+								lastT = m.Time
+								hour := lastT.Hour()
+								minute := lastT.Minute()
+								line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
+							}
+							lines = append(lines, ui.NewLine(m.Time, false, line))
+						} else {
+							panic("TODO")
+						}
+					}
+				}
+				app.AddHistoryLines(ev.Target, lines)
 			case error:
 				log.Panicln(ev)
 			}
@@ -85,22 +108,47 @@ func main() {
 				case tcell.KeyCtrlL:
 					app.Resize()
 				case tcell.KeyCtrlU:
+					fallthrough
+				case tcell.KeyPgUp:
 					app.ScrollUp()
+					if app.IsAtTop() {
+						buffer := app.CurrentBuffer()
+						t := app.CurrentBufferOldestTime()
+						s.RequestHistory(buffer, t)
+					}
 				case tcell.KeyCtrlD:
+					fallthrough
+				case tcell.KeyPgDn:
 					app.ScrollDown()
 				case tcell.KeyCtrlN:
-					app.NextBuffer()
+					if app.NextBuffer() && app.IsAtTop() {
+						buffer := app.CurrentBuffer()
+						t := app.CurrentBufferOldestTime()
+						s.RequestHistory(buffer, t)
+					}
 				case tcell.KeyCtrlP:
-					app.PreviousBuffer()
+					if app.PreviousBuffer() && app.IsAtTop() {
+						buffer := app.CurrentBuffer()
+						t := app.CurrentBufferOldestTime()
+						s.RequestHistory(buffer, t)
+					}
 				case tcell.KeyRight:
 					if ev.Modifiers() == tcell.ModAlt {
-						app.NextBuffer()
+						if app.NextBuffer() && app.IsAtTop() {
+							buffer := app.CurrentBuffer()
+							t := app.CurrentBufferOldestTime()
+							s.RequestHistory(buffer, t)
+						}
 					} else {
 						app.InputRight()
 					}
 				case tcell.KeyLeft:
 					if ev.Modifiers() == tcell.ModAlt {
-						app.PreviousBuffer()
+						if app.PreviousBuffer() && app.IsAtTop() {
+							buffer := app.CurrentBuffer()
+							t := app.CurrentBufferOldestTime()
+							s.RequestHistory(buffer, t)
+						}
 					} else {
 						app.InputLeft()
 					}
