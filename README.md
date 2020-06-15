@@ -2,9 +2,9 @@
 
 Welcome home, desune~
 
-Works best with jounce!
+Works best with soju!
 
-# ... How?
+## ... How?
 
 ```shell
 mkdir -p ~/.config/senpai
@@ -17,6 +17,8 @@ password: "my password can't be this cute"' > ~/.config/senpai/senpai.yaml
 go run ./cmd/irc
 ```
 
-# License
+## License
 
 This senpai is open source! Please use it under the ISC license.
+
+Copyright (C) 2020 Hubert Hirtz
