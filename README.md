@@ -8,12 +8,13 @@ Works best with soju!
 
 ```shell
 mkdir -p ~/.config/senpai
-echo '
+cat <<EOF >~/.config/senpai/senpai.yaml
 addr: irc.freenode.net:6697
 nick: senpai
 real: Senpai is the best senpai
 user: sasluser
-password: "my password can't be this cute"' > ~/.config/senpai/senpai.yaml
+password: "my password can't be this cute"
+EOF
 go run ./cmd/irc
 ```
 
