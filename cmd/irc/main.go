@@ -9,7 +9,7 @@ import (
 	"github.com/gdamore/tcell"
 	"hash/fnv"
 	"log"
-	"os/user"
+	"os"
 	"strings"
 	"time"
 )
@@ -17,12 +17,12 @@ import (
 func main() {
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)
 
-	usr, err := user.Current()
+	configDir, err := os.UserConfigDir()
 	if err != nil {
 		log.Panicln(err)
 	}
 
-	cfg, err := senpai.LoadConfigFile(usr.HomeDir + "/.config/senpai/senpai.yaml")
+	cfg, err := senpai.LoadConfigFile(configDir + "/senpai/senpai.yaml")
 	if err != nil {
 		log.Panicln(err)
 	}
