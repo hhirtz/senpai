@@ -7,6 +7,8 @@ import (
 
 type Config struct {
 	Addr string
+	Nick string
+	Real string
 	User string
 	Password string
 }

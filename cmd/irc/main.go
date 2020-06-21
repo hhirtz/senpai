@@ -42,9 +42,9 @@ func main() {
 	}
 
 	s, err := irc.NewSession(conn, irc.SessionParams{
-		Nickname: "ME",
-		Username: "MEMEMEMEMEM",
-		RealName: "Le me",
+		Nickname: cfg.Nick,
+		Username: cfg.Nick,
+		RealName: cfg.Real,
 		Auth:     &irc.SASLPlain{Username: cfg.User, Password: cfg.Password},
 	})
 	if err != nil {
