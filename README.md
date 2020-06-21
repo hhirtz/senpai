@@ -17,6 +17,12 @@ password: "my password can't be this cute"' > ~/.config/senpai/senpai.yaml
 go run ./cmd/irc
 ```
 
+## Contributing and stuff
+
+Patches are welcome at <mailto:~taiite/public-inbox@lists.sr.ht>!
+
+Browse tickets at <https://todo.sr.ht/~taiite/senpai>.
+
 ## License
 
 This senpai is open source! Please use it under the ISC license.
