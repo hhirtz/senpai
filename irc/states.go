@@ -611,6 +611,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				continue
 			}
 
+			// TODO UserQuitEvent
 			ev = UserPartEvent{
 				ChannelEvent: ChannelEvent{Channel: c.Name},
 				UserEvent:    UserEvent{Nick: nick},
@@ -644,6 +645,48 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 		}
 	case "PRIVMSG":
 		ev = s.privmsgToEvent(msg)
+	case "TAGMSG":
+		nick, _, _ := FullMask(msg.Prefix)
+		target := strings.ToLower(msg.Params[0])
+
+		if strings.ToLower(nick) == s.lNick {
+			// TAGMSG from self
+			break
+		}
+
+		typing := 0
+		if t, ok := msg.Tags["+typing"]; ok {
+			if t == "active" {
+				typing = 1
+			} else if t == "paused" {
+				typing = 2
+			} else if t == "done" {
+				typing = 3
+			}
+		} else {
+			break
+		}
+
+		t, ok := msg.Time()
+		if !ok {
+			t = time.Now()
+		}
+		if target == s.lNick {
+			// TAGMSG to self
+			ev = QueryTypingEvent{
+				UserEvent: UserEvent{Nick: nick},
+				State:     typing,
+				Time:      t,
+			}
+		} else if _, ok := s.channels[target]; ok {
+			// TAGMSG to channel
+			ev = ChannelTypingEvent{
+				UserEvent:    UserEvent{Nick: nick},
+				ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
+				State:        typing,
+				Time:         t,
+			}
+		}
 	case "BATCH":
 		batchStart := msg.Params[0][0] == '+'
 		id := msg.Params[0][1:]
@@ -676,12 +719,13 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 	nick, _, _ := FullMask(msg.Prefix)
 	target := strings.ToLower(msg.Params[0])
 
+	t, ok := msg.Time()
+	if !ok {
+		t = time.Now()
+	}
+
 	if target == s.lNick {
 		// PRIVMSG to self
-		t, ok := msg.Time()
-		if !ok {
-			t = time.Now()
-		}
 		ev = QueryMessageEvent{
 			UserEvent: UserEvent{Nick: nick},
 			Content:   msg.Params[1],
@@ -689,10 +733,6 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 		}
 	} else if _, ok := s.channels[target]; ok {
 		// PRIVMSG to channel
-		t, ok := msg.Time()
-		if !ok {
-			t = time.Now()
-		}
 		ev = ChannelMessageEvent{
 			UserEvent:    UserEvent{Nick: nick},
 			ChannelEvent: ChannelEvent{Channel: msg.Params[0]},

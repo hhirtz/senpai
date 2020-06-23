@@ -220,6 +220,20 @@ func (msg *Message) Validate() (err error) {
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}
+	case "PRIVMSG":
+		fallthrough
+	case "NOTICE":
+		if len(msg.Params) < 2 {
+			err = errNotEnoughParams
+		} else if msg.Prefix == "" {
+			err = errNoPrefix
+		}
+	case "TAGMSG":
+		if len(msg.Params) < 1 {
+			err = errNotEnoughParams
+		} else if msg.Prefix == "" {
+			err = errNoPrefix
+		}
 	case "TOPIC":
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams

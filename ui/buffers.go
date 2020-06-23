@@ -140,6 +140,7 @@ type Buffer struct {
 	Title      string
 	Highlights int
 	Content    []Line
+	Typings    []string
 }
 
 type BufferList struct {
@@ -279,6 +280,29 @@ func (bs *BufferList) Invalidate() {
 	for i := range bs.List {
 		for j := range bs.List[i].Content {
 			bs.List[i].Content[j].Invalidate()
+		}
+	}
+}
+
+func (bs *BufferList) TypingStart(idx int, nick string) {
+	b := &bs.List[idx]
+
+	for _, n := range b.Typings {
+		if n == nick {
+			return
+		}
+	}
+
+	b.Typings = append(b.Typings, nick)
+}
+
+func (bs *BufferList) TypingStop(idx int, nick string) {
+	b := &bs.List[idx]
+
+	for i, n := range b.Typings {
+		if n == nick {
+			b.Typings = append(b.Typings[:i], b.Typings[i+1:]...)
+			return
 		}
 	}
 }

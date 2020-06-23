@@ -95,6 +95,7 @@ func (ui *UI) NextBuffer() (ok bool) {
 	if ok {
 		ui.scrollAmt = 0
 		ui.scrollAtTop = false
+		ui.drawTyping()
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
@@ -106,6 +107,7 @@ func (ui *UI) PreviousBuffer() (ok bool) {
 	if ok {
 		ui.scrollAmt = 0
 		ui.scrollAtTop = false
+		ui.drawTyping()
 		ui.drawBuffer()
 		ui.drawStatus()
 	}
@@ -145,6 +147,7 @@ func (ui *UI) AddBuffer(title string) {
 	_, ok := ui.bufferList.Add(title)
 	if ok {
 		ui.drawStatus()
+		ui.drawTyping()
 		ui.drawBuffer() // TODO only invalidate buffer list
 	}
 }
@@ -153,6 +156,7 @@ func (ui *UI) RemoveBuffer(title string) {
 	ok := ui.bufferList.Remove(title)
 	if ok {
 		ui.drawStatus()
+		ui.drawTyping()
 		ui.drawBuffer()
 	}
 }
@@ -171,6 +175,32 @@ func (ui *UI) AddLine(buffer string, line string, t time.Time, isStatus bool) {
 		} else {
 			ui.drawBuffer()
 		}
+	}
+}
+
+func (ui *UI) TypingStart(buffer, nick string) {
+	idx := ui.bufferList.Idx(buffer)
+	if idx < 0 {
+		return
+	}
+
+	ui.bufferList.TypingStart(idx, nick)
+
+	if idx == ui.bufferList.Current {
+		ui.drawTyping()
+	}
+}
+
+func (ui *UI) TypingStop(buffer, nick string) {
+	idx := ui.bufferList.Idx(buffer)
+	if idx < 0 {
+		return
+	}
+
+	ui.bufferList.TypingStop(idx, nick)
+
+	if idx == ui.bufferList.Current {
+		ui.drawTyping()
 	}
 }
 
@@ -249,6 +279,7 @@ func (ui *UI) Resize() {
 func (ui *UI) draw() {
 	ui.drawStatus()
 	ui.drawEditor()
+	ui.drawTyping()
 	ui.drawBuffer()
 }
 
@@ -286,6 +317,106 @@ func (ui *UI) drawEditor() {
 	ui.screen.Show()
 }
 
+func (ui *UI) drawTyping() {
+	st := tcell.StyleDefault.Dim(true)
+	w, h := ui.screen.Size()
+	if w == 0 {
+		return
+	}
+
+	nicks := ui.bufferList.List[ui.bufferList.Current].Typings
+	if len(nicks) == 0 {
+		return
+	}
+
+	x := 0
+	y := h - 3
+
+	if 1 < len(nicks) {
+		for _, nick := range nicks[:len(nicks)-2] {
+			for _, r := range nick {
+				if w <= x {
+					return
+				}
+				ui.screen.SetContent(x, y, r, nil, st)
+				x += runewidth.RuneWidth(r)
+			}
+
+			if w <= x {
+				return
+			}
+			ui.screen.SetContent(x, y, ',', nil, st)
+			x++
+			if w <= x {
+				return
+			}
+			ui.screen.SetContent(x, y, ' ', nil, st)
+			x++
+		}
+
+		for _, r := range nicks[len(nicks)-2] {
+			if w <= x {
+				return
+			}
+			ui.screen.SetContent(x, y, r, nil, st)
+			x += runewidth.RuneWidth(r)
+		}
+
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, ' ', nil, st)
+		x++
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, 'a', nil, st)
+		x++
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, 'n', nil, st)
+		x++
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, 'd', nil, st)
+		x++
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, ' ', nil, st)
+		x++
+	}
+
+	for _, r := range nicks[len(nicks)-1] {
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, r, nil, st)
+		x += runewidth.RuneWidth(r)
+	}
+
+	verb := " are typing..."
+	if len(nicks) == 1 {
+		verb = " is typing..."
+	}
+
+	for _, r := range verb {
+		if w <= x {
+			return
+		}
+		ui.screen.SetContent(x, y, r, nil, st)
+		x += runewidth.RuneWidth(r)
+	}
+
+	for ; x < w; x++ {
+		ui.screen.SetContent(x, y, ' ', nil, st)
+	}
+
+	ui.screen.Show()
+}
+
 func (ui *UI) drawBuffer() {
 	st := tcell.StyleDefault
 	w, h := ui.screen.Size()
@@ -294,7 +425,7 @@ func (ui *UI) drawBuffer() {
 	}
 
 	for x := 0; x < w; x++ {
-		for y := 0; y < h-2; y++ {
+		for y := 0; y < h-3; y++ {
 			ui.screen.SetContent(x, y, ' ', nil, st)
 		}
 	}
@@ -310,8 +441,8 @@ func (ui *UI) drawBuffer() {
 	var colorState int
 	var fgColor, bgColor int
 
-	yEnd := h - 2
-	y0 := ui.scrollAmt + h - 2
+	yEnd := h - 3
+	y0 := ui.scrollAmt + h - 3
 
 	for i := len(b.Content) - 1; 0 <= i; i-- {
 		line := &b.Content[i]

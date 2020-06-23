@@ -71,6 +71,13 @@ func main() {
 			case irc.ChannelMessageEvent:
 				line := formatIRCMessage(ev.Nick, ev.Content)
 				app.AddLine(ev.Channel, line, ev.Time, false)
+				app.TypingStop(ev.Channel, ev.Nick)
+			case irc.ChannelTypingEvent:
+				if ev.State == 1 || ev.State == 2 {
+					app.TypingStart(ev.Channel, ev.Nick)
+				} else {
+					app.TypingStop(ev.Channel, ev.Nick)
+				}
 			case irc.HistoryEvent:
 				var lines []ui.Line
 				var lastT time.Time

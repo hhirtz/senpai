@@ -62,6 +62,19 @@ type ChannelMessageEvent struct {
 	Time    time.Time
 }
 
+type QueryTypingEvent struct {
+	UserEvent
+	State int
+	Time  time.Time
+}
+
+type ChannelTypingEvent struct {
+	UserEvent
+	ChannelEvent
+	State int
+	Time  time.Time
+}
+
 type HistoryEvent struct {
 	Target   string
 	Messages []Event
