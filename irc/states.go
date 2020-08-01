@@ -706,6 +706,17 @@ func (s *Session) handle(msg Message) (err error) {
 			s.evts <- b
 			delete(s.chBatches, id)
 		}
+	case "NICK":
+		nick, _, _ := FullMask(msg.Prefix)
+		lNick := strings.ToLower(nick)
+		newNick := msg.Params[0]
+		lNewNick := strings.ToLower(newNick)
+
+		if lNick == s.lNick {
+			s.nick = newNick
+			s.lNick = lNewNick
+		} else {
+		}
 	case "FAIL":
 		fmt.Println("FAIL", msg.Params)
 	case "PING":
