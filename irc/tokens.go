@@ -156,19 +156,19 @@ func Tokenize(line string) (msg Message, err error) {
 
 func (msg *Message) Validate() (err error) {
 	switch msg.Command {
-	case "001":
+	case rplWelcome:
 		if len(msg.Params) < 1 {
 			err = errNotEnoughParams
 		}
-	case "005":
+	case rplIsupport:
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}
-	case "352":
+	case rplWhoreply:
 		if len(msg.Params) < 8 {
 			err = errNotEnoughParams
 		}
-	case "372":
+	case rplMotd:
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
 		}
@@ -176,11 +176,11 @@ func (msg *Message) Validate() (err error) {
 		if len(msg.Params) < 1 {
 			err = errNotEnoughParams
 		}
-	case "900":
+	case rplLoggedin:
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}
-	case "901":
+	case rplLoggedout:
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
 		}
@@ -212,11 +212,11 @@ func (msg *Message) Validate() (err error) {
 		if msg.Prefix == "" {
 			err = errNoPrefix
 		}
-	case "353":
+	case rplNamreply:
 		if len(msg.Params) < 4 {
 			err = errNotEnoughParams
 		}
-	case "332":
+	case rplTopic:
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}

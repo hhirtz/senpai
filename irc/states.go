@@ -354,7 +354,7 @@ func (s *Session) handleStart(msg Message) (ev Event, err error) {
 				return
 			}
 		}
-	case "900":
+	case rplLoggedin:
 		err = s.send("CAP END\r\n")
 		if err != nil {
 			return
@@ -362,7 +362,7 @@ func (s *Session) handleStart(msg Message) (ev Event, err error) {
 
 		s.acct = msg.Params[2]
 		_, _, s.host = FullMask(msg.Params[1])
-	case "902", "904", "905", "906", "907", "908":
+	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
 		err = s.send("CAP END\r\n")
 		if err != nil {
 			return
@@ -423,9 +423,9 @@ func (s *Session) handleStart(msg Message) (ev Event, err error) {
 				}
 			}
 		}
-	case "372": // RPL_MOTD
+	case errNomotd:
 		s.motd += "\n" + strings.TrimPrefix(msg.Params[1], "- ")
-	case "433": // ERR_NICKNAMEINUSE
+	case errNicknameinuse:
 		s.nick = s.nick + "_"
 
 		err = s.send("NICK %s\r\n", s.nick)
@@ -451,7 +451,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 	}
 
 	switch msg.Command {
-	case "001": // RPL_WELCOME
+	case rplWelcome:
 		s.nick = msg.Params[0]
 		s.lNick = strings.ToLower(s.nick)
 		s.state = ConnRegistered
@@ -463,9 +463,9 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				return
 			}
 		}
-	case "005": // RPL_ISUPPORT
+	case rplIsupport:
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
-	case "352": // RPL_WHOREPLY
+	case rplWhoreply:
 		if s.lNick == strings.ToLower(msg.Params[5]) {
 			s.host = msg.Params[3]
 		}
@@ -618,7 +618,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				Time:         t,
 			}
 		}
-	case "353": // RPL_NAMREPLY
+	case rplNamreply:
 		channel := strings.ToLower(msg.Params[2])
 
 		if c, ok := s.channels[channel]; ok {
@@ -635,9 +635,9 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				c.Members[lNick] = name.PowerLevel
 			}
 		}
-	case "366": // RPL_ENDOFNAMES
+	case rplEndofnames:
 		ev = SelfJoinEvent{ChannelEvent{Channel: msg.Params[1]}}
-	case "332": // RPL_TOPIC
+	case rplTopic:
 		channel := strings.ToLower(msg.Params[1])
 
 		if c, ok := s.channels[channel]; ok {
