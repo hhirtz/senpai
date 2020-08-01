@@ -299,10 +299,7 @@ func (s *Session) requestHistory(act actionRequestHistory) (err error) {
 
 func (s *Session) run() {
 	for s.Running() {
-		var (
-			ev  Event
-			err error
-		)
+		var err error
 
 		select {
 		case act := <-s.acts:
@@ -322,22 +319,19 @@ func (s *Session) run() {
 			}
 		case msg := <-s.msgs:
 			if s.state == ConnStart {
-				ev, err = s.handleStart(msg)
+				err = s.handleStart(msg)
 			} else if s.state == ConnRegistered {
-				ev, err = s.handle(msg)
+				err = s.handle(msg)
 			}
 		}
 
-		if ev != nil {
-			s.evts <- ev
-		}
 		if err != nil {
 			s.evts <- err
 		}
 	}
 }
 
-func (s *Session) handleStart(msg Message) (ev Event, err error) {
+func (s *Session) handleStart(msg Message) (err error) {
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth != nil {
@@ -433,13 +427,13 @@ func (s *Session) handleStart(msg Message) (ev Event, err error) {
 			return
 		}
 	default:
-		ev, err = s.handle(msg)
+		err = s.handle(msg)
 	}
 
 	return
 }
 
-func (s *Session) handle(msg Message) (ev Event, err error) {
+func (s *Session) handle(msg Message) (err error) {
 	if id, ok := msg.Tags["batch"]; ok {
 		if b, ok := s.chBatches[id]; ok {
 			s.chBatches[id] = HistoryEvent{
@@ -455,7 +449,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 		s.nick = msg.Params[0]
 		s.lNick = strings.ToLower(s.nick)
 		s.state = ConnRegistered
-		ev = RegisteredEvent{}
+		s.evts <- RegisteredEvent{}
 
 		if s.host == "" {
 			err = s.send("WHO %s\r\n", s.nick)
@@ -568,7 +562,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				t = time.Now()
 			}
 
-			ev = UserJoinEvent{
+			s.evts <- UserJoinEvent{
 				ChannelEvent: channelEv,
 				UserEvent:    UserEvent{Nick: nick},
 				Time:         t,
@@ -582,7 +576,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 
 		if lNick == s.lNick {
 			delete(s.channels, channel)
-			ev = SelfPartEvent{ChannelEvent: channelEv}
+			s.evts <- SelfPartEvent{ChannelEvent: channelEv}
 		} else if c, ok := s.channels[channel]; ok {
 			delete(c.Members, lNick)
 
@@ -591,7 +585,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 				t = time.Now()
 			}
 
-			ev = UserPartEvent{
+			s.evts <- UserPartEvent{
 				ChannelEvent: channelEv,
 				UserEvent:    UserEvent{Nick: nick},
 				Time:         t,
@@ -612,7 +606,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			}
 
 			// TODO UserQuitEvent
-			ev = UserPartEvent{
+			s.evts <- UserPartEvent{
 				ChannelEvent: ChannelEvent{Channel: c.Name},
 				UserEvent:    UserEvent{Nick: nick},
 				Time:         t,
@@ -636,7 +630,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			}
 		}
 	case rplEndofnames:
-		ev = SelfJoinEvent{ChannelEvent{Channel: msg.Params[1]}}
+		s.evts <- SelfJoinEvent{ChannelEvent{Channel: msg.Params[1]}}
 	case rplTopic:
 		channel := strings.ToLower(msg.Params[1])
 
@@ -644,7 +638,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 			c.Topic = msg.Params[2]
 		}
 	case "PRIVMSG":
-		ev = s.privmsgToEvent(msg)
+		s.evts <- s.privmsgToEvent(msg)
 	case "TAGMSG":
 		nick, _, _ := FullMask(msg.Prefix)
 		target := strings.ToLower(msg.Params[0])
@@ -673,14 +667,14 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 		}
 		if target == s.lNick {
 			// TAGMSG to self
-			ev = QueryTypingEvent{
+			s.evts <- QueryTypingEvent{
 				UserEvent: UserEvent{Nick: nick},
 				State:     typing,
 				Time:      t,
 			}
 		} else if _, ok := s.channels[target]; ok {
 			// TAGMSG to channel
-			ev = ChannelTypingEvent{
+			s.evts <- ChannelTypingEvent{
 				UserEvent:    UserEvent{Nick: nick},
 				ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
 				State:        typing,
@@ -694,7 +688,7 @@ func (s *Session) handle(msg Message) (ev Event, err error) {
 		if batchStart && msg.Params[1] == "chathistory" {
 			s.chBatches[id] = HistoryEvent{Target: msg.Params[2]}
 		} else if b, ok := s.chBatches[id]; ok {
-			ev = b
+			s.evts <- b
 			delete(s.chBatches, id)
 		}
 	case "FAIL":
