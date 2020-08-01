@@ -82,9 +82,17 @@ func handleIRCEvent(app *ui.UI, ev irc.Event) {
 		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
 		app.AddLine(ev.Channel, line, ev.Time, true)
 	case irc.QueryMessageEvent:
-		line := formatIRCMessage(ev.Nick, ev.Content)
-		app.AddLine("home", line, ev.Time, false)
-		app.TypingStop("home", ev.Nick)
+		if ev.Command == "PRIVMSG" {
+			line := formatIRCMessage(ev.Nick, ev.Content)
+			app.AddLine("home", line, ev.Time, false)
+			app.TypingStop("home", ev.Nick)
+		} else if ev.Command == "NOTICE" {
+			line := formatIRCNotice(ev.Nick, ev.Content)
+			app.AddLine(app.CurrentBuffer(), line, ev.Time, false)
+			app.TypingStop(app.CurrentBuffer(), ev.Nick)
+		} else {
+			panic("unknown command")
+		}
 	case irc.ChannelMessageEvent:
 		line := formatIRCMessage(ev.Nick, ev.Content)
 		app.AddLine(ev.Channel, line, ev.Time, false)
@@ -270,7 +278,7 @@ func formatIRCMessage(nick, content string) (line string) {
 	c := color(nick)
 
 	if content == "" {
-		line = fmt.Sprintf("%s%s\x00:", string(c[:]), nick)
+		line = fmt.Sprintf("%s%s\x00:", c, nick)
 		return
 	}
 
@@ -286,7 +294,30 @@ func formatIRCMessage(nick, content string) (line string) {
 		return
 	}
 
-	line = fmt.Sprintf("%s%s\x00: %s", string(c[:]), nick, content)
+	line = fmt.Sprintf("%s%s\x00: %s", c, nick, content)
+
+	return
+}
+
+func formatIRCNotice(nick, content string) (line string) {
+	c := color(nick)
+
+	if content == "" {
+		line = fmt.Sprintf("(%s%s\x00: )", c, nick)
+		return
+	}
+
+	if content[0] == 1 {
+		content = strings.TrimSuffix(content[1:], "\x01")
+
+		if strings.HasPrefix(content, "ACTION") {
+			line = fmt.Sprintf("(%s%s\x00%s)", c, nick, content[6:])
+		} else {
+			line = fmt.Sprintf("(\x1dCTCP request from\x1d %s%s\x00: %s)", c, nick, content)
+		}
+	} else {
+		line = fmt.Sprintf("(%s%s\x00: %s)", c, nick, content)
+	}
 
 	return
 }

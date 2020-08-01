@@ -661,7 +661,7 @@ func (s *Session) handle(msg Message) (err error) {
 		if c, ok := s.channels[channel]; ok {
 			c.Topic = msg.Params[2]
 		}
-	case "PRIVMSG":
+	case "PRIVMSG", "NOTICE":
 		s.evts <- s.privmsgToEvent(msg)
 	case "TAGMSG":
 		nick, _, _ := FullMask(msg.Prefix)
@@ -753,10 +753,11 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 		t = time.Now()
 	}
 
-	if target == s.lNick {
+	if !s.IsChannel(target) {
 		// PRIVMSG to self
 		ev = QueryMessageEvent{
 			UserEvent: UserEvent{Nick: nick},
+			Command:   msg.Command,
 			Content:   msg.Params[1],
 			Time:      t,
 		}
@@ -765,6 +766,7 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 		ev = ChannelMessageEvent{
 			UserEvent:    UserEvent{Nick: nick},
 			ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
+			Command:      msg.Command,
 			Content:      msg.Params[1],
 			Time:         t,
 		}

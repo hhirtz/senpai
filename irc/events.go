@@ -51,6 +51,7 @@ type SelfJoinEvent struct {
 
 type QueryMessageEvent struct {
 	UserEvent
+	Command string
 	Content string
 	Time    time.Time
 }
@@ -58,6 +59,7 @@ type QueryMessageEvent struct {
 type ChannelMessageEvent struct {
 	UserEvent
 	ChannelEvent
+	Command string
 	Content string
 	Time    time.Time
 }
