@@ -55,125 +55,133 @@ func main() {
 	for !app.ShouldExit() {
 		select {
 		case ev := <-s.Poll():
-			switch ev := ev.(type) {
-			case irc.RegisteredEvent:
-				app.AddLine("home", "Connected to the server", time.Now(), false)
-			case irc.SelfJoinEvent:
-				app.AddBuffer(ev.Channel)
-			case irc.UserJoinEvent:
-				line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
-				app.AddLine(ev.Channel, line, ev.Time, true)
-			case irc.SelfPartEvent:
-				app.RemoveBuffer(ev.Channel)
-			case irc.UserPartEvent:
-				line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
-				app.AddLine(ev.Channel, line, ev.Time, true)
-			case irc.ChannelMessageEvent:
-				line := formatIRCMessage(ev.Nick, ev.Content)
-				app.AddLine(ev.Channel, line, ev.Time, false)
-				app.TypingStop(ev.Channel, ev.Nick)
-			case irc.ChannelTypingEvent:
-				if ev.State == 1 || ev.State == 2 {
-					app.TypingStart(ev.Channel, ev.Nick)
-				} else {
-					app.TypingStop(ev.Channel, ev.Nick)
-				}
-			case irc.HistoryEvent:
-				var lines []ui.Line
-				var lastT time.Time
-				isChannel := ev.Target[0] == '#'
-				for _, m := range ev.Messages {
-					switch m := m.(type) {
-					case irc.ChannelMessageEvent:
-						if isChannel {
-							line := formatIRCMessage(m.Nick, m.Content)
-							line = strings.TrimRight(line, "\t ")
-							if lastT.Truncate(time.Minute) != m.Time.Truncate(time.Minute) {
-								lastT = m.Time
-								hour := lastT.Hour()
-								minute := lastT.Minute()
-								line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
-							}
-							lines = append(lines, ui.NewLine(m.Time, false, line))
-						} else {
-							panic("TODO")
-						}
-					}
-				}
-				app.AddHistoryLines(ev.Target, lines)
-			case error:
-				log.Panicln(ev)
-			}
+			handleIRCEvent(app, ev)
 		case ev := <-app.Events:
-			switch ev := ev.(type) {
-			case *tcell.EventResize:
-				app.Resize()
-			case *tcell.EventKey:
-				switch ev.Key() {
-				case tcell.KeyCtrlC:
-					app.Exit()
-				case tcell.KeyCtrlL:
-					app.Resize()
-				case tcell.KeyCtrlU:
-					fallthrough
-				case tcell.KeyPgUp:
-					app.ScrollUp()
-					if app.IsAtTop() {
-						buffer := app.CurrentBuffer()
-						t := app.CurrentBufferOldestTime()
-						s.RequestHistory(buffer, t)
+			handleUIEvent(app, &s, ev)
+		}
+	}
+}
+
+func handleIRCEvent(app *ui.UI, ev irc.Event) {
+	switch ev := ev.(type) {
+	case irc.RegisteredEvent:
+		app.AddLine("home", "Connected to the server", time.Now(), false)
+	case irc.SelfJoinEvent:
+		app.AddBuffer(ev.Channel)
+	case irc.UserJoinEvent:
+		line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
+		app.AddLine(ev.Channel, line, ev.Time, true)
+	case irc.SelfPartEvent:
+		app.RemoveBuffer(ev.Channel)
+	case irc.UserPartEvent:
+		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
+		app.AddLine(ev.Channel, line, ev.Time, true)
+	case irc.ChannelMessageEvent:
+		line := formatIRCMessage(ev.Nick, ev.Content)
+		app.AddLine(ev.Channel, line, ev.Time, false)
+		app.TypingStop(ev.Channel, ev.Nick)
+	case irc.ChannelTypingEvent:
+		if ev.State == 1 || ev.State == 2 {
+			app.TypingStart(ev.Channel, ev.Nick)
+		} else {
+			app.TypingStop(ev.Channel, ev.Nick)
+		}
+	case irc.HistoryEvent:
+		var lines []ui.Line
+		var lastT time.Time
+		isChannel := ev.Target[0] == '#'
+		for _, m := range ev.Messages {
+			switch m := m.(type) {
+			case irc.ChannelMessageEvent:
+				if isChannel {
+					line := formatIRCMessage(m.Nick, m.Content)
+					line = strings.TrimRight(line, "\t ")
+					if lastT.Truncate(time.Minute) != m.Time.Truncate(time.Minute) {
+						lastT = m.Time
+						hour := lastT.Hour()
+						minute := lastT.Minute()
+						line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
 					}
-				case tcell.KeyCtrlD:
-					fallthrough
-				case tcell.KeyPgDn:
-					app.ScrollDown()
-				case tcell.KeyCtrlN:
-					if app.NextBuffer() && app.IsAtTop() {
-						buffer := app.CurrentBuffer()
-						t := app.CurrentBufferOldestTime()
-						s.RequestHistory(buffer, t)
-					}
-				case tcell.KeyCtrlP:
-					if app.PreviousBuffer() && app.IsAtTop() {
-						buffer := app.CurrentBuffer()
-						t := app.CurrentBufferOldestTime()
-						s.RequestHistory(buffer, t)
-					}
-				case tcell.KeyRight:
-					if ev.Modifiers() == tcell.ModAlt {
-						if app.NextBuffer() && app.IsAtTop() {
-							buffer := app.CurrentBuffer()
-							t := app.CurrentBufferOldestTime()
-							s.RequestHistory(buffer, t)
-						}
-					} else {
-						app.InputRight()
-					}
-				case tcell.KeyLeft:
-					if ev.Modifiers() == tcell.ModAlt {
-						if app.PreviousBuffer() && app.IsAtTop() {
-							buffer := app.CurrentBuffer()
-							t := app.CurrentBufferOldestTime()
-							s.RequestHistory(buffer, t)
-						}
-					} else {
-						app.InputLeft()
-					}
-				case tcell.KeyBackspace2:
-					ok := app.InputBackspace()
-					if ok && app.InputLen() == 0 {
-						s.TypingStop(app.CurrentBuffer())
-					}
-				case tcell.KeyEnter:
-					buffer := app.CurrentBuffer()
-					input := app.InputEnter()
-					handleInput(&s, buffer, input)
-				case tcell.KeyRune:
-					app.InputRune(ev.Rune())
-					if app.CurrentBuffer() != "home" && !strings.HasPrefix(app.Input(), "/") {
-						s.Typing(app.CurrentBuffer())
-					}
+					lines = append(lines, ui.NewLine(m.Time, false, line))
+				} else {
+					panic("TODO")
 				}
+			}
+		}
+		app.AddHistoryLines(ev.Target, lines)
+	case error:
+		log.Panicln(ev)
+	}
+}
+
+func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
+	switch ev := ev.(type) {
+	case *tcell.EventResize:
+		app.Resize()
+	case *tcell.EventKey:
+		switch ev.Key() {
+		case tcell.KeyCtrlC:
+			app.Exit()
+		case tcell.KeyCtrlL:
+			app.Resize()
+		case tcell.KeyCtrlU:
+			fallthrough
+		case tcell.KeyPgUp:
+			app.ScrollUp()
+			if app.IsAtTop() {
+				buffer := app.CurrentBuffer()
+				t := app.CurrentBufferOldestTime()
+				s.RequestHistory(buffer, t)
+			}
+		case tcell.KeyCtrlD:
+			fallthrough
+		case tcell.KeyPgDn:
+			app.ScrollDown()
+		case tcell.KeyCtrlN:
+			if app.NextBuffer() && app.IsAtTop() {
+				buffer := app.CurrentBuffer()
+				t := app.CurrentBufferOldestTime()
+				s.RequestHistory(buffer, t)
+			}
+		case tcell.KeyCtrlP:
+			if app.PreviousBuffer() && app.IsAtTop() {
+				buffer := app.CurrentBuffer()
+				t := app.CurrentBufferOldestTime()
+				s.RequestHistory(buffer, t)
+			}
+		case tcell.KeyRight:
+			if ev.Modifiers() == tcell.ModAlt {
+				if app.NextBuffer() && app.IsAtTop() {
+					buffer := app.CurrentBuffer()
+					t := app.CurrentBufferOldestTime()
+					s.RequestHistory(buffer, t)
+				}
+			} else {
+				app.InputRight()
+			}
+		case tcell.KeyLeft:
+			if ev.Modifiers() == tcell.ModAlt {
+				if app.PreviousBuffer() && app.IsAtTop() {
+					buffer := app.CurrentBuffer()
+					t := app.CurrentBufferOldestTime()
+					s.RequestHistory(buffer, t)
+				}
+			} else {
+				app.InputLeft()
+			}
+		case tcell.KeyBackspace2:
+			ok := app.InputBackspace()
+			if ok && app.InputLen() == 0 {
+				s.TypingStop(app.CurrentBuffer())
+			}
+		case tcell.KeyEnter:
+			buffer := app.CurrentBuffer()
+			input := app.InputEnter()
+			handleInput(s, buffer, input)
+		case tcell.KeyRune:
+			app.InputRune(ev.Rune())
+			if app.CurrentBuffer() != "home" && !strings.HasPrefix(app.Input(), "/") {
+				s.Typing(app.CurrentBuffer())
 			}
 		}
 	}
