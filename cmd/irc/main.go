@@ -76,10 +76,20 @@ func handleIRCEvent(app *ui.UI, ev irc.Event) {
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
 		app.AddLine(ev.Channel, line, ev.Time, true)
+	case irc.QueryMessageEvent:
+		line := formatIRCMessage(ev.Nick, ev.Content)
+		app.AddLine("home", line, ev.Time, false)
+		app.TypingStop("home", ev.Nick)
 	case irc.ChannelMessageEvent:
 		line := formatIRCMessage(ev.Nick, ev.Content)
 		app.AddLine(ev.Channel, line, ev.Time, false)
 		app.TypingStop(ev.Channel, ev.Nick)
+	case irc.QueryTypingEvent:
+		if ev.State == 1 || ev.State == 2 {
+			app.TypingStart("home", ev.Nick)
+		} else {
+			app.TypingStop("home", ev.Nick)
+		}
 	case irc.ChannelTypingEvent:
 		if ev.State == 1 || ev.State == 2 {
 			app.TypingStart(ev.Channel, ev.Nick)
