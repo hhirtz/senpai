@@ -9,10 +9,15 @@ import (
 	"github.com/gdamore/tcell"
 	"hash/fnv"
 	"log"
+	"math/rand"
 	"os"
 	"strings"
 	"time"
 )
+
+func init() {
+	rand.Seed(time.Now().Unix())
+}
 
 func main() {
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)

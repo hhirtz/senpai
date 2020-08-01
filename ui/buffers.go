@@ -11,7 +11,7 @@ var homeMessages = []string{
 	"Welcome to the Internet Relay Network!",
 	"Mentions & cie go here.",
 	"May the IRC be with you.",
-	"Hey! I'm senpai, you every IRC student!",
+	"Hey! I'm senpai, you everyday IRC student!",
 	"Student? No, I'm an IRC \x02client\x02!",
 }
 

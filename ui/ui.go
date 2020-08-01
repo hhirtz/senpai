@@ -3,6 +3,7 @@ package ui
 import (
 	"github.com/gdamore/tcell"
 	"github.com/mattn/go-runewidth"
+	"math/rand"
 	"sync/atomic"
 	"time"
 )
@@ -46,12 +47,13 @@ func New() (ui *UI, err error) {
 
 	ui.exit.Store(false)
 
+	hmIdx := rand.Intn(len(homeMessages))
 	ui.bufferList = BufferList{
 		List: []Buffer{
 			{
 				Title:      "home",
 				Highlights: 0,
-				Content:    []Line{NewLineNow(homeMessages[0])},
+				Content:    []Line{NewLineNow(homeMessages[hmIdx])},
 			},
 		},
 	}
