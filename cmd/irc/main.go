@@ -124,18 +124,14 @@ func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
 			app.Exit()
 		case tcell.KeyCtrlL:
 			app.Resize()
-		case tcell.KeyCtrlU:
-			fallthrough
-		case tcell.KeyPgUp:
+		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.ScrollUp()
 			if app.IsAtTop() {
 				buffer := app.CurrentBuffer()
 				t := app.CurrentBufferOldestTime()
 				s.RequestHistory(buffer, t)
 			}
-		case tcell.KeyCtrlD:
-			fallthrough
-		case tcell.KeyPgDn:
+		case tcell.KeyCtrlD, tcell.KeyPgDn:
 			app.ScrollDown()
 		case tcell.KeyCtrlN:
 			if app.NextBuffer() && app.IsAtTop() {
