@@ -229,6 +229,8 @@ func handleInput(s *irc.Session, buffer, content string) {
 		}
 
 		s.PrivMsg(buffer, args)
+	case "QUOTE":
+		s.SendRaw(args)
 	case "J", "JOIN":
 		s.Join(args)
 	case "PART":

@@ -85,6 +85,10 @@ type Channel struct {
 type action interface{}
 
 type (
+	actionSendRaw struct {
+		raw string
+	}
+
 	actionJoin struct {
 		Channel string
 	}
@@ -220,6 +224,15 @@ func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }
 
+func (s *Session) SendRaw(raw string) {
+	s.acts <- actionSendRaw{raw}
+}
+
+func (s *Session) sendRaw(act actionSendRaw) (err error) {
+	err = s.send("%s\r\n", act.raw)
+	return
+}
+
 func (s *Session) Join(channel string) {
 	s.acts <- actionJoin{channel}
 }
@@ -304,6 +317,8 @@ func (s *Session) run() {
 		select {
 		case act := <-s.acts:
 			switch act := act.(type) {
+			case actionSendRaw:
+				err = s.sendRaw(act)
 			case actionJoin:
 				err = s.join(act)
 			case actionPart:
