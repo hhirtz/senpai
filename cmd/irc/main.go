@@ -257,9 +257,9 @@ func formatIRCMessage(nick, content string) (line string) {
 		content = strings.TrimSuffix(content[1:], "\x01")
 
 		if strings.HasPrefix(content, "ACTION") {
-			line = fmt.Sprintf("%s%s\x00%s", string(c[:]), nick, content[6:])
+			line = fmt.Sprintf("%s%s\x00%s", c, nick, content[6:])
 		} else {
-			line = fmt.Sprintf("\x1dCTCP request from\x1d %s%s\x00: %s", string(c[:]), nick, content)
+			line = fmt.Sprintf("\x1dCTCP request from\x1d %s%s\x00: %s", c, nick, content)
 		}
 
 		return
@@ -270,7 +270,7 @@ func formatIRCMessage(nick, content string) (line string) {
 	return
 }
 
-func color(nick string) (c [3]rune) {
+func color(nick string) string {
 	h := fnv.New32()
 	_, _ = h.Write([]byte(nick))
 
@@ -283,9 +283,10 @@ func color(nick string) (c [3]rune) {
 		sum++
 	}
 
+	var c [3]rune
 	c[0] = '\x03'
 	c[1] = rune(sum/10) + '0'
 	c[2] = rune(sum%10) + '0'
 
-	return
+	return string(c[:])
 }
