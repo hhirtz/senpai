@@ -220,6 +220,15 @@ func (s *Session) Poll() (events <-chan Event) {
 	return s.evts
 }
 
+func (s *Session) HasCapability(capability string) bool {
+	_, ok := s.enabledCaps[capability]
+	return ok
+}
+
+func (s *Session) Nick() string {
+	return s.nick
+}
+
 func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }

@@ -188,7 +188,7 @@ func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
 		case tcell.KeyEnter:
 			buffer := app.CurrentBuffer()
 			input := app.InputEnter()
-			handleInput(s, buffer, input)
+			handleInput(app, s, buffer, input)
 		case tcell.KeyRune:
 			app.InputRune(ev.Rune())
 			if app.CurrentBuffer() != "home" && !strings.HasPrefix(app.Input(), "/") {
@@ -219,7 +219,7 @@ func parseCommand(s string) (command, args string) {
 	return
 }
 
-func handleInput(s *irc.Session, buffer, content string) {
+func handleInput(app *ui.UI, s *irc.Session, buffer, content string) {
 	cmd, args := parseCommand(content)
 
 	switch cmd {
@@ -229,6 +229,10 @@ func handleInput(s *irc.Session, buffer, content string) {
 		}
 
 		s.PrivMsg(buffer, args)
+		if !s.HasCapability("echo-message") {
+			line := formatIRCMessage(s.Nick(), args)
+			app.AddLine(buffer, line, time.Now(), false)
+		}
 	case "QUOTE":
 		s.SendRaw(args)
 	case "J", "JOIN":
