@@ -17,8 +17,7 @@ type UI struct {
 	scrollAmt   int
 	scrollAtTop bool
 
-	textInput  []rune
-	textCursor int
+	e editor
 }
 
 func New() (ui *UI, err error) {
@@ -34,7 +33,7 @@ func New() (ui *UI, err error) {
 		return
 	}
 
-	_, h := ui.screen.Size()
+	w, h := ui.screen.Size()
 	ui.screen.Clear()
 	ui.screen.ShowCursor(0, h-2)
 
@@ -58,7 +57,7 @@ func New() (ui *UI, err error) {
 		},
 	}
 
-	ui.textInput = []rune{}
+	ui.e = newEditor(w)
 
 	ui.Resize()
 
@@ -220,103 +219,67 @@ func (ui *UI) AddHistoryLines(buffer string, lines []Line) {
 	}
 }
 
-func (ui *UI) Input() string {
-	return string(ui.textInput)
+func (ui *UI) InputIsCommand() bool {
+	return ui.e.IsCommand()
 }
 
 func (ui *UI) InputLen() int {
-	return len(ui.textInput)
+	return ui.e.TextLen()
 }
 
 func (ui *UI) InputRune(r rune) {
-	ui.textInput = append(ui.textInput, r)
-	ui.textCursor++
-	ui.drawEditor()
+	ui.e.PutRune(r)
+	_, h := ui.screen.Size()
+	ui.e.Draw(ui.screen, h-2)
+	ui.screen.Show()
 }
 
 func (ui *UI) InputRight() {
-	if ui.textCursor < len(ui.textInput) {
-		ui.textCursor++
-		ui.drawEditor()
-	}
+	ui.e.Right()
+	_, h := ui.screen.Size()
+	ui.e.Draw(ui.screen, h-2)
+	ui.screen.Show()
 }
 
 func (ui *UI) InputLeft() {
-	if 0 < ui.textCursor {
-		ui.textCursor--
-		ui.drawEditor()
-	}
+	ui.e.Left()
+	_, h := ui.screen.Size()
+	ui.e.Draw(ui.screen, h-2)
+	ui.screen.Show()
 }
 
 func (ui *UI) InputBackspace() (ok bool) {
-	ok = 0 < len(ui.textInput)
-
+	ok = ui.e.RemRune()
 	if ok {
-		ui.textInput = ui.textInput[:len(ui.textInput)-1]
-		if len(ui.textInput) < ui.textCursor {
-			ui.textCursor = len(ui.textInput)
-		}
-		ui.drawEditor()
+		_, h := ui.screen.Size()
+		ui.e.Draw(ui.screen, h-2)
+		ui.screen.Show()
 	}
-
 	return
 }
 
 func (ui *UI) InputEnter() (content string) {
-	content = string(ui.textInput)
-
-	ui.textInput = []rune{}
-	ui.textCursor = 0
-	ui.drawEditor()
-
+	content = ui.e.Flush()
+	_, h := ui.screen.Size()
+	ui.e.Draw(ui.screen, h-2)
+	ui.screen.Show()
 	return
 }
 
 func (ui *UI) Resize() {
+	w, _ := ui.screen.Size()
+	ui.e.Resize(w)
 	ui.bufferList.Invalidate()
 	ui.scrollAmt = 0
 	ui.draw()
 }
 
 func (ui *UI) draw() {
+	_, h := ui.screen.Size()
 	ui.drawStatus()
-	ui.drawEditor()
+	ui.e.Draw(ui.screen, h-2)
 	ui.drawTyping()
 	ui.drawBuffer()
-}
-
-func (ui *UI) drawEditor() {
-	st := tcell.StyleDefault
-	w, h := ui.screen.Size()
-	if w == 0 {
-		return
-	}
-
-	s := string(ui.textInput)
-	sw := runewidth.StringWidth(s)
-
-	x := 0
-	y := h - 2
-	i := 0
-
-	for ; w < sw+1 && i < len(ui.textInput); i++ {
-		r := ui.textInput[i]
-		rw := runewidth.RuneWidth(r)
-		sw -= rw
-	}
-
-	for ; i < len(ui.textInput); i++ {
-		r := ui.textInput[i]
-		ui.screen.SetContent(x, y, r, nil, st)
-		x += runewidth.RuneWidth(r)
-	}
-
-	for ; x < w; x++ {
-		ui.screen.SetContent(x, y, ' ', nil, st)
-	}
-
-	ui.screen.ShowCursor(ui.textCursor, y)
-	ui.screen.Show()
 }
 
 func (ui *UI) drawTyping() {

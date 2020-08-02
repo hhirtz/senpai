@@ -199,7 +199,7 @@ func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
 			handleInput(app, s, buffer, input)
 		case tcell.KeyRune:
 			app.InputRune(ev.Rune())
-			if app.CurrentBuffer() != "home" && !strings.HasPrefix(app.Input(), "/") {
+			if app.CurrentBuffer() != "home" && !app.InputIsCommand() {
 				s.Typing(app.CurrentBuffer())
 			}
 		}
