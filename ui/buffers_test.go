@@ -1,42 +1,48 @@
 package ui
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
-func assertSplitPoints(t *testing.T, line string, expected []Point) {
-	l := Line{Content: line}
+func assertSplitPoints(t *testing.T, body string, expected []point) {
+	l := Line{body: body}
 	l.computeSplitPoints()
 
-	if len(l.SplitPoints) != len(expected) {
-		t.Errorf("%q: expected %d split points got %d", line, len(expected), len(l.SplitPoints))
+	if len(l.splitPoints) != len(expected) {
+		t.Errorf("%q: expected %d split points got %d", body, len(expected), len(l.splitPoints))
 		return
 	}
 
 	for i := 0; i < len(expected); i++ {
 		e := expected[i]
-		a := l.SplitPoints[i]
+		a := l.splitPoints[i]
 
 		if e.X != a.X {
-			t.Errorf("%q, point #%d: expected X=%d got %d", line, i, e.X, a.X)
+			t.Errorf("%q, point #%d: expected X=%d got %d", body, i, e.X, a.X)
 		}
 		if e.I != a.I {
-			t.Errorf("%q, point #%d: expected I=%d got %d", line, i, e.I, a.I)
+			t.Errorf("%q, point #%d: expected I=%d got %d", body, i, e.I, a.I)
 		}
 		if e.Split != a.Split {
-			t.Errorf("%q, point #%d: expected Split=%t got %t", line, i, e.Split, a.Split)
+			t.Errorf("%q, point #%d: expected Split=%t got %t", body, i, e.Split, a.Split)
 		}
 	}
 }
 
 func TestLineSplitPoints(t *testing.T) {
-	assertSplitPoints(t, "hello", []Point{
+	assertSplitPoints(t, "hello", []point{
+		{X: 0, I: 0, Split: false},
 		{X: 5, I: 5, Split: true},
 	})
-	assertSplitPoints(t, "hello world", []Point{
+	assertSplitPoints(t, "hello world", []point{
+		{X: 0, I: 0, Split: false},
 		{X: 5, I: 5, Split: true},
 		{X: 6, I: 6, Split: false},
 		{X: 11, I: 11, Split: true},
 	})
-	assertSplitPoints(t, "lorem ipsum dolor shit amet", []Point{
+	assertSplitPoints(t, "lorem ipsum dolor shit amet", []point{
+		{X: 0, I: 0, Split: false},
 		{X: 5, I: 5, Split: true},
 		{X: 6, I: 6, Split: false},
 		{X: 11, I: 11, Split: true},
@@ -49,90 +55,122 @@ func TestLineSplitPoints(t *testing.T) {
 	})
 }
 
-func assertRenderedHeight(t *testing.T, line string, width int, expected int) {
-	l := Line{Content: line}
+func showSplit(s string, nls []int) string {
+	var sb strings.Builder
+	sb.Grow(len(s) + len(nls))
+
+	for i, r := range s {
+		if 0 < len(nls) && i == nls[0] {
+			sb.WriteRune('|')
+			nls = nls[1:]
+		}
+		sb.WriteRune(r)
+	}
+
+	return sb.String()
+}
+
+func assertNewLines(t *testing.T, body string, width int, expected int) {
+	l := Line{body: body}
 	l.computeSplitPoints()
-	l.Invalidate()
 
-	actual := l.RenderedHeight(width)
+	actual := l.NewLines(width)
 
-	if actual != expected {
-		t.Errorf("%q with width=%d expected to take %d lines, takes %d", line, width, expected, actual)
+	if len(actual)+1 != expected {
+		s := showSplit(body, actual)
+		t.Errorf("%q with width=%d expected to take %d lines, takes %d: '%s' (%v)", body, width, expected, len(actual)+1, s, actual)
+		return
 	}
 }
 
 func TestRenderedHeight(t *testing.T) {
-	assertRenderedHeight(t, "0123456789", 1, 10)
-	assertRenderedHeight(t, "0123456789", 2, 5)
-	assertRenderedHeight(t, "0123456789", 3, 4)
-	assertRenderedHeight(t, "0123456789", 4, 3)
-	assertRenderedHeight(t, "0123456789", 5, 2)
-	assertRenderedHeight(t, "0123456789", 6, 2)
-	assertRenderedHeight(t, "0123456789", 7, 2)
-	assertRenderedHeight(t, "0123456789", 8, 2)
-	assertRenderedHeight(t, "0123456789", 9, 2)
-	assertRenderedHeight(t, "0123456789", 10, 1)
-	assertRenderedHeight(t, "0123456789", 11, 1)
+	assertNewLines(t, "0123456789", 1, 10)
+	assertNewLines(t, "0123456789", 2, 5)
+	assertNewLines(t, "0123456789", 3, 4)
+	assertNewLines(t, "0123456789", 4, 3)
+	assertNewLines(t, "0123456789", 5, 2)
+	assertNewLines(t, "0123456789", 6, 2)
+	assertNewLines(t, "0123456789", 7, 2)
+	assertNewLines(t, "0123456789", 8, 2)
+	assertNewLines(t, "0123456789", 9, 2)
+	assertNewLines(t, "0123456789", 10, 1)
+	assertNewLines(t, "0123456789", 11, 1)
 
 	// LEN=9, WIDTH=9
-	assertRenderedHeight(t, "take care", 1, 8)  // |t|a|k|e|c|a|r|e|
-	assertRenderedHeight(t, "take care", 2, 4)  // |ta|ke|ca|re|
-	assertRenderedHeight(t, "take care", 3, 3)  // |tak|e c|are|
-	assertRenderedHeight(t, "take care", 4, 2)  // |take|care|
-	assertRenderedHeight(t, "take care", 5, 2)  // |take |care |
-	assertRenderedHeight(t, "take care", 6, 2)  // |take  |care  |
-	assertRenderedHeight(t, "take care", 7, 2)  // |take   |care   |
-	assertRenderedHeight(t, "take care", 8, 2)  // |take    |care    |
-	assertRenderedHeight(t, "take care", 9, 1)  // |take care|
-	assertRenderedHeight(t, "take care", 10, 1) // |take care |
+	assertNewLines(t, "take care", 1, 8)  // |t|a|k|e|c|a|r|e|
+	assertNewLines(t, "take care", 2, 4)  // |ta|ke|ca|re|
+	assertNewLines(t, "take care", 3, 3)  // |tak|e c|are|
+	assertNewLines(t, "take care", 4, 2)  // |take|care|
+	assertNewLines(t, "take care", 5, 2)  // |take |care |
+	assertNewLines(t, "take care", 6, 2)  // |take  |care  |
+	assertNewLines(t, "take care", 7, 2)  // |take   |care   |
+	assertNewLines(t, "take care", 8, 2)  // |take    |care    |
+	assertNewLines(t, "take care", 9, 1)  // |take care|
+	assertNewLines(t, "take care", 10, 1) // |take care |
 
 	// LEN=10, WIDTH=10
-	assertRenderedHeight(t, "take  care", 1, 8)  // |t|a|k|e|c|a|r|e|
-	assertRenderedHeight(t, "take  care", 2, 4)  // |ta|ke|ca|re|
-	assertRenderedHeight(t, "take  care", 3, 4)  // |tak|e  |car|e  |
-	assertRenderedHeight(t, "take  care", 4, 2)  // |take|care|
-	assertRenderedHeight(t, "take  care", 5, 2)  // |take |care |
-	assertRenderedHeight(t, "take  care", 6, 2)  // |take  |care  |
-	assertRenderedHeight(t, "take  care", 7, 2)  // |take   |care   |
-	assertRenderedHeight(t, "take  care", 8, 2)  // |take    |care    |
-	assertRenderedHeight(t, "take  care", 9, 2)  // |take     |care     |
-	assertRenderedHeight(t, "take  care", 10, 1) // |take  care|
-	assertRenderedHeight(t, "take  care", 11, 1) // |take  care |
+	assertNewLines(t, "take  care", 1, 8)  // |t|a|k|e|c|a|r|e|
+	assertNewLines(t, "take  care", 2, 4)  // |ta|ke|ca|re|
+	assertNewLines(t, "take  care", 3, 4)  // |tak|e  |car|e  |
+	assertNewLines(t, "take  care", 4, 2)  // |take|care|
+	assertNewLines(t, "take  care", 5, 2)  // |take |care |
+	assertNewLines(t, "take  care", 6, 2)  // |take  |care  |
+	assertNewLines(t, "take  care", 7, 2)  // |take   |care   |
+	assertNewLines(t, "take  care", 8, 2)  // |take    |care    |
+	assertNewLines(t, "take  care", 9, 2)  // |take     |care     |
+	assertNewLines(t, "take  care", 10, 1) // |take  care|
+	assertNewLines(t, "take  care", 11, 1) // |take  care |
 
 	// LEN=16, WIDTH=16
-	assertRenderedHeight(t, "have a good day!", 1, 13) // |h|a|v|e|a|g|o|o|d|d|a|y|!|
-	assertRenderedHeight(t, "have a good day!", 2, 7)  // |ha|ve|a |go|od|da|y!|
-	assertRenderedHeight(t, "have a good day!", 3, 5)  // |hav|e a|goo|d d|ay!|
-	assertRenderedHeight(t, "have a good day!", 4, 4)  // |have|a   |good|day!|
-	assertRenderedHeight(t, "have a good day!", 5, 4)  // |have |a    |good |day! |
-	assertRenderedHeight(t, "have a good day!", 6, 3)  // |have a|good  |day!  |
-	assertRenderedHeight(t, "have a good day!", 7, 3)  // |have a |good   |day!   |
-	assertRenderedHeight(t, "have a good day!", 8, 3)  // |have a  |good    |day!    |
-	assertRenderedHeight(t, "have a good day!", 9, 2)  // |have a   |good day!|
-	assertRenderedHeight(t, "have a good day!", 10, 2) // |have a    |good day! |
-	assertRenderedHeight(t, "have a good day!", 11, 2) // |have a good|day!       |
-	assertRenderedHeight(t, "have a good day!", 12, 2) // |have a good |day!        |
-	assertRenderedHeight(t, "have a good day!", 13, 2) // |have a good  |day!         |
-	assertRenderedHeight(t, "have a good day!", 14, 2) // |have a good   |day!          |
-	assertRenderedHeight(t, "have a good day!", 15, 2) // |have a good    |day!           |
-	assertRenderedHeight(t, "have a good day!", 16, 1) // |have a good day!|
-	assertRenderedHeight(t, "have a good day!", 17, 1) // |have a good day! |
+	assertNewLines(t, "have a good day!", 1, 13) // |h|a|v|e|a|g|o|o|d|d|a|y|!|
+	assertNewLines(t, "have a good day!", 2, 7)  // |ha|ve|a |go|od|da|y!|
+	assertNewLines(t, "have a good day!", 3, 5)  // |hav|e a|goo|d d|ay!|
+	assertNewLines(t, "have a good day!", 4, 4)  // |have|a   |good|day!|
+	assertNewLines(t, "have a good day!", 5, 4)  // |have |a    |good |day! |
+	assertNewLines(t, "have a good day!", 6, 3)  // |have a|good  |day!  |
+	assertNewLines(t, "have a good day!", 7, 3)  // |have a |good   |day!   |
+	assertNewLines(t, "have a good day!", 8, 3)  // |have a  |good    |day!    |
+	assertNewLines(t, "have a good day!", 9, 2)  // |have a   |good day!|
+	assertNewLines(t, "have a good day!", 10, 2) // |have a    |good day! |
+	assertNewLines(t, "have a good day!", 11, 2) // |have a good|day!       |
+	assertNewLines(t, "have a good day!", 12, 2) // |have a good |day!        |
+	assertNewLines(t, "have a good day!", 13, 2) // |have a good  |day!         |
+	assertNewLines(t, "have a good day!", 14, 2) // |have a good   |day!          |
+	assertNewLines(t, "have a good day!", 15, 2) // |have a good    |day!           |
+	assertNewLines(t, "have a good day!", 16, 1) // |have a good day!|
+	assertNewLines(t, "have a good day!", 17, 1) // |have a good day! |
 
 	// LEN=15, WIDTH=11
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 1, 10) // |b|a|r|m|a|n|d|:|c|c|
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 2, 5)  // |ba|rm|an|d:|cc|
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 3, 4)  // |bar|man|d: |cc |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 4, 3)  // |barm|and:|cc  |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 5, 3)  // |barma|nd:  |cc   |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 6, 2)  // |barman|d: cc |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 7, 2)  // |barmand|: cc   |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 8, 2)  // |barmand:|cc      |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 9, 2)  // |barmand: |cc       |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 10, 2) // |barmand:  |cc        |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 11, 1) // |barmand: cc|
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 12, 1) // |barmand: cc |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 13, 1) // |barmand: cc  |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 14, 1) // |barmand: cc   |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 15, 1) // |barmand: cc    |
-	assertRenderedHeight(t, "\x0342barmand\x03: cc", 16, 1) // |barmand: cc     |
+	assertNewLines(t, "\x0342barmand\x03: cc", 1, 10) // |b|a|r|m|a|n|d|:|c|c|
+	assertNewLines(t, "\x0342barmand\x03: cc", 2, 5)  // |ba|rm|an|d:|cc|
+	assertNewLines(t, "\x0342barmand\x03: cc", 3, 4)  // |bar|man|d: |cc |
+	assertNewLines(t, "\x0342barmand\x03: cc", 4, 3)  // |barm|and:|cc  |
+	assertNewLines(t, "\x0342barmand\x03: cc", 5, 3)  // |barma|nd:  |cc   |
+	assertNewLines(t, "\x0342barmand\x03: cc", 6, 2)  // |barman|d: cc |
+	assertNewLines(t, "\x0342barmand\x03: cc", 7, 2)  // |barmand|: cc   |
+	assertNewLines(t, "\x0342barmand\x03: cc", 8, 2)  // |barmand:|cc      |
+	assertNewLines(t, "\x0342barmand\x03: cc", 9, 2)  // |barmand: |cc       |
+	assertNewLines(t, "\x0342barmand\x03: cc", 10, 2) // |barmand:  |cc        |
+	assertNewLines(t, "\x0342barmand\x03: cc", 11, 1) // |barmand: cc|
+	assertNewLines(t, "\x0342barmand\x03: cc", 12, 1) // |barmand: cc |
+	assertNewLines(t, "\x0342barmand\x03: cc", 13, 1) // |barmand: cc  |
+	assertNewLines(t, "\x0342barmand\x03: cc", 14, 1) // |barmand: cc   |
+	assertNewLines(t, "\x0342barmand\x03: cc", 15, 1) // |barmand: cc    |
+	assertNewLines(t, "\x0342barmand\x03: cc", 16, 1) // |barmand: cc     |
+
+	assertNewLines(t, "cc en direct du word wrapping des familles le tests ça v a va va v a va", 46, 2)
 }
+
+/*
+func assertTrimWidth(t *testing.T, s string, w int, expected string) {
+	actual := trimWidth(s, w)
+	if actual != expected {
+		t.Errorf("%q (width=%d): expected to be trimmed as %q, got %q\n", s, w, expected, actual)
+	}
+}
+
+func TestTrimWidth(t *testing.T) {
+	assertTrimWidth(t, "ludovicchabant/fn", 16, "ludovicchabant/…")
+	assertTrimWidth(t, "zzzzzzzzzzzzzz黒猫/sr", 16, "zzzzzzzzzzzzzz黒…")
+}
+// */

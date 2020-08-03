@@ -3,16 +3,16 @@ package main
 import (
 	"crypto/tls"
 	"fmt"
-	"git.sr.ht/~taiite/senpai"
-	"git.sr.ht/~taiite/senpai/irc"
-	"git.sr.ht/~taiite/senpai/ui"
-	"github.com/gdamore/tcell"
-	"hash/fnv"
 	"log"
 	"math/rand"
 	"os"
 	"strings"
 	"time"
+
+	"git.sr.ht/~taiite/senpai"
+	"git.sr.ht/~taiite/senpai/irc"
+	"git.sr.ht/~taiite/senpai/ui"
+	"github.com/gdamore/tcell"
 )
 
 func init() {
@@ -39,7 +39,7 @@ func main() {
 	defer app.Close()
 
 	addr := cfg.Addr
-	app.AddLine("home", fmt.Sprintf("Connecting to %s...", addr), time.Now(), false)
+	app.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", addr)))
 
 	conn, err := tls.Dial("tcp", addr, nil)
 	if err != nil {
@@ -60,48 +60,48 @@ func main() {
 	for !app.ShouldExit() {
 		select {
 		case ev := <-s.Poll():
-			handleIRCEvent(app, ev)
+			handleIRCEvent(app, &s, ev)
 		case ev := <-app.Events:
 			handleUIEvent(app, &s, ev)
 		}
 	}
 }
 
-func handleIRCEvent(app *ui.UI, ev irc.Event) {
+func handleIRCEvent(app *ui.UI, s *irc.Session, ev irc.Event) {
 	switch ev := ev.(type) {
 	case irc.RegisteredEvent:
-		app.AddLine("home", "Connected to the server", time.Now(), false)
+		app.AddLine("", ui.NewLineNow("--", "Connected to the server"))
 	case irc.SelfJoinEvent:
 		app.AddBuffer(ev.Channel)
 	case irc.UserJoinEvent:
 		line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, line, ev.Time, true)
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true))
 	case irc.SelfPartEvent:
 		app.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, line, ev.Time, true)
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true))
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
-			line := formatIRCMessage(ev.Nick, ev.Content)
-			app.AddLine("home", line, ev.Time, false)
-			app.TypingStop("home", ev.Nick)
+			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false)
+			app.AddLine(ui.Home, l)
+			app.TypingStop(ui.Home, ev.Nick)
 		} else if ev.Command == "NOTICE" {
-			line := formatIRCNotice(ev.Nick, ev.Content)
-			app.AddLine(app.CurrentBuffer(), line, ev.Time, false)
-			app.TypingStop(app.CurrentBuffer(), ev.Nick)
+			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true)
+			app.AddLine("", l)
+			app.TypingStop("", ev.Nick)
 		} else {
 			panic("unknown command")
 		}
 	case irc.ChannelMessageEvent:
-		line := formatIRCMessage(ev.Nick, ev.Content)
-		app.AddLine(ev.Channel, line, ev.Time, false)
+		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE")
+		app.AddLine(ev.Channel, l)
 		app.TypingStop(ev.Channel, ev.Nick)
 	case irc.QueryTypingEvent:
 		if ev.State == 1 || ev.State == 2 {
-			app.TypingStart("home", ev.Nick)
+			app.TypingStart(ui.Home, ev.Nick)
 		} else {
-			app.TypingStop("home", ev.Nick)
+			app.TypingStop(ui.Home, ev.Nick)
 		}
 	case irc.ChannelTypingEvent:
 		if ev.State == 1 || ev.State == 2 {
@@ -111,27 +111,16 @@ func handleIRCEvent(app *ui.UI, ev irc.Event) {
 		}
 	case irc.HistoryEvent:
 		var lines []ui.Line
-		var lastT time.Time
-		isChannel := ev.Target[0] == '#'
 		for _, m := range ev.Messages {
 			switch m := m.(type) {
 			case irc.ChannelMessageEvent:
-				if isChannel {
-					line := formatIRCMessage(m.Nick, m.Content)
-					line = strings.TrimRight(line, "\t ")
-					if lastT.Truncate(time.Minute) != m.Time.Truncate(time.Minute) {
-						lastT = m.Time
-						hour := lastT.Hour()
-						minute := lastT.Minute()
-						line = fmt.Sprintf("\x02%02d:%02d\x00 %s", hour, minute, line)
-					}
-					lines = append(lines, ui.NewLine(m.Time, false, line))
-				} else {
-					panic("TODO")
-				}
+				l := ui.LineFromIRCMessage(m.Time, m.Nick, m.Content, m.Command == "NOTICE")
+				lines = append(lines, l)
+			default:
+				panic("TODO")
 			}
 		}
-		app.AddHistoryLines(ev.Target, lines)
+		app.AddLines(ev.Target, lines)
 	case error:
 		log.Panicln(ev)
 	}
@@ -151,39 +140,58 @@ func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
 			app.ScrollUp()
 			if app.IsAtTop() {
 				buffer := app.CurrentBuffer()
-				t := app.CurrentBufferOldestTime()
-				s.RequestHistory(buffer, t)
+				at := time.Now()
+				if t := app.CurrentBufferOldestTime(); t != nil {
+					at = *t
+				}
+				s.RequestHistory(buffer, at)
 			}
 		case tcell.KeyCtrlD, tcell.KeyPgDn:
 			app.ScrollDown()
 		case tcell.KeyCtrlN:
-			if app.NextBuffer() && app.IsAtTop() {
+			app.NextBuffer()
+			if app.IsAtTop() {
 				buffer := app.CurrentBuffer()
-				t := app.CurrentBufferOldestTime()
-				s.RequestHistory(buffer, t)
+				at := time.Now()
+				if t := app.CurrentBufferOldestTime(); t != nil {
+					at = *t
+				}
+				s.RequestHistory(buffer, at)
 			}
 		case tcell.KeyCtrlP:
-			if app.PreviousBuffer() && app.IsAtTop() {
+			app.PreviousBuffer()
+			if app.IsAtTop() {
 				buffer := app.CurrentBuffer()
-				t := app.CurrentBufferOldestTime()
-				s.RequestHistory(buffer, t)
+				at := time.Now()
+				if t := app.CurrentBufferOldestTime(); t != nil {
+					at = *t
+				}
+				s.RequestHistory(buffer, at)
 			}
 		case tcell.KeyRight:
 			if ev.Modifiers() == tcell.ModAlt {
-				if app.NextBuffer() && app.IsAtTop() {
+				app.NextBuffer()
+				if app.IsAtTop() {
 					buffer := app.CurrentBuffer()
-					t := app.CurrentBufferOldestTime()
-					s.RequestHistory(buffer, t)
+					at := time.Now()
+					if t := app.CurrentBufferOldestTime(); t != nil {
+						at = *t
+					}
+					s.RequestHistory(buffer, at)
 				}
 			} else {
 				app.InputRight()
 			}
 		case tcell.KeyLeft:
 			if ev.Modifiers() == tcell.ModAlt {
-				if app.PreviousBuffer() && app.IsAtTop() {
+				app.PreviousBuffer()
+				if app.IsAtTop() {
 					buffer := app.CurrentBuffer()
-					t := app.CurrentBufferOldestTime()
-					s.RequestHistory(buffer, t)
+					at := time.Now()
+					if t := app.CurrentBufferOldestTime(); t != nil {
+						at = *t
+					}
+					s.RequestHistory(buffer, at)
 				}
 			} else {
 				app.InputLeft()
@@ -199,7 +207,7 @@ func handleUIEvent(app *ui.UI, s *irc.Session, ev tcell.Event) {
 			handleInput(app, s, buffer, input)
 		case tcell.KeyRune:
 			app.InputRune(ev.Rune())
-			if app.CurrentBuffer() != "home" && !app.InputIsCommand() {
+			if app.CurrentBuffer() != ui.Home && !app.InputIsCommand() {
 				s.Typing(app.CurrentBuffer())
 			}
 		}
@@ -232,21 +240,20 @@ func handleInput(app *ui.UI, s *irc.Session, buffer, content string) {
 
 	switch cmd {
 	case "":
-		if buffer == "home" {
+		if buffer == ui.Home || len(strings.TrimSpace(args)) == 0 {
 			return
 		}
 
 		s.PrivMsg(buffer, args)
 		if !s.HasCapability("echo-message") {
-			line := formatIRCMessage(s.Nick(), args)
-			app.AddLine(buffer, line, time.Now(), false)
+			app.AddLine(buffer, ui.NewLineNow(s.Nick(), args))
 		}
 	case "QUOTE":
 		s.SendRaw(args)
 	case "J", "JOIN":
 		s.Join(args)
 	case "PART":
-		if buffer == "home" {
+		if buffer == ui.Home {
 			return
 		}
 
@@ -256,12 +263,13 @@ func handleInput(app *ui.UI, s *irc.Session, buffer, content string) {
 
 		s.Part(args)
 	case "ME":
-		if buffer == "home" {
+		if buffer == ui.Home {
 			return
 		}
 
 		line := fmt.Sprintf("\x01ACTION %s\x01", args)
 		s.PrivMsg(buffer, line)
+		// TODO echo message
 	case "MSG":
 		split := strings.SplitN(args, " ", 2)
 		if len(split) < 2 {
@@ -271,74 +279,6 @@ func handleInput(app *ui.UI, s *irc.Session, buffer, content string) {
 		target := split[0]
 		content := split[1]
 		s.PrivMsg(target, content)
+		// TODO echo mssage
 	}
-}
-
-func formatIRCMessage(nick, content string) (line string) {
-	c := color(nick)
-
-	if content == "" {
-		line = fmt.Sprintf("%s%s\x00:", c, nick)
-		return
-	}
-
-	if content[0] == 1 {
-		content = strings.TrimSuffix(content[1:], "\x01")
-
-		if strings.HasPrefix(content, "ACTION") {
-			line = fmt.Sprintf("%s%s\x00%s", c, nick, content[6:])
-		} else {
-			line = fmt.Sprintf("\x1dCTCP request from\x1d %s%s\x00: %s", c, nick, content)
-		}
-
-		return
-	}
-
-	line = fmt.Sprintf("%s%s\x00: %s", c, nick, content)
-
-	return
-}
-
-func formatIRCNotice(nick, content string) (line string) {
-	c := color(nick)
-
-	if content == "" {
-		line = fmt.Sprintf("(%s%s\x00: )", c, nick)
-		return
-	}
-
-	if content[0] == 1 {
-		content = strings.TrimSuffix(content[1:], "\x01")
-
-		if strings.HasPrefix(content, "ACTION") {
-			line = fmt.Sprintf("(%s%s\x00%s)", c, nick, content[6:])
-		} else {
-			line = fmt.Sprintf("(\x1dCTCP request from\x1d %s%s\x00: %s)", c, nick, content)
-		}
-	} else {
-		line = fmt.Sprintf("(%s%s\x00: %s)", c, nick, content)
-	}
-
-	return
-}
-
-func color(nick string) string {
-	h := fnv.New32()
-	_, _ = h.Write([]byte(nick))
-
-	sum := h.Sum32() % 96
-
-	if 1 <= sum {
-		sum++
-	}
-	if 8 <= sum {
-		sum++
-	}
-
-	var c [3]rune
-	c[0] = '\x03'
-	c[1] = rune(sum/10) + '0'
-	c[2] = rune(sum%10) + '0'
-
-	return string(c[:])
 }
