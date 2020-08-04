@@ -334,7 +334,7 @@ func (bs *bufferList) Remove(title string) (ok bool) {
 	return
 }
 
-func (bs *bufferList) AddLine(title string, line Line) {
+func (bs *bufferList) AddLine(title string, line Line, isHighlight bool) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -358,6 +358,9 @@ func (bs *bufferList) AddLine(title string, line Line) {
 
 	if !line.isStatus && idx != bs.current {
 		b.unread = true
+	}
+	if isHighlight && idx != bs.current {
+		b.highlights++
 	}
 }
 
@@ -504,7 +507,7 @@ func (bs *bufferList) drawTitleList(screen tcell.Screen, y int) {
 	for _, b := range bs.list {
 		width := StringWidth(b.title)
 		if 0 < b.highlights {
-			width += int(math.Log10(float64(b.highlights))) + 1
+			width += int(math.Log10(float64(b.highlights))) + 3
 		}
 		widths = append(widths, width)
 	}
@@ -529,7 +532,11 @@ func (bs *bufferList) drawTitleList(screen tcell.Screen, y int) {
 		printString(screen, &x, y, st, b.title)
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
+			screen.SetContent(x, y, ' ', nil, st)
+			x++
 			printNumber(screen, &x, y, st, b.highlights)
+			screen.SetContent(x, y, ' ', nil, st)
+			x++
 		}
 		x += 2
 		i = (i + 1) % len(bs.list)
@@ -547,7 +554,11 @@ func (bs *bufferList) drawTitleList(screen tcell.Screen, y int) {
 		printString(screen, &x, y, st, b.title)
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
+			screen.SetContent(x, y, ' ', nil, st)
+			x++
 			printNumber(screen, &x, y, st, b.highlights)
+			screen.SetContent(x, y, ' ', nil, st)
+			x++
 		}
 		x -= widths[i]
 		i = (i - 1 + len(bs.list)) % len(bs.list)

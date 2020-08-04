@@ -39,7 +39,7 @@ func main() {
 	defer app.Close()
 
 	addr := cfg.Addr
-	app.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", addr)))
+	app.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", addr)), false)
 
 	conn, err := tls.Dial("tcp", addr, nil)
 	if err != nil {
@@ -70,32 +70,33 @@ func main() {
 func handleIRCEvent(app *ui.UI, s *irc.Session, ev irc.Event) {
 	switch ev := ev.(type) {
 	case irc.RegisteredEvent:
-		app.AddLine("", ui.NewLineNow("--", "Connected to the server"))
+		app.AddLine("", ui.NewLineNow("--", "Connected to the server"), false)
 	case irc.SelfJoinEvent:
 		app.AddBuffer(ev.Channel)
 	case irc.UserJoinEvent:
 		line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true))
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true), false)
 	case irc.SelfPartEvent:
 		app.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true))
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true), false)
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false)
-			app.AddLine(ui.Home, l)
+			app.AddLine(ui.Home, l, true)
 			app.TypingStop(ui.Home, ev.Nick)
 		} else if ev.Command == "NOTICE" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true)
-			app.AddLine("", l)
+			app.AddLine("", l, true)
 			app.TypingStop("", ev.Nick)
 		} else {
 			panic("unknown command")
 		}
 	case irc.ChannelMessageEvent:
 		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE")
-		app.AddLine(ev.Channel, l)
+		isHighlight := strings.Contains(strings.ToLower(ev.Content), strings.ToLower(s.Nick()))
+		app.AddLine(ev.Channel, l, isHighlight)
 		app.TypingStop(ev.Channel, ev.Nick)
 	case irc.QueryTypingEvent:
 		if ev.State == 1 || ev.State == 2 {
@@ -246,7 +247,7 @@ func handleInput(app *ui.UI, s *irc.Session, buffer, content string) {
 
 		s.PrivMsg(buffer, args)
 		if !s.HasCapability("echo-message") {
-			app.AddLine(buffer, ui.NewLineNow(s.Nick(), args))
+			app.AddLine(buffer, ui.NewLineNow(s.Nick(), args), false)
 		}
 	case "QUOTE":
 		s.SendRaw(args)

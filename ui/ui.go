@@ -46,7 +46,7 @@ func New() (ui *UI, err error) {
 	hmIdx := rand.Intn(len(homeMessages))
 	ui.bs = newBufferList(w, h)
 	ui.bs.Add(Home)
-	ui.bs.AddLine("", NewLineNow("--", homeMessages[hmIdx]))
+	ui.bs.AddLine("", NewLineNow("--", homeMessages[hmIdx]), false)
 
 	ui.e = newEditor(w)
 
@@ -113,8 +113,8 @@ func (ui *UI) RemoveBuffer(title string) {
 	}
 }
 
-func (ui *UI) AddLine(buffer string, line Line) {
-	ui.bs.AddLine(buffer, line)
+func (ui *UI) AddLine(buffer string, line Line, isHighlight bool) {
+	ui.bs.AddLine(buffer, line, isHighlight)
 	ui.draw()
 }
 
