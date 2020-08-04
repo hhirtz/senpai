@@ -75,12 +75,12 @@ func handleIRCEvent(app *ui.UI, s *irc.Session, ev irc.Event) {
 		app.AddBuffer(ev.Channel)
 	case irc.UserJoinEvent:
 		line := fmt.Sprintf("\x033+\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true), false)
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true), false)
 	case irc.SelfPartEvent:
 		app.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s", ev.Nick)
-		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "", line, true), false)
+		app.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true), false)
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false)
