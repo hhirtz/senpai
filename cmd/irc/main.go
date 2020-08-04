@@ -2,6 +2,7 @@ package main
 
 import (
 	"crypto/tls"
+	"flag"
 	"fmt"
 	"log"
 	"math/rand"
@@ -22,12 +23,19 @@ func init() {
 func main() {
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)
 
-	configDir, err := os.UserConfigDir()
-	if err != nil {
-		log.Panicln(err)
+	var configPath string
+	flag.StringVar(&configPath, "config", "", "path to the configuration file")
+	flag.Parse()
+
+	if configPath == "" {
+		configDir, err := os.UserConfigDir()
+		if err != nil {
+			log.Panicln(err)
+		}
+		configPath = configDir + "/senpai/senpai.yaml"
 	}
 
-	cfg, err := senpai.LoadConfigFile(configDir + "/senpai/senpai.yaml")
+	cfg, err := senpai.LoadConfigFile(configPath)
 	if err != nil {
 		log.Panicln(err)
 	}
@@ -46,11 +54,15 @@ func main() {
 		log.Panicln(err)
 	}
 
+	var auth irc.SASLClient
+	if cfg.Password != "" {
+		auth = &irc.SASLPlain{Username: cfg.User, Password: cfg.Password}
+	}
 	s, err := irc.NewSession(conn, irc.SessionParams{
 		Nickname: cfg.Nick,
-		Username: cfg.Nick,
+		Username: cfg.User,
 		RealName: cfg.Real,
-		Auth:     &irc.SASLPlain{Username: cfg.User, Password: cfg.Password},
+		Auth:     auth,
 	})
 	if err != nil {
 		log.Panicln(err)
