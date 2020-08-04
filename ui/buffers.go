@@ -296,10 +296,14 @@ func (bs *bufferList) Resize(width, height int) {
 
 func (bs *bufferList) Next() {
 	bs.current = (bs.current + 1) % len(bs.list)
+	bs.list[bs.current].highlights = 0
+	bs.list[bs.current].unread = false
 }
 
 func (bs *bufferList) Previous() {
 	bs.current = (bs.current - 1 + len(bs.list)) % len(bs.list)
+	bs.list[bs.current].highlights = 0
+	bs.list[bs.current].unread = false
 }
 
 func (bs *bufferList) Add(title string) (ok bool) {
@@ -350,6 +354,10 @@ func (bs *bufferList) AddLine(title string, line Line) {
 		if idx == bs.current && 0 < b.scrollAmt {
 			b.scrollAmt++
 		}
+	}
+
+	if !line.isStatus && idx != bs.current {
+		b.unread = true
 	}
 }
 
