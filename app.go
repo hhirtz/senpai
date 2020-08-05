@@ -161,8 +161,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.win.Resize()
 		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.win.ScrollUp()
-			if app.win.IsAtTop() {
-				buffer := app.win.CurrentBuffer()
+			buffer := app.win.CurrentBuffer()
+			if app.win.IsAtTop() && buffer != ui.Home {
 				at := time.Now()
 				if t := app.win.CurrentBufferOldestTime(); t != nil {
 					at = *t
@@ -173,8 +173,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.win.ScrollDown()
 		case tcell.KeyCtrlN:
 			app.win.NextBuffer()
-			if app.win.IsAtTop() {
-				buffer := app.win.CurrentBuffer()
+			buffer := app.win.CurrentBuffer()
+			if app.win.IsAtTop() && buffer != ui.Home {
 				at := time.Now()
 				if t := app.win.CurrentBufferOldestTime(); t != nil {
 					at = *t
@@ -183,8 +183,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			}
 		case tcell.KeyCtrlP:
 			app.win.PreviousBuffer()
-			if app.win.IsAtTop() {
-				buffer := app.win.CurrentBuffer()
+			buffer := app.win.CurrentBuffer()
+			if app.win.IsAtTop() && buffer != ui.Home {
 				at := time.Now()
 				if t := app.win.CurrentBufferOldestTime(); t != nil {
 					at = *t
@@ -194,8 +194,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 		case tcell.KeyRight:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.NextBuffer()
-				if app.win.IsAtTop() {
-					buffer := app.win.CurrentBuffer()
+				buffer := app.win.CurrentBuffer()
+				if app.win.IsAtTop() && buffer != ui.Home {
 					at := time.Now()
 					if t := app.win.CurrentBufferOldestTime(); t != nil {
 						at = *t
@@ -208,8 +208,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 		case tcell.KeyLeft:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.PreviousBuffer()
-				if app.win.IsAtTop() {
-					buffer := app.win.CurrentBuffer()
+				buffer := app.win.CurrentBuffer()
+				if app.win.IsAtTop() && buffer != ui.Home {
 					at := time.Now()
 					if t := app.win.CurrentBufferOldestTime(); t != nil {
 						at = *t
