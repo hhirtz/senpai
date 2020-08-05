@@ -100,7 +100,7 @@ func (e *editor) Right() {
 		return
 	}
 	e.cursorIdx++
-	if e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx] {
+	if e.width <= e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx] {
 		e.offsetIdx += 16
 		max := len(e.text) - 1
 		if max < e.offsetIdx {
