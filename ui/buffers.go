@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell"
-	"github.com/mattn/go-runewidth"
 )
 
 var Home = "home"
@@ -214,8 +213,6 @@ func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
 
 	nickColWidth := 16
 
-	var sb styleBuffer
-	sb.Reset()
 	y0 := b.scrollAmt + height
 	for i := len(b.lines) - 1; 0 <= i; i-- {
 		if y0 < 0 {
@@ -235,7 +232,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
 			printTime(screen, 0, y0, st.Bold(true), line.at)
 		}
 
-		head := truncate(line.head, nickColWidth)
+		head := truncate(line.head, nickColWidth, "\u2026")
 		x := 6 + nickColWidth - StringWidth(head)
 		c := identColor(line.head)
 		printString(screen, &x, y0, st.Foreground(colorFromCode(c)), head)
@@ -243,6 +240,8 @@ func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
 		x = x0
 		y := y0
 
+		var sb styleBuffer
+		sb.Reset()
 		for i, r := range line.body {
 			if 0 < len(nls) && i == nls[0] {
 				x = x0
@@ -263,7 +262,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
 					x++
 				}
 				screen.SetContent(x, y, r, nil, st)
-				x += runewidth.RuneWidth(r)
+				x += runeWidth(r)
 			}
 		}
 
@@ -574,7 +573,7 @@ func (bs *bufferList) drawTitleList(screen tcell.Screen, y int) {
 func printString(screen tcell.Screen, x *int, y int, st tcell.Style, s string) {
 	for _, r := range s {
 		screen.SetContent(*x, y, r, nil, st)
-		*x += runewidth.RuneWidth(r)
+		*x += runeWidth(r)
 	}
 }
 
@@ -593,11 +592,6 @@ func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {
 	screen.SetContent(x+2, y, ':', nil, st)
 	screen.SetContent(x+3, y, mn0, nil, st)
 	screen.SetContent(x+4, y, mn1, nil, st)
-}
-
-func truncate(s string, w int) string {
-	c := runewidth.Condition{ZeroWidthJoiner: true}
-	return c.Truncate(s, w, "\u2026")
 }
 
 func identColor(s string) (code int) {

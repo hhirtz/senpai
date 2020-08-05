@@ -5,6 +5,18 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
+var condition runewidth.Condition = runewidth.Condition{
+	EastAsianWidth: true,
+}
+
+func runeWidth(r rune) int {
+	return condition.RuneWidth(r)
+}
+
+func truncate(s string, w int, tail string) string {
+	return condition.Truncate(s, w, tail)
+}
+
 type widthBuffer struct {
 	width int
 	color colorBuffer
@@ -25,7 +37,7 @@ func (wb *widthBuffer) WriteRune(r rune) {
 		if 1 < ok {
 			wb.width++
 		}
-		wb.width += runewidth.RuneWidth(r)
+		wb.width += runeWidth(r)
 	}
 }
 

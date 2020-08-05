@@ -2,7 +2,6 @@ package ui
 
 import (
 	"github.com/gdamore/tcell"
-	"github.com/mattn/go-runewidth"
 )
 
 // editor is the text field where the user writes messages and commands.
@@ -56,7 +55,7 @@ func (e *editor) PutRune(r rune) {
 	copy(e.text[e.cursorIdx+1:], e.text[e.cursorIdx:])
 	e.text[e.cursorIdx] = r
 
-	rw := runewidth.RuneWidth(r)
+	rw := runeWidth(r)
 	tw := e.textWidth[len(e.textWidth)-1]
 	e.textWidth = append(e.textWidth, tw+rw)
 	for i := e.cursorIdx + 1; i < len(e.textWidth); i++ {
@@ -155,7 +154,7 @@ func (e *editor) Draw(screen tcell.Screen, y int) {
 	for i < len(e.text) && x < e.width {
 		r := e.text[i]
 		screen.SetContent(x, y, r, nil, st)
-		x += runewidth.RuneWidth(r)
+		x += runeWidth(r)
 		i++
 	}
 
