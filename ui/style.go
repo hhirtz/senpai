@@ -104,9 +104,13 @@ func (cb *colorBuffer) Reset() {
 func (cb *colorBuffer) Style(st tcell.Style) tcell.Style {
 	if 0 <= cb.fg {
 		st = st.Foreground(colorFromCode(cb.fg))
+	} else {
+		st = st.Foreground(tcell.ColorDefault)
 	}
 	if 0 <= cb.bg {
 		st = st.Background(colorFromCode(cb.bg))
+	} else {
+		st = st.Background(tcell.ColorDefault)
 	}
 	return st
 }
