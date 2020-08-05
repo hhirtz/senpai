@@ -736,10 +736,26 @@ func (s *Session) handleInner(msg Message) (err error) {
 		newNick := msg.Params[0]
 		lNewNick := strings.ToLower(newNick)
 
+		t, ok := msg.Time()
+		if !ok {
+			t = time.Now()
+		}
+
 		if lNick == s.lNick {
+			s.evts <- SelfNickEvent{
+				FormerNick: s.nick,
+				NewNick:    newNick,
+				Time:       t,
+			}
 			s.nick = newNick
 			s.lNick = lNewNick
 		} else {
+			s.evts <- UserNickEvent{
+				FormerNick: nick,
+				NewNick:    newNick,
+				Time:       t,
+			}
+			// TODO update state
 		}
 	case "FAIL":
 		fmt.Println("FAIL", msg.Params)

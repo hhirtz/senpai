@@ -91,6 +91,12 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		if app.cfg.Highlights == nil {
 			app.highlights[0] = app.s.LNick()
 		}
+	case irc.SelfNickEvent:
+		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
+		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true), true)
+	case irc.UserNickEvent:
+		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
+		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true), false)
 	case irc.SelfJoinEvent:
 		app.win.AddBuffer(ev.Channel)
 	case irc.UserJoinEvent:

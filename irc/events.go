@@ -34,6 +34,22 @@ func (c ChannelEvent) ChannelMapped() (channel string) {
 	return
 }
 
+type SelfNickEvent struct {
+	FormerNick string
+	NewNick    string
+	Time       time.Time
+}
+
+type UserNickEvent struct {
+	FormerNick string
+	NewNick    string
+	Time       time.Time
+}
+
+type SelfJoinEvent struct {
+	ChannelEvent
+}
+
 type UserJoinEvent struct {
 	UserEvent
 	ChannelEvent
@@ -48,10 +64,6 @@ type UserPartEvent struct {
 	UserEvent
 	ChannelEvent
 	Time time.Time
-}
-
-type SelfJoinEvent struct {
-	ChannelEvent
 }
 
 type QueryMessageEvent struct {
