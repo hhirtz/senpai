@@ -29,7 +29,7 @@ func (auth *SASLPlain) Handshake() (mech string) {
 
 func (auth *SASLPlain) Respond(challenge string) (res string, err error) {
 	if challenge != "+" {
-		err = errors.New("Unexpected challenge")
+		err = errors.New("unexpected challenge")
 		return
 	}
 
@@ -213,7 +213,7 @@ func (s *Session) Running() bool {
 
 func (s *Session) Stop() {
 	s.running.Store(false)
-	s.conn.Close()
+	_ = s.conn.Close()
 }
 
 func (s *Session) Poll() (events <-chan Event) {
