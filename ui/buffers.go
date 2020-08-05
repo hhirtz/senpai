@@ -476,8 +476,18 @@ func (bs *bufferList) drawStatusBar(screen tcell.Screen, y int) {
 	st := tcell.StyleDefault.Dim(true)
 	nicks := bs.list[bs.current].typings
 	verb := " is typing..."
-	x := 0
 
+	for x := 0; x < bs.width; x++ {
+		screen.SetContent(x, y, 0x2500, nil, st)
+	}
+
+	if len(nicks) == 0 {
+		return
+	}
+
+	screen.SetContent(1, y, 0x2524, nil, st)
+
+	x := 2
 	if 1 < len(nicks) {
 		verb = " are typing..."
 		for _, nick := range nicks[:len(nicks)-2] {
@@ -494,10 +504,6 @@ func (bs *bufferList) drawStatusBar(screen tcell.Screen, y int) {
 
 	if 0 < x {
 		screen.SetContent(x, y, 0x251c, nil, st)
-		x++
-	}
-	for x < bs.width {
-		screen.SetContent(x, y, 0x2500, nil, st)
 		x++
 	}
 }
