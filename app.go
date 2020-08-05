@@ -44,6 +44,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		Username: cfg.User,
 		RealName: cfg.Real,
 		Auth:     auth,
+		Debug:    cfg.Debug,
 	})
 	if err != nil {
 		return
@@ -79,8 +80,14 @@ func (app *App) Run() {
 
 func (app *App) handleIRCEvent(ev irc.Event) {
 	switch ev := ev.(type) {
+	case irc.RawMessageEvent:
+		head := "DEBUG  IN --"
+		if ev.Outgoing {
+			head = "DEBUG OUT --"
+		}
+		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message), false)
 	case irc.RegisteredEvent:
-		app.win.AddLine("", ui.NewLineNow("--", "Connected to the server"), false)
+		app.win.AddLine(ui.Home, ui.NewLineNow("--", "Connected to the server"), false)
 		if app.cfg.Highlights == nil {
 			app.highlights[0] = app.s.LNick()
 		}

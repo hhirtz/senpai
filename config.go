@@ -13,6 +13,8 @@ type Config struct {
 	User       string
 	Password   *string
 	Highlights []string
+
+	Debug bool
 }
 
 func ParseConfig(buf []byte) (cfg Config, err error) {

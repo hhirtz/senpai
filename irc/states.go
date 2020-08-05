@@ -120,6 +120,8 @@ type SessionParams struct {
 	RealName string
 
 	Auth SASLClient
+
+	Debug bool
 }
 
 type Session struct {
@@ -127,6 +129,8 @@ type Session struct {
 	msgs chan Message
 	acts chan action
 	evts chan Event
+
+	debug bool
 
 	running      atomic.Value // bool
 	state        ConnectionState
@@ -139,9 +143,6 @@ type Session struct {
 	acct  string
 	host  string
 	auth  SASLClient
-
-	mode string
-	motd string
 
 	availableCaps map[string]string
 	enabledCaps   map[string]struct{}
@@ -158,6 +159,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 		msgs:          make(chan Message, 16),
 		acts:          make(chan action, 16),
 		evts:          make(chan Event, 16),
+		debug:         params.Debug,
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
 		lNick:         strings.ToLower(params.Nickname),
@@ -360,6 +362,10 @@ func (s *Session) run() {
 }
 
 func (s *Session) handleStart(msg Message) (err error) {
+	if s.debug {
+		s.evts <- RawMessageEvent{Message: msg.String()}
+	}
+
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth != nil {
@@ -445,8 +451,6 @@ func (s *Session) handleStart(msg Message) (err error) {
 				}
 			}
 		}
-	case errNomotd:
-		s.motd += "\n" + strings.TrimPrefix(msg.Params[1], "- ")
 	case errNicknameinuse:
 		s.nick = s.nick + "_"
 
@@ -455,13 +459,20 @@ func (s *Session) handleStart(msg Message) (err error) {
 			return
 		}
 	default:
-		err = s.handle(msg)
+		err = s.handleInner(msg)
 	}
 
 	return
 }
 
 func (s *Session) handle(msg Message) (err error) {
+	if s.debug {
+		s.evts <- RawMessageEvent{Message: msg.String()}
+	}
+	return s.handleInner(msg)
+}
+
+func (s *Session) handleInner(msg Message) (err error) {
 	if id, ok := msg.Tags["batch"]; ok {
 		if b, ok := s.chBatches[id]; ok {
 			s.chBatches[id] = HistoryEvent{
@@ -745,6 +756,7 @@ func (s *Session) handle(msg Message) (err error) {
 		s.state = ConnQuit
 	default:
 	}
+
 	return
 }
 
@@ -812,34 +824,20 @@ func (s *Session) updateFeatures(features []string) {
 	}
 }
 
-/*
-func (cli *Session) send(format string, args ...interface{}) (err error) {
+func (s *Session) send(format string, args ...interface{}) (err error) {
 	msg := fmt.Sprintf(format, args...)
+	_, err = s.conn.Write([]byte(msg))
 
-	for _, line := range strings.Split(msg, "\r\n") {
-		if line != "" {
-			fmt.Println("<  ", line)
+	if s.debug {
+		for _, line := range strings.Split(msg, "\r\n") {
+			if line != "" {
+				s.evts <- RawMessageEvent{
+					Message:  line,
+					Outgoing: true,
+				}
+			}
 		}
 	}
 
-	_, err = cli.conn.Write([]byte(msg))
-
 	return
 }
-
-// */
-
-//*
-func (s *Session) send(format string, args ...interface{}) (err error) {
-	_, err = fmt.Fprintf(s.conn, format, args...)
-	return
-}
-
-// */
-
-/*
-func (s *Session) send(format string, args ...interface{}) (err error) {
-	go fmt.Fprintf(s.conn, format, args...)
-	return
-}
-// */

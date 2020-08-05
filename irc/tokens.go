@@ -38,7 +38,7 @@ func tagEscape(c rune) (escape rune) {
 	return
 }
 
-func unescapeTagValue(escaped string) (unescaped string) {
+func unescapeTagValue(escaped string) string {
 	var builder strings.Builder
 	builder.Grow(len(escaped))
 	escape := false
@@ -60,8 +60,36 @@ func unescapeTagValue(escaped string) (unescaped string) {
 		}
 	}
 
-	unescaped = builder.String()
-	return
+	return builder.String()
+}
+
+func escapeTagValue(unescaped string) string {
+	var sb strings.Builder
+	sb.Grow(len(unescaped) * 2)
+
+	for _, c := range unescaped {
+		switch c {
+		case ';':
+			sb.WriteRune('\\')
+			sb.WriteRune(':')
+		case ' ':
+			sb.WriteRune('\\')
+			sb.WriteRune('s')
+		case '\r':
+			sb.WriteRune('\\')
+			sb.WriteRune('r')
+		case '\n':
+			sb.WriteRune('\\')
+			sb.WriteRune('n')
+		case '\\':
+			sb.WriteRune('\\')
+			sb.WriteRune('\\')
+		default:
+			sb.WriteRune(c)
+		}
+	}
+
+	return sb.String()
 }
 
 func parseTags(s string) (tags map[string]string) {
@@ -152,6 +180,55 @@ func Tokenize(line string) (msg Message, err error) {
 	}
 
 	return
+}
+
+func (msg *Message) IsReply() bool {
+	if len(msg.Command) != 3 {
+		return false
+	}
+	for _, r := range msg.Command {
+		if !('0' <= r && r <= '9') {
+			return false
+		}
+	}
+	return true
+}
+
+func (msg *Message) String() string {
+	var sb strings.Builder
+
+	if msg.Tags != nil {
+		sb.WriteRune('@')
+		for k, v := range msg.Tags {
+			sb.WriteString(k)
+			if v != "" {
+				sb.WriteRune('=')
+				sb.WriteString(escapeTagValue(v))
+			}
+			sb.WriteRune(';')
+		}
+		sb.WriteRune(' ')
+	}
+
+	if msg.Prefix != "" {
+		sb.WriteRune(':')
+		sb.WriteString(msg.Prefix)
+		sb.WriteRune(' ')
+	}
+
+	sb.WriteString(msg.Command)
+
+	if len(msg.Params) != 0 {
+		for _, p := range msg.Params[:len(msg.Params)-1] {
+			sb.WriteRune(' ')
+			sb.WriteString(p)
+		}
+		sb.WriteRune(' ')
+		sb.WriteRune(':')
+		sb.WriteString(msg.Params[len(msg.Params)-1])
+	}
+
+	return sb.String()
 }
 
 func (msg *Message) Validate() (err error) {

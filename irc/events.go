@@ -7,6 +7,11 @@ import (
 
 type Event interface{}
 
+type RawMessageEvent struct {
+	Message  string
+	Outgoing bool
+}
+
 type RegisteredEvent struct{}
 
 type UserEvent struct {

@@ -19,7 +19,9 @@ func main() {
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)
 
 	var configPath string
+	var debug bool
 	flag.StringVar(&configPath, "config", "", "path to the configuration file")
+	flag.BoolVar(&debug, "debug", false, "show raw protocol data in the home buffer")
 	flag.Parse()
 
 	if configPath == "" {
@@ -34,6 +36,8 @@ func main() {
 	if err != nil {
 		log.Panicln(err)
 	}
+
+	cfg.Debug = cfg.Debug || debug
 
 	app, err := senpai.NewApp(cfg)
 	if err != nil {
