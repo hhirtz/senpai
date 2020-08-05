@@ -71,19 +71,31 @@ func (e *editor) RemRune() (ok bool) {
 	if !ok {
 		return
 	}
-
-	// TODO avoid looping twice
-	rw := e.textWidth[e.cursorIdx] - e.textWidth[e.cursorIdx-1]
-	for i := e.cursorIdx; i < len(e.textWidth); i++ {
-		e.textWidth[i] -= rw
-	}
-	copy(e.textWidth[e.cursorIdx:], e.textWidth[e.cursorIdx+1:])
-	e.textWidth = e.textWidth[:len(e.textWidth)-1]
-
-	copy(e.text[e.cursorIdx-1:], e.text[e.cursorIdx:])
-	e.text = e.text[:len(e.text)-1]
+	e.remRuneAt(e.cursorIdx - 1)
 	e.Left()
 	return
+}
+
+func (e *editor) RemRuneForward() (ok bool) {
+	ok = e.cursorIdx < len(e.text)
+	if !ok {
+		return
+	}
+	e.remRuneAt(e.cursorIdx)
+	return
+}
+
+func (e *editor) remRuneAt(idx int) {
+	// TODO avoid looping twice
+	rw := e.textWidth[idx+1] - e.textWidth[idx]
+	for i := idx + 1; i < len(e.textWidth); i++ {
+		e.textWidth[i] -= rw
+	}
+	copy(e.textWidth[idx+1:], e.textWidth[idx+2:])
+	e.textWidth = e.textWidth[:len(e.textWidth)-1]
+
+	copy(e.text[idx:], e.text[idx+1:])
+	e.text = e.text[:len(e.text)-1]
 }
 
 func (e *editor) Flush() (content string) {

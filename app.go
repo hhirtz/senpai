@@ -228,6 +228,11 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			if ok && app.win.InputLen() == 0 {
 				app.s.TypingStop(app.win.CurrentBuffer())
 			}
+		case tcell.KeyDelete:
+			ok := app.win.InputDelete()
+			if ok && app.win.InputLen() == 0 {
+				app.s.TypingStop(app.win.CurrentBuffer())
+			}
 		case tcell.KeyCR, tcell.KeyLF:
 			buffer := app.win.CurrentBuffer()
 			input := app.win.InputEnter()

@@ -174,6 +174,14 @@ func (ui *UI) InputBackspace() (ok bool) {
 	return
 }
 
+func (ui *UI) InputDelete() (ok bool) {
+	ok = ui.e.RemRuneForward()
+	if ok {
+		ui.draw()
+	}
+	return
+}
+
 func (ui *UI) InputEnter() (content string) {
 	content = ui.e.Flush()
 	ui.draw()
