@@ -229,6 +229,10 @@ func (s *Session) Nick() string {
 	return s.nick
 }
 
+func (s *Session) LNick() string {
+	return s.lNick
+}
+
 func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }

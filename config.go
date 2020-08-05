@@ -1,16 +1,18 @@
 package senpai
 
 import (
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
+
+	"gopkg.in/yaml.v2"
 )
 
 type Config struct {
-	Addr string
-	Nick string
-	Real string
-	User string
-	Password string
+	Addr       string
+	Nick       string
+	Real       string
+	User       string
+	Password   *string
+	Highlights []string
 }
 
 func ParseConfig(buf []byte) (cfg Config, err error) {
@@ -20,12 +22,12 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 
 func LoadConfigFile(filename string) (cfg Config, err error) {
 	var buf []byte
-	
+
 	buf, err = ioutil.ReadFile(filename)
 	if err != nil {
-		return 
+		return
 	}
-	
+
 	cfg, err = ParseConfig(buf)
 
 	return
