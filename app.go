@@ -219,6 +219,10 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			} else {
 				app.win.InputLeft()
 			}
+		case tcell.KeyHome:
+			app.win.InputHome()
+		case tcell.KeyEnd:
+			app.win.InputEnd()
 		case tcell.KeyBackspace2:
 			ok := app.win.InputBackspace()
 			if ok && app.win.InputLen() == 0 {

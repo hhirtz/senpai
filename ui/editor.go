@@ -122,6 +122,18 @@ func (e *editor) Left() {
 	}
 }
 
+func (e *editor) Home() {
+	e.cursorIdx = 0
+	e.offsetIdx = 0
+}
+
+func (e *editor) End() {
+	e.cursorIdx = len(e.text)
+	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
+		e.offsetIdx++
+	}
+}
+
 func (e *editor) Draw(screen tcell.Screen, y int) {
 	st := tcell.StyleDefault
 
