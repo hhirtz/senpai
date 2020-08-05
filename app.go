@@ -48,7 +48,7 @@ func NewApp(cfg Config) (app *App, err error) {
 	if err != nil {
 		return
 	}
-	
+
 	if cfg.Highlights != nil {
 		app.highlights = cfg.Highlights
 		for i := range app.highlights {
@@ -108,7 +108,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		}
 	case irc.ChannelMessageEvent:
 		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE")
-		
+
 		lContent := strings.ToLower(ev.Content)
 		isHighlight := false
 		for _, h := range app.highlights {
@@ -117,7 +117,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 				break
 			}
 		}
-		
+
 		app.win.AddLine(ev.Channel, l, isHighlight)
 		app.win.TypingStop(ev.Channel, ev.Nick)
 	case irc.QueryTypingEvent:
@@ -224,7 +224,7 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			if ok && app.win.InputLen() == 0 {
 				app.s.TypingStop(app.win.CurrentBuffer())
 			}
-		case tcell.KeyEnter:
+		case tcell.KeyCR, tcell.KeyLF:
 			buffer := app.win.CurrentBuffer()
 			input := app.win.InputEnter()
 			app.handleInput(buffer, input)
