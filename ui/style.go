@@ -51,6 +51,7 @@ type styleBuffer struct {
 	st        tcell.Style
 	color     colorBuffer
 	bold      bool
+	reverse   bool
 	italic    bool
 	underline bool
 }
@@ -59,6 +60,7 @@ func (sb *styleBuffer) Reset() {
 	sb.color.Reset()
 	sb.st = tcell.StyleDefault
 	sb.bold = false
+	sb.reverse = false
 	sb.italic = false
 	sb.underline = false
 }
@@ -71,6 +73,11 @@ func (sb *styleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
 	if r == 0x02 {
 		sb.bold = !sb.bold
 		sb.st = sb.st.Bold(sb.bold)
+		return sb.st, 0
+	}
+	if r == 0x16 {
+		sb.reverse = !sb.reverse
+		sb.st = st.Reverse(sb.reverse)
 		return sb.st, 0
 	}
 	if r == 0x1D {
