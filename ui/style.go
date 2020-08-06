@@ -5,9 +5,7 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-var condition runewidth.Condition = runewidth.Condition{
-	EastAsianWidth: true,
-}
+var condition runewidth.Condition = runewidth.Condition{}
 
 func runeWidth(r rune) int {
 	return condition.RuneWidth(r)
