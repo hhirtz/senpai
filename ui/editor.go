@@ -7,7 +7,9 @@ import (
 // editor is the text field where the user writes messages and commands.
 type editor struct {
 	// text contains the written runes. An empty slice means no text is written.
-	text []rune
+	text [][]rune
+
+	lineIdx int
 
 	// textWidth[i] contains the width of string(text[:i]). Therefore
 	// len(textWidth) is always strictly greater than 0 and textWidth[0] is
@@ -28,7 +30,7 @@ type editor struct {
 
 func newEditor(width int) editor {
 	return editor{
-		text:      []rune{},
+		text:      [][]rune{{}},
 		textWidth: []int{0},
 		width:     width,
 	}
@@ -43,17 +45,17 @@ func (e *editor) Resize(width int) {
 }
 
 func (e *editor) IsCommand() bool {
-	return len(e.text) != 0 && e.text[0] == '/'
+	return len(e.text[e.lineIdx]) != 0 && e.text[e.lineIdx][0] == '/'
 }
 
 func (e *editor) TextLen() int {
-	return len(e.text)
+	return len(e.text[e.lineIdx])
 }
 
 func (e *editor) PutRune(r rune) {
-	e.text = append(e.text, ' ')
-	copy(e.text[e.cursorIdx+1:], e.text[e.cursorIdx:])
-	e.text[e.cursorIdx] = r
+	e.text[e.lineIdx] = append(e.text[e.lineIdx], ' ')
+	copy(e.text[e.lineIdx][e.cursorIdx+1:], e.text[e.lineIdx][e.cursorIdx:])
+	e.text[e.lineIdx][e.cursorIdx] = r
 
 	rw := runeWidth(r)
 	tw := e.textWidth[len(e.textWidth)-1]
@@ -93,13 +95,14 @@ func (e *editor) remRuneAt(idx int) {
 	copy(e.textWidth[idx+1:], e.textWidth[idx+2:])
 	e.textWidth = e.textWidth[:len(e.textWidth)-1]
 
-	copy(e.text[idx:], e.text[idx+1:])
-	e.text = e.text[:len(e.text)-1]
+	copy(e.text[e.lineIdx][idx:], e.text[e.lineIdx][idx+1:])
+	e.text[e.lineIdx] = e.text[e.lineIdx][:len(e.text[e.lineIdx])-1]
 }
 
 func (e *editor) Flush() (content string) {
-	content = string(e.text)
-	e.text = e.text[:0]
+	content = string(e.text[e.lineIdx])
+	e.lineIdx = len(e.text)
+	e.text = append(e.text, []rune{})
 	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
 	e.offsetIdx = 0
@@ -107,13 +110,13 @@ func (e *editor) Flush() (content string) {
 }
 
 func (e *editor) Right() {
-	if e.cursorIdx == len(e.text) {
+	if e.cursorIdx == len(e.text[e.lineIdx]) {
 		return
 	}
 	e.cursorIdx++
 	if e.width <= e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx] {
 		e.offsetIdx += 16
-		max := len(e.text) - 1
+		max := len(e.text[e.lineIdx]) - 1
 		if max < e.offsetIdx {
 			e.offsetIdx = max
 		}
@@ -139,9 +142,44 @@ func (e *editor) Home() {
 }
 
 func (e *editor) End() {
-	e.cursorIdx = len(e.text)
+	e.cursorIdx = len(e.text[e.lineIdx])
 	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
 		e.offsetIdx++
+	}
+}
+
+func (e *editor) Up() {
+	if e.lineIdx == 0 {
+		return
+	}
+	e.lineIdx--
+	e.computeTextWidth()
+	e.cursorIdx = 0
+	e.offsetIdx = 0
+	e.End()
+}
+
+func (e *editor) Down() {
+	if e.lineIdx == len(e.text)-1 {
+		if len(e.text[e.lineIdx]) == 0 {
+			return
+		}
+		e.Flush()
+		return
+	}
+	e.lineIdx++
+	e.computeTextWidth()
+	e.cursorIdx = 0
+	e.offsetIdx = 0
+	e.End()
+}
+
+func (e *editor) computeTextWidth() {
+	e.textWidth = e.textWidth[:1]
+	rw := 0
+	for _, r := range e.text[e.lineIdx] {
+		rw += runeWidth(r)
+		e.textWidth = append(e.textWidth, rw)
 	}
 }
 
@@ -151,8 +189,8 @@ func (e *editor) Draw(screen tcell.Screen, y int) {
 	x := 0
 	i := e.offsetIdx
 
-	for i < len(e.text) && x < e.width {
-		r := e.text[i]
+	for i < len(e.text[e.lineIdx]) && x < e.width {
+		r := e.text[e.lineIdx][i]
 		screen.SetContent(x, y, r, nil, st)
 		x += runeWidth(r)
 		i++

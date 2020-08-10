@@ -166,6 +166,16 @@ func (ui *UI) InputEnd() {
 	ui.draw()
 }
 
+func (ui *UI) InputUp() {
+	ui.e.Up()
+	ui.draw()
+}
+
+func (ui *UI) InputDown() {
+	ui.e.Down()
+	ui.draw()
+}
+
 func (ui *UI) InputBackspace() (ok bool) {
 	ok = ui.e.RemRune()
 	if ok {

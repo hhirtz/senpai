@@ -232,6 +232,10 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			} else {
 				app.win.InputLeft()
 			}
+		case tcell.KeyUp:
+			app.win.InputUp()
+		case tcell.KeyDown:
+			app.win.InputDown()
 		case tcell.KeyHome:
 			app.win.InputHome()
 		case tcell.KeyEnd:
