@@ -106,7 +106,9 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		app.win.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s\x03", ev.Nick)
-		app.win.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true), false)
+		for _, channel := range ev.Channels {
+			app.win.AddLine(channel, ui.NewLine(ev.Time, "--", line, true), false)
+		}
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false)

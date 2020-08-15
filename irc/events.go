@@ -1,7 +1,6 @@
 package irc
 
 import (
-	"strings"
 	"time"
 )
 
@@ -13,26 +12,6 @@ type RawMessageEvent struct {
 }
 
 type RegisteredEvent struct{}
-
-type UserEvent struct {
-	Nick string
-	User string
-	Host string
-}
-
-func (u UserEvent) NickMapped() (nick string) {
-	nick = strings.ToLower(u.Nick)
-	return
-}
-
-type ChannelEvent struct {
-	Channel string
-}
-
-func (c ChannelEvent) ChannelMapped() (channel string) {
-	channel = strings.ToLower(c.Channel)
-	return
-}
 
 type SelfNickEvent struct {
 	FormerNick string
@@ -47,51 +26,51 @@ type UserNickEvent struct {
 }
 
 type SelfJoinEvent struct {
-	ChannelEvent
+	Channel string
 }
 
 type UserJoinEvent struct {
-	UserEvent
-	ChannelEvent
-	Time time.Time
+	Nick    string
+	Channel string
+	Time    time.Time
 }
 
 type SelfPartEvent struct {
-	ChannelEvent
+	Channel string
 }
 
 type UserPartEvent struct {
-	UserEvent
-	ChannelEvent
-	Time time.Time
+	Nick     string
+	Channels []string
+	Time     time.Time
 }
 
 type QueryMessageEvent struct {
-	UserEvent
+	Nick    string
 	Command string
 	Content string
 	Time    time.Time
 }
 
 type ChannelMessageEvent struct {
-	UserEvent
-	ChannelEvent
+	Nick    string
+	Channel string
 	Command string
 	Content string
 	Time    time.Time
 }
 
 type QueryTypingEvent struct {
-	UserEvent
+	Nick  string
 	State int
 	Time  time.Time
 }
 
 type ChannelTypingEvent struct {
-	UserEvent
-	ChannelEvent
-	State int
-	Time  time.Time
+	Nick    string
+	Channel string
+	State   int
+	Time    time.Time
 }
 
 type HistoryEvent struct {

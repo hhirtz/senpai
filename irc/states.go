@@ -68,20 +68,6 @@ const (
 	ConnQuit
 )
 
-type User struct {
-	Nick    string
-	AwayMsg string
-}
-
-type Channel struct {
-	Name      string
-	Members   map[string]string
-	Topic     string
-	TopicWho  string
-	TopicTime time.Time
-	Secret    bool
-}
-
 type action interface{}
 
 type (
@@ -113,6 +99,20 @@ type (
 		Before time.Time
 	}
 )
+
+type User struct {
+	Nick    string
+	AwayMsg string
+}
+
+type Channel struct {
+	Name      string
+	Members   map[string]string
+	Topic     string
+	TopicWho  string
+	TopicTime time.Time
+	Secret    bool
+}
 
 type SessionParams struct {
 	Nickname string
@@ -583,7 +583,6 @@ func (s *Session) handleInner(msg Message) (err error) {
 		nick, _, _ := FullMask(msg.Prefix)
 		lNick := strings.ToLower(nick)
 		channel := strings.ToLower(msg.Params[0])
-		channelEv := ChannelEvent{Channel: msg.Params[0]}
 
 		if lNick == s.lNick {
 			s.channels[channel] = Channel{
@@ -602,20 +601,19 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 
 			s.evts <- UserJoinEvent{
-				ChannelEvent: channelEv,
-				UserEvent:    UserEvent{Nick: nick},
-				Time:         t,
+				Channel: msg.Params[0],
+				Nick:    nick,
+				Time:    t,
 			}
 		}
 	case "PART":
 		nick, _, _ := FullMask(msg.Prefix)
 		lNick := strings.ToLower(nick)
 		channel := strings.ToLower(msg.Params[0])
-		channelEv := ChannelEvent{Channel: msg.Params[0]}
 
 		if lNick == s.lNick {
 			delete(s.channels, channel)
-			s.evts <- SelfPartEvent{ChannelEvent: channelEv}
+			s.evts <- SelfPartEvent{Channel: msg.Params[0]}
 		} else if c, ok := s.channels[channel]; ok {
 			delete(c.Members, lNick)
 
@@ -625,9 +623,9 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 
 			s.evts <- UserPartEvent{
-				ChannelEvent: channelEv,
-				UserEvent:    UserEvent{Nick: nick},
-				Time:         t,
+				Channels: msg.Params[:1],
+				Nick:     nick,
+				Time:     t,
 			}
 		}
 	case "QUIT":
@@ -639,17 +637,19 @@ func (s *Session) handleInner(msg Message) (err error) {
 			t = time.Now()
 		}
 
+		var channels []string
+
 		for _, c := range s.channels {
 			if _, ok := c.Members[lNick]; !ok {
 				continue
 			}
+			channels = append(channels, c.Name)
+		}
 
-			// TODO UserQuitEvent
-			s.evts <- UserPartEvent{
-				ChannelEvent: ChannelEvent{Channel: c.Name},
-				UserEvent:    UserEvent{Nick: nick},
-				Time:         t,
-			}
+		s.evts <- UserPartEvent{
+			Channels: channels,
+			Nick:     nick,
+			Time:     t,
 		}
 	case rplNamreply:
 		channel := strings.ToLower(msg.Params[2])
@@ -669,7 +669,7 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 		}
 	case rplEndofnames:
-		s.evts <- SelfJoinEvent{ChannelEvent{Channel: msg.Params[1]}}
+		s.evts <- SelfJoinEvent{Channel: msg.Params[1]}
 	case rplTopic:
 		channel := strings.ToLower(msg.Params[1])
 
@@ -707,17 +707,17 @@ func (s *Session) handleInner(msg Message) (err error) {
 		if target == s.lNick {
 			// TAGMSG to self
 			s.evts <- QueryTypingEvent{
-				UserEvent: UserEvent{Nick: nick},
-				State:     typing,
-				Time:      t,
+				Nick:  nick,
+				State: typing,
+				Time:  t,
 			}
 		} else if _, ok := s.channels[target]; ok {
 			// TAGMSG to channel
 			s.evts <- ChannelTypingEvent{
-				UserEvent:    UserEvent{Nick: nick},
-				ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
-				State:        typing,
-				Time:         t,
+				Nick:    nick,
+				Channel: msg.Params[0],
+				State:   typing,
+				Time:    t,
 			}
 		}
 	case "BATCH":
@@ -788,19 +788,19 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 	if !s.IsChannel(target) {
 		// PRIVMSG to self
 		ev = QueryMessageEvent{
-			UserEvent: UserEvent{Nick: nick},
-			Command:   msg.Command,
-			Content:   msg.Params[1],
-			Time:      t,
+			Nick:    nick,
+			Command: msg.Command,
+			Content: msg.Params[1],
+			Time:    t,
 		}
 	} else if _, ok := s.channels[target]; ok {
 		// PRIVMSG to channel
 		ev = ChannelMessageEvent{
-			UserEvent:    UserEvent{Nick: nick},
-			ChannelEvent: ChannelEvent{Channel: msg.Params[0]},
-			Command:      msg.Command,
-			Content:      msg.Params[1],
-			Time:         t,
+			Nick:    nick,
+			Channel: msg.Params[0],
+			Command: msg.Command,
+			Content: msg.Params[1],
+			Time:    t,
 		}
 	}
 
