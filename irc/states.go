@@ -601,7 +601,7 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 
 			s.evts <- UserJoinEvent{
-				Channel: msg.Params[0],
+				Channel: c.Name,
 				Nick:    nick,
 				Time:    t,
 			}
@@ -623,7 +623,7 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 
 			s.evts <- UserPartEvent{
-				Channels: msg.Params[:1],
+				Channels: []string{c.Name},
 				Nick:     nick,
 				Time:     t,
 			}
@@ -669,7 +669,10 @@ func (s *Session) handleInner(msg Message) (err error) {
 			}
 		}
 	case rplEndofnames:
-		s.evts <- SelfJoinEvent{Channel: msg.Params[1]}
+		channel := strings.ToLower(msg.Params[1])
+		if c, ok := s.channels[channel]; ok {
+			s.evts <- SelfJoinEvent{Channel: c.Name}
+		}
 	case rplTopic:
 		channel := strings.ToLower(msg.Params[1])
 
@@ -711,11 +714,11 @@ func (s *Session) handleInner(msg Message) (err error) {
 				State: typing,
 				Time:  t,
 			}
-		} else if _, ok := s.channels[target]; ok {
+		} else if c, ok := s.channels[target]; ok {
 			// TAGMSG to channel
 			s.evts <- ChannelTypingEvent{
 				Nick:    nick,
-				Channel: msg.Params[0],
+				Channel: c.Name,
 				State:   typing,
 				Time:    t,
 			}
@@ -793,11 +796,11 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 			Content: msg.Params[1],
 			Time:    t,
 		}
-	} else if _, ok := s.channels[target]; ok {
+	} else if c, ok := s.channels[target]; ok {
 		// PRIVMSG to channel
 		ev = ChannelMessageEvent{
 			Nick:    nick,
-			Channel: msg.Params[0],
+			Channel: c.Name,
 			Command: msg.Command,
 			Content: msg.Params[1],
 			Time:    t,
