@@ -186,7 +186,6 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 
 		for r.Scan() {
 			line := r.Text()
-			//fmt.Println(" > ", line)
 
 			msg, err := Tokenize(line)
 			if err != nil {
@@ -198,6 +197,9 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 				continue
 			}
 
+			if s.debug {
+				s.evts <- RawMessageEvent{Message: line}
+			}
 			s.msgs <- msg
 		}
 
@@ -362,10 +364,6 @@ func (s *Session) run() {
 }
 
 func (s *Session) handleStart(msg Message) (err error) {
-	if s.debug {
-		s.evts <- RawMessageEvent{Message: msg.String()}
-	}
-
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth != nil {
@@ -459,20 +457,13 @@ func (s *Session) handleStart(msg Message) (err error) {
 			return
 		}
 	default:
-		err = s.handleInner(msg)
+		err = s.handle(msg)
 	}
 
 	return
 }
 
 func (s *Session) handle(msg Message) (err error) {
-	if s.debug {
-		s.evts <- RawMessageEvent{Message: msg.String()}
-	}
-	return s.handleInner(msg)
-}
-
-func (s *Session) handleInner(msg Message) (err error) {
 	if id, ok := msg.Tags["batch"]; ok {
 		if b, ok := s.chBatches[id]; ok {
 			s.chBatches[id] = HistoryEvent{
