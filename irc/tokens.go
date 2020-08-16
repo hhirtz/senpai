@@ -297,9 +297,7 @@ func (msg *Message) Validate() (err error) {
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}
-	case "PRIVMSG":
-		fallthrough
-	case "NOTICE":
+	case "PRIVMSG", "NOTICE":
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
 		} else if msg.Prefix == "" {
