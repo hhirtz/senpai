@@ -297,6 +297,12 @@ func (msg *Message) Validate() (err error) {
 		if len(msg.Params) < 3 {
 			err = errNotEnoughParams
 		}
+	case "TOPIC":
+		if len(msg.Params) < 2 {
+			err = errNotEnoughParams
+		} else if msg.Prefix == "" {
+			err = errNoPrefix
+		}
 	case "PRIVMSG", "NOTICE":
 		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
@@ -308,10 +314,6 @@ func (msg *Message) Validate() (err error) {
 			err = errNotEnoughParams
 		} else if msg.Prefix == "" {
 			err = errNoPrefix
-		}
-	case "TOPIC":
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
 		}
 	case "BATCH":
 		if len(msg.Params) < 1 {

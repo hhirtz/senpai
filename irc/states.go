@@ -80,6 +80,10 @@ type (
 	actionPart struct {
 		Channel string
 	}
+	actionSetTopic struct {
+		Channel string
+		Topic   string
+	}
 
 	actionPrivMsg struct {
 		Target  string
@@ -111,6 +115,10 @@ type Channel struct {
 	TopicWho  string
 	TopicTime time.Time
 	Secret    bool
+}
+
+func (c *Channel) SetTopic(topic string) {
+	c.Topic = topic
 }
 
 type SessionParams struct {
@@ -240,6 +248,15 @@ func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }
 
+func (s *Session) Topic(channel string) string {
+	channelCf := strings.ToLower(channel)
+	if c, ok := s.channels[channelCf]; ok {
+		return c.Topic
+	} else {
+		return ""
+	}
+}
+
 func (s *Session) SendRaw(raw string) {
 	s.acts <- actionSendRaw{raw}
 }
@@ -264,6 +281,15 @@ func (s *Session) Part(channel string) {
 
 func (s *Session) part(act actionPart) (err error) {
 	err = s.send("PART %s\r\n", act.Channel)
+	return
+}
+
+func (s *Session) SetTopic(channel, topic string) {
+	s.acts <- actionSetTopic{channel, topic}
+}
+
+func (s *Session) setTopic(act actionSetTopic) (err error) {
+	err = s.send("TOPIC %s %s\r\n", act.Channel, act.Topic)
 	return
 }
 
@@ -339,6 +365,8 @@ func (s *Session) run() {
 				err = s.join(act)
 			case actionPart:
 				err = s.part(act)
+			case actionSetTopic:
+				err = s.setTopic(act)
 			case actionPrivMsg:
 				err = s.privMsg(act)
 			case actionTyping:
@@ -665,9 +693,21 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 	case rplTopic:
 		channelCf := strings.ToLower(msg.Params[1])
-
 		if c, ok := s.channels[channelCf]; ok {
 			c.Topic = msg.Params[2]
+			s.channels[channelCf] = c
+		}
+	case rplNotopic:
+		channelCf := strings.ToLower(msg.Params[1])
+		if c, ok := s.channels[channelCf]; ok {
+			c.Topic = ""
+			s.channels[channelCf] = c
+		}
+	case "TOPIC":
+		channelCf := strings.ToLower(msg.Params[0])
+		if c, ok := s.channels[channelCf]; ok {
+			c.Topic = msg.Params[1]
+			s.channels[channelCf] = c
 		}
 	case "PRIVMSG", "NOTICE":
 		s.evts <- s.privmsgToEvent(msg)

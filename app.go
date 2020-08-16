@@ -318,6 +318,18 @@ func (app *App) handleInput(buffer, content string) {
 		}
 
 		app.s.Part(args)
+	case "TOPIC":
+		if buffer == ui.Home {
+			return
+		}
+
+		if args == "" {
+			topic := app.s.Topic(buffer)
+			line := fmt.Sprintf("\x0314Topic: %s", topic)
+			app.win.AddLine(buffer, ui.NewLineNow("--", line))
+		} else {
+			app.s.SetTopic(buffer, args)
+		}
 	case "ME":
 		if buffer == ui.Home {
 			return
