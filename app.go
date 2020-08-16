@@ -23,7 +23,9 @@ type App struct {
 func NewApp(cfg Config) (app *App, err error) {
 	app = &App{}
 
-	app.win, err = ui.New()
+	app.win, err = ui.New(ui.Config{
+		NickColWidth: cfg.NickColWidth,
+	})
 	if err != nil {
 		return
 	}

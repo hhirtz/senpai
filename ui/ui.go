@@ -8,17 +8,24 @@ import (
 	"github.com/gdamore/tcell"
 )
 
+type Config struct {
+	NickColWidth int
+}
+
 type UI struct {
 	screen tcell.Screen
 	Events chan tcell.Event
 	exit   atomic.Value // bool
+	config Config
 
 	bs bufferList
 	e  editor
 }
 
-func New() (ui *UI, err error) {
-	ui = &UI{}
+func New(config Config) (ui *UI, err error) {
+	ui = &UI{
+		config: config,
+	}
 
 	ui.screen, err = tcell.NewScreen()
 	if err != nil {
@@ -208,6 +215,6 @@ func (ui *UI) Resize() {
 func (ui *UI) draw() {
 	_, h := ui.screen.Size()
 	ui.e.Draw(ui.screen, h-2)
-	ui.bs.Draw(ui.screen)
+	ui.bs.Draw(ui.screen, ui.config.NickColWidth)
 	ui.screen.Show()
 }

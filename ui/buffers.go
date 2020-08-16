@@ -206,15 +206,13 @@ type buffer struct {
 	isAtTop   bool
 }
 
-func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
+func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int) {
 	st := tcell.StyleDefault
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
 			screen.SetContent(x, y, ' ', nil, st)
 		}
 	}
-
-	nickColWidth := 16
 
 	y0 := b.scrollAmt + height
 	for i := len(b.lines) - 1; 0 <= i; i-- {
@@ -472,8 +470,8 @@ func (bs *bufferList) idx(title string) int {
 	return -1
 }
 
-func (bs *bufferList) Draw(screen tcell.Screen) {
-	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3)
+func (bs *bufferList) Draw(screen tcell.Screen, nickColWidth int) {
+	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3, nickColWidth)
 	bs.drawStatusBar(screen, bs.height-3)
 	bs.drawTitleList(screen, bs.height-1)
 }

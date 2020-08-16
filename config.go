@@ -7,18 +7,23 @@ import (
 )
 
 type Config struct {
-	Addr       string
-	Nick       string
-	Real       string
-	User       string
-	Password   *string
-	Highlights []string
+	Addr     string
+	Nick     string
+	Real     string
+	User     string
+	Password *string
+
+	Highlights   []string
+	NickColWidth int `yaml:"nick-column-width"`
 
 	Debug bool
 }
 
 func ParseConfig(buf []byte) (cfg Config, err error) {
 	err = yaml.Unmarshal(buf, &cfg)
+	if cfg.NickColWidth <= 0 {
+		cfg.NickColWidth = 16
+	}
 	return
 }
 
