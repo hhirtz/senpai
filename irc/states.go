@@ -60,6 +60,13 @@ var SupportedCapabilities = map[string]struct{}{
 	"userhost-in-names": {},
 }
 
+const (
+	TypingUnspec = iota
+	TypingActive
+	TypingPaused
+	TypingDone
+)
+
 type ConnectionState int
 
 const (
@@ -681,14 +688,14 @@ func (s *Session) handle(msg Message) (err error) {
 			break
 		}
 
-		typing := 0
+		typing := TypingUnspec
 		if t, ok := msg.Tags["+typing"]; ok {
 			if t == "active" {
-				typing = 1
+				typing = TypingActive
 			} else if t == "paused" {
-				typing = 2
+				typing = TypingPaused
 			} else if t == "done" {
-				typing = 3
+				typing = TypingDone
 			}
 		} else {
 			break

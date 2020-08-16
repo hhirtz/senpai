@@ -135,16 +135,16 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 
 		app.win.AddLine(ev.Channel, l, isHighlight)
 		app.win.TypingStop(ev.Channel, ev.Nick)
-	case irc.QueryTypingEvent:
-		if ev.State == 1 || ev.State == 2 {
+	case irc.QueryTagEvent:
+		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
 			app.win.TypingStart(ui.Home, ev.Nick)
-		} else {
+		} else if ev.Typing == irc.TypingDone {
 			app.win.TypingStop(ui.Home, ev.Nick)
 		}
-	case irc.ChannelTypingEvent:
-		if ev.State == 1 || ev.State == 2 {
+	case irc.ChannelTagEvent:
+		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
 			app.win.TypingStart(ev.Channel, ev.Nick)
-		} else {
+		} else if ev.Typing == irc.TypingDone {
 			app.win.TypingStop(ev.Channel, ev.Nick)
 		}
 	case irc.HistoryEvent:

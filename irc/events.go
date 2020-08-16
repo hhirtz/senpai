@@ -60,16 +60,16 @@ type ChannelMessageEvent struct {
 	Time    time.Time
 }
 
-type QueryTypingEvent struct {
-	Nick  string
-	State int
-	Time  time.Time
+type QueryTagEvent struct {
+	Nick   string
+	Typing int
+	Time   time.Time
 }
 
-type ChannelTypingEvent struct {
+type ChannelTagEvent struct {
 	Nick    string
 	Channel string
-	State   int
+	Typing  int
 	Time    time.Time
 }
 
