@@ -323,9 +323,12 @@ func (app *App) handleInput(buffer, content string) {
 			return
 		}
 
-		line := fmt.Sprintf("\x01ACTION %s\x01", args)
-		app.s.PrivMsg(buffer, line)
-		// TODO echo message
+		args := fmt.Sprintf("\x01ACTION %s\x01", args)
+		app.s.PrivMsg(buffer, args)
+		if !app.s.HasCapability("echo-message") {
+			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), args, false, false)
+			app.win.AddLine(buffer, line)
+		}
 	case "MSG":
 		split := strings.SplitN(args, " ", 2)
 		if len(split) < 2 {
