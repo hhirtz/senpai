@@ -143,13 +143,13 @@ type Session struct {
 	state        ConnectionState
 	typingStamps map[string]time.Time
 
-	nick  string
-	lNick string
-	user  string
-	real  string
-	acct  string
-	host  string
-	auth  SASLClient
+	nick   string
+	nickCf string
+	user   string
+	real   string
+	acct   string
+	host   string
+	auth   SASLClient
 
 	availableCaps map[string]string
 	enabledCaps   map[string]struct{}
@@ -169,7 +169,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 		debug:         params.Debug,
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
-		lNick:         strings.ToLower(params.Nickname),
+		nickCf:        strings.ToLower(params.Nickname),
 		user:          params.Username,
 		real:          params.RealName,
 		auth:          params.Auth,
@@ -240,8 +240,8 @@ func (s *Session) Nick() string {
 	return s.nick
 }
 
-func (s *Session) LNick() string {
-	return s.lNick
+func (s *Session) NickCf() string {
+	return s.nickCf
 }
 
 func (s *Session) IsChannel(name string) bool {
@@ -484,7 +484,7 @@ func (s *Session) handle(msg Message) (err error) {
 	switch msg.Command {
 	case rplWelcome:
 		s.nick = msg.Params[0]
-		s.lNick = strings.ToLower(s.nick)
+		s.nickCf = strings.ToLower(s.nick)
 		s.state = ConnRegistered
 		s.evts <- RegisteredEvent{}
 
@@ -497,7 +497,7 @@ func (s *Session) handle(msg Message) (err error) {
 	case rplIsupport:
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
 	case rplWhoreply:
-		if s.lNick == strings.ToLower(msg.Params[5]) {
+		if s.nickCf == strings.ToLower(msg.Params[5]) {
 			s.host = msg.Params[3]
 		}
 	case "CAP":
@@ -579,19 +579,19 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 	case "JOIN":
 		nick, _, _ := FullMask(msg.Prefix)
-		lNick := strings.ToLower(nick)
-		channel := strings.ToLower(msg.Params[0])
+		nickCf := strings.ToLower(nick)
+		channelCf := strings.ToLower(msg.Params[0])
 
-		if lNick == s.lNick {
-			s.channels[channel] = Channel{
+		if nickCf == s.nickCf {
+			s.channels[channelCf] = Channel{
 				Name:    msg.Params[0],
 				Members: map[string]string{},
 			}
-		} else if c, ok := s.channels[channel]; ok {
-			if _, ok := s.users[lNick]; !ok {
-				s.users[lNick] = User{Nick: nick}
+		} else if c, ok := s.channels[channelCf]; ok {
+			if _, ok := s.users[nickCf]; !ok {
+				s.users[nickCf] = User{Nick: nick}
 			}
-			c.Members[lNick] = ""
+			c.Members[nickCf] = ""
 
 			t, ok := msg.Time()
 			if !ok {
@@ -606,14 +606,14 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 	case "PART":
 		nick, _, _ := FullMask(msg.Prefix)
-		lNick := strings.ToLower(nick)
-		channel := strings.ToLower(msg.Params[0])
+		nickCf := strings.ToLower(nick)
+		channelCf := strings.ToLower(msg.Params[0])
 
-		if lNick == s.lNick {
-			delete(s.channels, channel)
+		if nickCf == s.nickCf {
+			delete(s.channels, channelCf)
 			s.evts <- SelfPartEvent{Channel: msg.Params[0]}
-		} else if c, ok := s.channels[channel]; ok {
-			delete(c.Members, lNick)
+		} else if c, ok := s.channels[channelCf]; ok {
+			delete(c.Members, nickCf)
 
 			t, ok := msg.Time()
 			if !ok {
@@ -628,7 +628,7 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 	case "QUIT":
 		nick, _, _ := FullMask(msg.Prefix)
-		lNick := strings.ToLower(nick)
+		nickCf := strings.ToLower(nick)
 
 		t, ok := msg.Time()
 		if !ok {
@@ -638,7 +638,7 @@ func (s *Session) handle(msg Message) (err error) {
 		var channels []string
 
 		for _, c := range s.channels {
-			if _, ok := c.Members[lNick]; !ok {
+			if _, ok := c.Members[nickCf]; !ok {
 				continue
 			}
 			channels = append(channels, c.Name)
@@ -650,40 +650,41 @@ func (s *Session) handle(msg Message) (err error) {
 			Time:     t,
 		}
 	case rplNamreply:
-		channel := strings.ToLower(msg.Params[2])
+		channelCf := strings.ToLower(msg.Params[2])
 
-		if c, ok := s.channels[channel]; ok {
+		if c, ok := s.channels[channelCf]; ok {
 			c.Secret = msg.Params[1] == "@"
 			names := TokenizeNames(msg.Params[3], "~&@%+") // TODO compute prefixes
 
 			for _, name := range names {
 				nick := name.Nick
-				lNick := strings.ToLower(nick)
+				nickCf := strings.ToLower(nick)
 
-				if _, ok := s.users[lNick]; !ok {
-					s.users[lNick] = User{Nick: nick}
+				if _, ok := s.users[nickCf]; !ok {
+					s.users[nickCf] = User{Nick: nick}
 				}
-				c.Members[lNick] = name.PowerLevel
+				c.Members[nickCf] = name.PowerLevel
 			}
 		}
 	case rplEndofnames:
-		channel := strings.ToLower(msg.Params[1])
-		if c, ok := s.channels[channel]; ok {
+		channelCf := strings.ToLower(msg.Params[1])
+		if c, ok := s.channels[channelCf]; ok {
 			s.evts <- SelfJoinEvent{Channel: c.Name}
 		}
 	case rplTopic:
-		channel := strings.ToLower(msg.Params[1])
+		channelCf := strings.ToLower(msg.Params[1])
 
-		if c, ok := s.channels[channel]; ok {
+		if c, ok := s.channels[channelCf]; ok {
 			c.Topic = msg.Params[2]
 		}
 	case "PRIVMSG", "NOTICE":
 		s.evts <- s.privmsgToEvent(msg)
 	case "TAGMSG":
 		nick, _, _ := FullMask(msg.Prefix)
-		target := strings.ToLower(msg.Params[0])
+		nickCf := strings.ToLower(nick)
+		targetCf := strings.ToLower(msg.Params[0])
 
-		if strings.ToLower(nick) == s.lNick {
+		if nickCf == s.nickCf {
 			// TAGMSG from self
 			break
 		}
@@ -705,19 +706,19 @@ func (s *Session) handle(msg Message) (err error) {
 		if !ok {
 			t = time.Now()
 		}
-		if target == s.lNick {
+		if targetCf == s.nickCf {
 			// TAGMSG to self
-			s.evts <- QueryTypingEvent{
-				Nick:  nick,
-				State: typing,
-				Time:  t,
+			s.evts <- QueryTagEvent{
+				Nick:   nick,
+				Typing: typing,
+				Time:   t,
 			}
-		} else if c, ok := s.channels[target]; ok {
-			// TAGMSG to channel
-			s.evts <- ChannelTypingEvent{
+		} else if c, ok := s.channels[targetCf]; ok {
+			// TAGMSG to channelCf
+			s.evts <- ChannelTagEvent{
 				Nick:    nick,
 				Channel: c.Name,
-				State:   typing,
+				Typing:  typing,
 				Time:    t,
 			}
 		}
@@ -733,23 +734,23 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 	case "NICK":
 		nick, _, _ := FullMask(msg.Prefix)
-		lNick := strings.ToLower(nick)
+		nickCf := strings.ToLower(nick)
 		newNick := msg.Params[0]
-		lNewNick := strings.ToLower(newNick)
+		newNickCf := strings.ToLower(newNick)
 
 		t, ok := msg.Time()
 		if !ok {
 			t = time.Now()
 		}
 
-		if lNick == s.lNick {
+		if nickCf == s.nickCf {
 			s.evts <- SelfNickEvent{
 				FormerNick: s.nick,
 				NewNick:    newNick,
 				Time:       t,
 			}
 			s.nick = newNick
-			s.lNick = lNewNick
+			s.nickCf = newNickCf
 		} else {
 			s.evts <- UserNickEvent{
 				FormerNick: nick,
@@ -779,14 +780,14 @@ func (s *Session) handle(msg Message) (err error) {
 
 func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 	nick, _, _ := FullMask(msg.Prefix)
-	target := strings.ToLower(msg.Params[0])
+	targetCf := strings.ToLower(msg.Params[0])
 
 	t, ok := msg.Time()
 	if !ok {
 		t = time.Now()
 	}
 
-	if !s.IsChannel(target) {
+	if !s.IsChannel(targetCf) {
 		// PRIVMSG to self
 		ev = QueryMessageEvent{
 			Nick:    nick,
@@ -794,7 +795,7 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 			Content: msg.Params[1],
 			Time:    t,
 		}
-	} else if c, ok := s.channels[target]; ok {
+	} else if c, ok := s.channels[targetCf]; ok {
 		// PRIVMSG to channel
 		ev = ChannelMessageEvent{
 			Nick:    nick,

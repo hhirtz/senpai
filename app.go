@@ -56,7 +56,7 @@ func NewApp(cfg Config) (app *App, err error) {
 			app.highlights[i] = strings.ToLower(app.highlights[i])
 		}
 	} else {
-		app.highlights = []string{app.s.LNick()}
+		app.highlights = []string{app.s.NickCf()}
 	}
 
 	return
@@ -89,7 +89,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 	case irc.RegisteredEvent:
 		app.win.AddLine(ui.Home, ui.NewLineNow("--", "Connected to the server"), false)
 		if app.cfg.Highlights == nil {
-			app.highlights[0] = app.s.LNick()
+			app.highlights[0] = app.s.NickCf()
 		}
 	case irc.SelfNickEvent:
 		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
