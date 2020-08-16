@@ -67,14 +67,6 @@ const (
 	TypingDone
 )
 
-type ConnectionState int
-
-const (
-	ConnStart ConnectionState = iota
-	ConnRegistered
-	ConnQuit
-)
-
 type action interface{}
 
 type (
@@ -140,7 +132,7 @@ type Session struct {
 	debug bool
 
 	running      atomic.Value // bool
-	state        ConnectionState
+	registered   bool
 	typingStamps map[string]time.Time
 
 	nick   string
@@ -357,10 +349,10 @@ func (s *Session) run() {
 				err = s.requestHistory(act)
 			}
 		case msg := <-s.msgs:
-			if s.state == ConnStart {
-				err = s.handleStart(msg)
-			} else if s.state == ConnRegistered {
+			if s.registered {
 				err = s.handle(msg)
+			} else {
+				err = s.handleStart(msg)
 			}
 		}
 
@@ -485,7 +477,7 @@ func (s *Session) handle(msg Message) (err error) {
 	case rplWelcome:
 		s.nick = msg.Params[0]
 		s.nickCf = strings.ToLower(s.nick)
-		s.state = ConnRegistered
+		s.registered = true
 		s.evts <- RegisteredEvent{}
 
 		if s.host == "" {
@@ -771,7 +763,7 @@ func (s *Session) handle(msg Message) (err error) {
 		if len(msg.Params) > 0 {
 			err = fmt.Errorf("connection terminated: %s", msg.Params[0])
 		}
-		s.state = ConnQuit
+		_ = s.conn.Close()
 	default:
 	}
 
