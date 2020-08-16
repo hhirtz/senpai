@@ -232,131 +232,60 @@ func (msg *Message) String() string {
 	return sb.String()
 }
 
-func (msg *Message) Validate() (err error) {
+func (msg *Message) IsValid() bool {
 	switch msg.Command {
-	case rplWelcome:
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		}
-	case rplIsupport:
-		if len(msg.Params) < 3 {
-			err = errNotEnoughParams
-		}
-	case rplWhoreply:
-		if len(msg.Params) < 8 {
-			err = errNotEnoughParams
-		}
-	case rplMotd:
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
-		}
-	case "AUTHENTICATE":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		}
-	case rplLoggedin:
-		if len(msg.Params) < 3 {
-			err = errNotEnoughParams
-		}
-	case rplLoggedout:
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
-		}
-	case "CAP":
-		if len(msg.Params) < 3 {
-			err = errNotEnoughParams
-		} else if msg.Params[1] == "LS" {
-		} else if msg.Params[1] == "LIST" {
-		} else if msg.Params[1] == "ACK" {
-		} else if msg.Params[1] == "NAK" {
-		} else if msg.Params[1] == "NEW" {
-		} else if msg.Params[1] == "DEL" {
-		} else {
-			err = errUnknownCommand
-		}
-	case "JOIN":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		} else if msg.Prefix == "" {
-			err = errNoPrefix
-		}
-	case "PART":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		} else if msg.Prefix == "" {
-			err = errNoPrefix
-		}
-	case "QUIT":
-		if msg.Prefix == "" {
-			err = errNoPrefix
-		}
+	case "AUTHENTICATE", "PING", "PONG":
+		return 1 <= len(msg.Params)
+	case rplEndofnames, rplLoggedout, rplMotd, rplNotopic, rplWelcome, rplYourhost:
+		return 2 <= len(msg.Params)
+	case rplIsupport, rplLoggedin, rplTopic:
+		return 3 <= len(msg.Params)
 	case rplNamreply:
-		if len(msg.Params) < 4 {
-			err = errNotEnoughParams
-		}
-	case rplTopic:
-		if len(msg.Params) < 3 {
-			err = errNotEnoughParams
-		}
+		return 4 <= len(msg.Params)
+	case rplWhoreply:
+		return 8 <= len(msg.Params)
+	case "JOIN", "PART", "TAGMSG":
+		return 1 <= len(msg.Params) && msg.Prefix != ""
+	case "PRIVMSG", "NOTICE", "TOPIC":
+		return 2 <= len(msg.Params) && msg.Prefix != ""
+	case "QUIT":
+		return msg.Prefix != ""
+	case "CAP":
+		return 3 <= len(msg.Params) &&
+			(msg.Params[1] == "LS" ||
+				msg.Params[1] == "LIST" ||
+				msg.Params[1] == "ACK" ||
+				msg.Params[1] == "NAK" ||
+				msg.Params[1] == "NEW" ||
+				msg.Params[1] == "DEL")
 	case rplTopicwhotime:
 		if len(msg.Params) < 4 {
-			err = errNotEnoughParams
-		} else if _, err := strconv.ParseInt(msg.Params[3], 10, 64); err != nil {
-			err = errIncompleteMessage
+			return false
 		}
-	case rplNotopic:
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
-		}
-	case "TOPIC":
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
-		} else if msg.Prefix == "" {
-			err = errNoPrefix
-		}
-	case "PRIVMSG", "NOTICE":
-		if len(msg.Params) < 2 {
-			err = errNotEnoughParams
-		} else if msg.Prefix == "" {
-			err = errNoPrefix
-		}
-	case "TAGMSG":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		} else if msg.Prefix == "" {
-			err = errNoPrefix
-		}
+		_, err := strconv.ParseInt(msg.Params[3], 10, 64)
+		return err != nil
 	case "BATCH":
 		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-			break
+			return false
 		}
 		if len(msg.Params[0]) < 2 {
-			err = errEmptyBatchID
-			break
+			return false
 		}
 		if msg.Params[0][0] == '+' {
 			if len(msg.Params) < 2 {
-				err = errNotEnoughParams
-				break
+				return false
 			}
-			if msg.Params[1] == "chathistory" && len(msg.Params) < 3 {
-				err = errNotEnoughParams
+			switch msg.Params[1] {
+			case "chathistory":
+				return 3 <= len(msg.Params)
+			default:
+				return false
 			}
-		} else if msg.Params[0][0] != '-' {
-			err = errEmptyBatchID
 		}
-	case "PING":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		}
-	case "PONG":
-		if len(msg.Params) < 1 {
-			err = errNotEnoughParams
-		}
+		return msg.Params[0][0] == '-'
 	default:
+		return false
 	}
-	return
 }
 
 func (msg *Message) Time() (t time.Time, ok bool) {
