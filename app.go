@@ -250,7 +250,7 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.handleInput(buffer, input)
 		case tcell.KeyRune:
 			app.win.InputRune(ev.Rune())
-			if app.win.CurrentBuffer() != ui.Home && !app.win.InputIsCommand() {
+			if app.win.CurrentBuffer() != ui.Home && !app.win.InputIsCommand() && !(app.win.InputLen() == 0 && ev.Rune() == '/') {
 				app.s.Typing(app.win.CurrentBuffer())
 			}
 		}
