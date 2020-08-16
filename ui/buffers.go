@@ -31,22 +31,25 @@ type point struct {
 }
 
 type Line struct {
-	at       time.Time
-	head     string
-	body     string
-	isStatus bool
+	at   time.Time
+	head string
+	body string
+
+	isStatus    bool
+	isHighlight bool
 
 	splitPoints []point
 	width       int
 	newLines    []int
 }
 
-func NewLine(at time.Time, head string, body string, isStatus bool) Line {
+func NewLine(at time.Time, head string, body string, isStatus bool, isHighlight bool) Line {
 	l := Line{
 		at:          at,
 		head:        head,
 		body:        body,
 		isStatus:    isStatus,
+		isHighlight: isHighlight,
 		splitPoints: []point{},
 		newLines:    []int{},
 	}
@@ -55,10 +58,10 @@ func NewLine(at time.Time, head string, body string, isStatus bool) Line {
 }
 
 func NewLineNow(head, body string) Line {
-	return NewLine(time.Now(), head, body, false)
+	return NewLine(time.Now(), head, body, false, false)
 }
 
-func LineFromIRCMessage(at time.Time, nick string, content string, isNotice bool) Line {
+func LineFromIRCMessage(at time.Time, nick string, content string, isNotice bool, isHighlight bool) Line {
 	if strings.HasPrefix(content, "\x01ACTION") {
 		c := ircColorCode(identColor(nick))
 		content = fmt.Sprintf("%s%s\x0F%s", c, nick, content[7:])
@@ -68,7 +71,7 @@ func LineFromIRCMessage(at time.Time, nick string, content string, isNotice bool
 		content = fmt.Sprintf("(%s%s\x0F: %s)", c, nick, content)
 		nick = "*"
 	}
-	return NewLine(at, nick, content, false)
+	return NewLine(at, nick, content, false, isHighlight)
 }
 
 func (l *Line) computeSplitPoints() {
@@ -235,7 +238,11 @@ func (b *buffer) DrawLines(screen tcell.Screen, width int, height int) {
 		head := truncate(line.head, nickColWidth, "\u2026")
 		x := 6 + nickColWidth - StringWidth(head)
 		c := identColor(line.head)
+		if line.isHighlight {
+			st = st.Reverse(true)
+		}
 		printString(screen, &x, y0, st.Foreground(colorFromCode(c)), head)
+		st = st.Reverse(false)
 
 		x = x0
 		y := y0
@@ -333,7 +340,7 @@ func (bs *bufferList) Remove(title string) (ok bool) {
 	return
 }
 
-func (bs *bufferList) AddLine(title string, line Line, isHighlight bool) {
+func (bs *bufferList) AddLine(title string, line Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -358,7 +365,7 @@ func (bs *bufferList) AddLine(title string, line Line, isHighlight bool) {
 	if !line.isStatus && idx != bs.current {
 		b.unread = true
 	}
-	if isHighlight && idx != bs.current {
+	if line.isHighlight && idx != bs.current {
 		b.highlights++
 	}
 }

@@ -29,7 +29,7 @@ func NewApp(cfg Config) (app *App, err error) {
 	}
 
 	var conn *tls.Conn
-	app.win.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", cfg.Addr)), false)
+	app.win.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", cfg.Addr)))
 	conn, err = tls.Dial("tcp", cfg.Addr, nil)
 	if err != nil {
 		return
@@ -85,55 +85,46 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		if ev.Outgoing {
 			head = "DEBUG OUT --"
 		}
-		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message), false)
+		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message))
 	case irc.RegisteredEvent:
-		app.win.AddLine(ui.Home, ui.NewLineNow("--", "Connected to the server"), false)
+		app.win.AddLine(ui.Home, ui.NewLineNow("--", "Connected to the server"))
 		if app.cfg.Highlights == nil {
 			app.highlights[0] = app.s.NickCf()
 		}
 	case irc.SelfNickEvent:
 		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
-		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true), true)
+		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, true))
 	case irc.UserNickEvent:
 		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
-		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true), false)
+		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, false))
 	case irc.SelfJoinEvent:
 		app.win.AddBuffer(ev.Channel)
 	case irc.UserJoinEvent:
 		line := fmt.Sprintf("\x033+\x0314%s\x03", ev.Nick)
-		app.win.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true), false)
+		app.win.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true, false))
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
 		line := fmt.Sprintf("\x034-\x0314%s\x03", ev.Nick)
 		for _, channel := range ev.Channels {
-			app.win.AddLine(channel, ui.NewLine(ev.Time, "--", line, true), false)
+			app.win.AddLine(channel, ui.NewLine(ev.Time, "--", line, true, false))
 		}
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
-			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false)
-			app.win.AddLine(ui.Home, l, true)
+			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false, true)
+			app.win.AddLine(ui.Home, l)
 			app.win.TypingStop(ui.Home, ev.Nick)
 		} else if ev.Command == "NOTICE" {
-			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true)
-			app.win.AddLine("", l, true)
+			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
+			app.win.AddLine("", l)
 			app.win.TypingStop("", ev.Nick)
 		} else {
 			log.Panicf("received unknown command for query event: %q\n", ev.Command)
 		}
 	case irc.ChannelMessageEvent:
-		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE")
-
-		lContent := strings.ToLower(ev.Content)
-		isHighlight := false
-		for _, h := range app.highlights {
-			if strings.Contains(lContent, h) {
-				isHighlight = true
-				break
-			}
-		}
-
-		app.win.AddLine(ev.Channel, l, isHighlight)
+		isHighlight := app.isHighlight(ev.Nick, ev.Content)
+		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE", isHighlight)
+		app.win.AddLine(ev.Channel, l)
 		app.win.TypingStop(ev.Channel, ev.Nick)
 	case irc.QueryTagEvent:
 		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
@@ -152,7 +143,8 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		for _, m := range ev.Messages {
 			switch m := m.(type) {
 			case irc.ChannelMessageEvent:
-				l := ui.LineFromIRCMessage(m.Time, m.Nick, m.Content, m.Command == "NOTICE")
+				isHighlight := app.isHighlight(m.Nick, m.Content)
+				l := ui.LineFromIRCMessage(m.Time, m.Nick, m.Content, m.Command == "NOTICE", isHighlight)
 				lines = append(lines, l)
 			default:
 				panic("TODO")
@@ -265,6 +257,19 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	}
 }
 
+func (app *App) isHighlight(nick, content string) bool {
+	if app.s.NickCf() == strings.ToLower(nick) {
+		return false
+	}
+	contentCf := strings.ToLower(content)
+	for _, h := range app.highlights {
+		if strings.Contains(contentCf, h) {
+			return true
+		}
+	}
+	return false
+}
+
 func parseCommand(s string) (command, args string) {
 	if s == "" {
 		return
@@ -297,7 +302,7 @@ func (app *App) handleInput(buffer, content string) {
 
 		app.s.PrivMsg(buffer, args)
 		if !app.s.HasCapability("echo-message") {
-			app.win.AddLine(buffer, ui.NewLineNow(app.s.Nick(), args), false)
+			app.win.AddLine(buffer, ui.NewLineNow(app.s.Nick(), args))
 		}
 	case "QUOTE":
 		app.s.SendRaw(args)
