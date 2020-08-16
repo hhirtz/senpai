@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -248,13 +249,14 @@ func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
 }
 
-func (s *Session) Topic(channel string) string {
+func (s *Session) Topic(channel string) (topic string, who string, at time.Time) {
 	channelCf := strings.ToLower(channel)
 	if c, ok := s.channels[channelCf]; ok {
-		return c.Topic
-	} else {
-		return ""
+		topic = c.Topic
+		who = c.TopicWho
+		at = c.TopicTime
 	}
+	return
 }
 
 func (s *Session) SendRaw(raw string) {
@@ -695,6 +697,14 @@ func (s *Session) handle(msg Message) (err error) {
 		channelCf := strings.ToLower(msg.Params[1])
 		if c, ok := s.channels[channelCf]; ok {
 			c.Topic = msg.Params[2]
+			s.channels[channelCf] = c
+		}
+	case rplTopicwhotime:
+		channelCf := strings.ToLower(msg.Params[1])
+		t, _ := strconv.ParseInt(msg.Params[3], 10, 64)
+		if c, ok := s.channels[channelCf]; ok {
+			c.TopicWho = msg.Params[2]
+			c.TopicTime = time.Unix(t, 0)
 			s.channels[channelCf] = c
 		}
 	case rplNotopic:

@@ -3,6 +3,7 @@ package irc
 import (
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -295,6 +296,16 @@ func (msg *Message) Validate() (err error) {
 		}
 	case rplTopic:
 		if len(msg.Params) < 3 {
+			err = errNotEnoughParams
+		}
+	case rplTopicwhotime:
+		if len(msg.Params) < 4 {
+			err = errNotEnoughParams
+		} else if _, err := strconv.ParseInt(msg.Params[3], 10, 64); err != nil {
+			err = errIncompleteMessage
+		}
+	case rplNotopic:
+		if len(msg.Params) < 2 {
 			err = errNotEnoughParams
 		}
 	case "TOPIC":
