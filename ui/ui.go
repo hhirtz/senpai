@@ -51,7 +51,7 @@ func New(config Config) (ui *UI, err error) {
 	ui.exit.Store(false)
 
 	hmIdx := rand.Intn(len(homeMessages))
-	ui.bs = newBufferList(w, h)
+	ui.bs = newBufferList(w, h, ui.config.NickColWidth)
 	ui.bs.Add(Home)
 	ui.bs.AddLine("", NewLineNow("--", homeMessages[hmIdx]))
 
@@ -215,6 +215,6 @@ func (ui *UI) Resize() {
 func (ui *UI) draw() {
 	_, h := ui.screen.Size()
 	ui.e.Draw(ui.screen, h-2)
-	ui.bs.Draw(ui.screen, ui.config.NickColWidth)
+	ui.bs.Draw(ui.screen)
 	ui.screen.Show()
 }

@@ -281,15 +281,17 @@ type bufferList struct {
 	list    []buffer
 	current int
 
-	width  int
-	height int
+	width        int
+	height       int
+	nickColWidth int
 }
 
-func newBufferList(width, height int) bufferList {
+func newBufferList(width, height, nickColWidth int) bufferList {
 	return bufferList{
-		list:   []buffer{},
-		width:  width,
-		height: height,
+		list:         []buffer{},
+		width:        width,
+		height:       height,
+		nickColWidth: nickColWidth,
 	}
 }
 
@@ -356,7 +358,7 @@ func (bs *bufferList) AddLine(title string, line Line) {
 	} else {
 		b.lines = append(b.lines, line)
 		if idx == bs.current && 0 < b.scrollAmt {
-			b.scrollAmt++
+			b.scrollAmt += len(line.NewLines(bs.width-8-bs.nickColWidth)) + 1
 		}
 	}
 
@@ -470,8 +472,8 @@ func (bs *bufferList) idx(title string) int {
 	return -1
 }
 
-func (bs *bufferList) Draw(screen tcell.Screen, nickColWidth int) {
-	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3, nickColWidth)
+func (bs *bufferList) Draw(screen tcell.Screen) {
+	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3, bs.nickColWidth)
 	bs.drawStatusBar(screen, bs.height-3)
 	bs.drawTitleList(screen, bs.height-1)
 }
