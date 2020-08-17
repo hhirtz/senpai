@@ -469,18 +469,6 @@ func (s *Session) handleStart(msg Message) (err error) {
 					return
 				}
 			}
-		case "ACK":
-			for _, c := range strings.Split(msg.Params[2], " ") {
-				s.enabledCaps[c] = struct{}{}
-
-				if s.auth != nil && c == "sasl" {
-					h := s.auth.Handshake()
-					err = s.send("AUTHENTICATE %s\r\n", h)
-					if err != nil {
-						return
-					}
-				}
-			}
 		default:
 			s.handle(msg)
 		}
@@ -535,6 +523,27 @@ func (s *Session) handle(msg Message) (err error) {
 		case "ACK":
 			for _, c := range strings.Split(msg.Params[2], " ") {
 				s.enabledCaps[c] = struct{}{}
+
+				if s.auth != nil && c == "sasl" {
+					h := s.auth.Handshake()
+					err = s.send("AUTHENTICATE %s\r\n", h)
+					if err != nil {
+						return
+					}
+				} else if len(s.channels) != 0 && c == "multi-prefix" {
+					// TODO merge NAMES commands
+					var sb strings.Builder
+					sb.Grow(512)
+					for _, c := range s.channels {
+						sb.WriteString("NAMES ")
+						sb.WriteString(c.Name)
+						sb.WriteString("\r\n")
+					}
+					err = s.send(sb.String())
+					if err != nil {
+						return
+					}
+				}
 			}
 		case "NAK":
 			for _, c := range strings.Split(msg.Params[2], " ") {
