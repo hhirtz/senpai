@@ -320,6 +320,24 @@ func (app *App) handleInput(buffer, content string) {
 		}
 
 		app.s.Part(args)
+	case "NAMES":
+		if buffer == ui.Home {
+			return
+		}
+
+		var sb strings.Builder
+		sb.WriteString("\x0314Names: ")
+		for _, name := range app.s.Names(buffer) {
+			if name.PowerLevel != "" {
+				sb.WriteString("\x033")
+				sb.WriteString(name.PowerLevel)
+				sb.WriteString("\x0314")
+			}
+			sb.WriteString(name.Nick)
+			sb.WriteRune(' ')
+		}
+		line := sb.String()
+		app.win.AddLine(buffer, ui.NewLineNow("--", line[:len(line)-1]))
 	case "TOPIC":
 		if buffer == ui.Home {
 			return

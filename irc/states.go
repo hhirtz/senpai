@@ -111,15 +111,11 @@ type User struct {
 
 type Channel struct {
 	Name      string
-	Members   map[string]string
+	Members   map[*User]string
 	Topic     string
 	TopicWho  string
 	TopicTime time.Time
 	Secret    bool
-}
-
-func (c *Channel) SetTopic(topic string) {
-	c.Topic = topic
 }
 
 type SessionParams struct {
@@ -156,7 +152,7 @@ type Session struct {
 	enabledCaps   map[string]struct{}
 	features      map[string]string
 
-	users     map[string]User
+	users     map[string]*User
 	channels  map[string]Channel
 	chBatches map[string]HistoryEvent
 }
@@ -177,7 +173,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 		availableCaps: map[string]string{},
 		enabledCaps:   map[string]struct{}{},
 		features:      map[string]string{},
-		users:         map[string]User{},
+		users:         map[string]*User{},
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
 	}
@@ -241,6 +237,20 @@ func (s *Session) NickCf() string {
 
 func (s *Session) IsChannel(name string) bool {
 	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
+}
+
+func (s *Session) Names(channel string) []Name {
+	var names []Name
+	if c, ok := s.channels[strings.ToLower(channel)]; ok {
+		names = make([]Name, 0, len(c.Members))
+		for u, pl := range c.Members {
+			names = append(names, Name{
+				PowerLevel: pl,
+				Nick:       u.Nick,
+			})
+		}
+	}
+	return names
 }
 
 func (s *Session) Topic(channel string) (topic string, who string, at time.Time) {
@@ -505,6 +515,7 @@ func (s *Session) handle(msg Message) (err error) {
 		s.nick = msg.Params[0]
 		s.nickCf = strings.ToLower(s.nick)
 		s.registered = true
+		s.users[s.nickCf] = &User{Nick: s.nick}
 		s.evts <- RegisteredEvent{}
 
 		if s.host == "" {
@@ -604,13 +615,13 @@ func (s *Session) handle(msg Message) (err error) {
 		if nickCf == s.nickCf {
 			s.channels[channelCf] = Channel{
 				Name:    msg.Params[0],
-				Members: map[string]string{},
+				Members: map[*User]string{},
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if _, ok := s.users[nickCf]; !ok {
-				s.users[nickCf] = User{Nick: nick}
+				s.users[nickCf] = &User{Nick: nick}
 			}
-			c.Members[nickCf] = ""
+			c.Members[s.users[nickCf]] = ""
 
 			t, ok := msg.Time()
 			if !ok {
@@ -629,61 +640,72 @@ func (s *Session) handle(msg Message) (err error) {
 		channelCf := strings.ToLower(msg.Params[0])
 
 		if nickCf == s.nickCf {
-			delete(s.channels, channelCf)
-			s.evts <- SelfPartEvent{Channel: msg.Params[0]}
-		} else if c, ok := s.channels[channelCf]; ok {
-			delete(c.Members, nickCf)
-
-			t, ok := msg.Time()
-			if !ok {
-				t = time.Now()
+			if c, ok := s.channels[channelCf]; ok {
+				delete(s.channels, channelCf)
+				for u := range c.Members {
+					s.cleanUser(u)
+				}
+				s.evts <- SelfPartEvent{Channel: msg.Params[0]}
 			}
+		} else if c, ok := s.channels[channelCf]; ok {
+			if u, ok := s.users[nickCf]; ok {
+				delete(c.Members, u)
+				s.cleanUser(u)
 
-			s.evts <- UserPartEvent{
-				Channels: []string{c.Name},
-				Nick:     nick,
-				Time:     t,
+				t, ok := msg.Time()
+				if !ok {
+					t = time.Now()
+				}
+
+				s.evts <- UserPartEvent{
+					Channels: []string{c.Name},
+					Nick:     nick,
+					Time:     t,
+				}
 			}
 		}
 	case "QUIT":
 		nick, _, _ := FullMask(msg.Prefix)
 		nickCf := strings.ToLower(nick)
 
-		t, ok := msg.Time()
-		if !ok {
-			t = time.Now()
-		}
-
-		var channels []string
-
-		for _, c := range s.channels {
-			if _, ok := c.Members[nickCf]; !ok {
-				continue
+		if u, ok := s.users[nickCf]; ok {
+			t, ok := msg.Time()
+			if !ok {
+				t = time.Now()
 			}
-			channels = append(channels, c.Name)
-		}
 
-		s.evts <- UserPartEvent{
-			Channels: channels,
-			Nick:     nick,
-			Time:     t,
+			var channels []string
+			for _, c := range s.channels {
+				if _, ok := c.Members[u]; ok {
+					channels = append(channels, c.Name)
+					delete(c.Members, u)
+					s.cleanUser(u)
+				}
+			}
+
+			s.evts <- UserPartEvent{
+				Channels: channels,
+				Nick:     nick,
+				Time:     t,
+			}
 		}
 	case rplNamreply:
 		channelCf := strings.ToLower(msg.Params[2])
 
 		if c, ok := s.channels[channelCf]; ok {
 			c.Secret = msg.Params[1] == "@"
-			names := TokenizeNames(msg.Params[3], "~&@%+") // TODO compute prefixes
 
-			for _, name := range names {
+			for _, name := range TokenizeNames(msg.Params[3], "~&@%+") {
 				nick := name.Nick
 				nickCf := strings.ToLower(nick)
 
 				if _, ok := s.users[nickCf]; !ok {
-					s.users[nickCf] = User{Nick: nick}
+					s.users[nickCf] = &User{Nick: nick}
 				}
-				c.Members[nickCf] = name.PowerLevel
+				c.Members[s.users[nickCf]] = name.PowerLevel
 			}
+
+			s.channels[channelCf] = c
 		}
 	case rplEndofnames:
 		channelCf := strings.ToLower(msg.Params[1])
@@ -782,6 +804,11 @@ func (s *Session) handle(msg Message) (err error) {
 			t = time.Now()
 		}
 
+		formerUser := s.users[nickCf]
+		formerUser.Nick = newNick
+		delete(s.users, nickCf)
+		s.users[newNickCf] = formerUser
+
 		if nickCf == s.nickCf {
 			s.evts <- SelfNickEvent{
 				FormerNick: s.nick,
@@ -796,7 +823,6 @@ func (s *Session) handle(msg Message) (err error) {
 				NewNick:    newNick,
 				Time:       t,
 			}
-			// TODO update state
 		}
 	case "FAIL":
 		fmt.Println("FAIL", msg.Params)
@@ -846,6 +872,15 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 	}
 
 	return
+}
+
+func (s *Session) cleanUser(parted *User) {
+	for _, c := range s.channels {
+		if _, ok := c.Members[parted]; ok {
+			return
+		}
+	}
+	delete(s.users, strings.ToLower(parted.Nick))
 }
 
 func (s *Session) updateFeatures(features []string) {

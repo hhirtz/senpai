@@ -244,7 +244,7 @@ func (msg *Message) IsValid() bool {
 		return 4 <= len(msg.Params)
 	case rplWhoreply:
 		return 8 <= len(msg.Params)
-	case "JOIN", "PART", "TAGMSG":
+	case "JOIN", "NICK", "PART", "TAGMSG":
 		return 1 <= len(msg.Params) && msg.Prefix != ""
 	case "PRIVMSG", "NOTICE", "TOPIC":
 		return 2 <= len(msg.Params) && msg.Prefix != ""
