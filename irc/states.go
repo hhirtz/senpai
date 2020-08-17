@@ -471,6 +471,8 @@ func (s *Session) handleStart(msg Message) (err error) {
 					}
 				}
 			}
+		default:
+			s.handle(msg)
 		}
 	case errNicknameinuse:
 		s.nick = s.nick + "_"
