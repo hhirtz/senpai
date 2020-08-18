@@ -311,6 +311,14 @@ func (msg *Message) Time() (t time.Time, ok bool) {
 	return
 }
 
+func (msg *Message) TimeOrNow() time.Time {
+	t, ok := msg.Time()
+	if ok {
+		return t
+	}
+	return time.Now()
+}
+
 func FullMask(s string) (nick, user, host string) {
 	if s == "" {
 		return

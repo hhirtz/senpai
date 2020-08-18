@@ -631,11 +631,7 @@ func (s *Session) handle(msg Message) (err error) {
 				s.users[nickCf] = &User{Nick: nick}
 			}
 			c.Members[s.users[nickCf]] = ""
-
-			t, ok := msg.Time()
-			if !ok {
-				t = time.Now()
-			}
+			t := msg.TimeOrNow()
 
 			s.evts <- UserJoinEvent{
 				Channel: c.Name,
@@ -660,11 +656,7 @@ func (s *Session) handle(msg Message) (err error) {
 			if u, ok := s.users[nickCf]; ok {
 				delete(c.Members, u)
 				s.cleanUser(u)
-
-				t, ok := msg.Time()
-				if !ok {
-					t = time.Now()
-				}
+				t := msg.TimeOrNow()
 
 				s.evts <- UserPartEvent{
 					Channels: []string{c.Name},
@@ -678,11 +670,7 @@ func (s *Session) handle(msg Message) (err error) {
 		nickCf := strings.ToLower(nick)
 
 		if u, ok := s.users[nickCf]; ok {
-			t, ok := msg.Time()
-			if !ok {
-				t = time.Now()
-			}
-
+			t := msg.TimeOrNow()
 			var channels []string
 			for _, c := range s.channels {
 				if _, ok := c.Members[u]; ok {
@@ -742,9 +730,12 @@ func (s *Session) handle(msg Message) (err error) {
 			s.channels[channelCf] = c
 		}
 	case "TOPIC":
+		nick, _, _ := FullMask(msg.Prefix)
 		channelCf := strings.ToLower(msg.Params[0])
 		if c, ok := s.channels[channelCf]; ok {
 			c.Topic = msg.Params[1]
+			c.TopicWho = nick
+			c.TopicTime = msg.TimeOrNow()
 			s.channels[channelCf] = c
 		}
 	case "PRIVMSG", "NOTICE":
@@ -772,10 +763,7 @@ func (s *Session) handle(msg Message) (err error) {
 			break
 		}
 
-		t, ok := msg.Time()
-		if !ok {
-			t = time.Now()
-		}
+		t := msg.TimeOrNow()
 		if targetCf == s.nickCf {
 			// TAGMSG to self
 			s.evts <- QueryTagEvent{
@@ -807,11 +795,7 @@ func (s *Session) handle(msg Message) (err error) {
 		nickCf := strings.ToLower(nick)
 		newNick := msg.Params[0]
 		newNickCf := strings.ToLower(newNick)
-
-		t, ok := msg.Time()
-		if !ok {
-			t = time.Now()
-		}
+		t := msg.TimeOrNow()
 
 		formerUser := s.users[nickCf]
 		formerUser.Nick = newNick
@@ -855,11 +839,7 @@ func (s *Session) handle(msg Message) (err error) {
 func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 	nick, _, _ := FullMask(msg.Prefix)
 	targetCf := strings.ToLower(msg.Params[0])
-
-	t, ok := msg.Time()
-	if !ok {
-		t = time.Now()
-	}
+	t := msg.TimeOrNow()
 
 	if !s.IsChannel(targetCf) {
 		// PRIVMSG to self
