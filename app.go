@@ -18,6 +18,8 @@ type App struct {
 
 	cfg        Config
 	highlights []string
+
+	lastQuery string
 }
 
 func NewApp(cfg Config) (app *App, err error) {
@@ -116,6 +118,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false, true)
 			app.win.AddLine(ui.Home, l)
 			app.win.TypingStop(ui.Home, ev.Nick)
+			app.lastQuery = ev.Nick
 		} else if ev.Command == "NOTICE" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
 			app.win.AddLine("", l)
@@ -377,5 +380,7 @@ func (app *App) handleInput(buffer, content string) {
 		content := split[1]
 		app.s.PrivMsg(target, content)
 		// TODO echo mssage
+	case "R":
+		app.s.PrivMsg(app.lastQuery, args)
 	}
 }
