@@ -2,6 +2,8 @@
 
 Welcome home, desune~
 
+![a screenshot of your senpai!](https://f.dille.cc/TAIITE/78061c61b.png)
+
 Works best with soju!
 
 ## ... How?
@@ -17,6 +19,10 @@ password: "my password can't be this cute"
 EOF
 go run ./cmd/irc
 ```
+
+Then, type `/join #senpai` and have a chat!
+
+Move around channels with `alt-left` and `alt-right` (or `ctrl-p` and `ctrl-n`).
 
 ## Contributing and stuff
 
