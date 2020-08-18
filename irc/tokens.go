@@ -263,7 +263,7 @@ func (msg *Message) IsValid() bool {
 			return false
 		}
 		_, err := strconv.ParseInt(msg.Params[3], 10, 64)
-		return err != nil
+		return err == nil
 	case "BATCH":
 		if len(msg.Params) < 1 {
 			return false
