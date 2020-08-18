@@ -101,8 +101,12 @@ func (e *editor) remRuneAt(idx int) {
 
 func (e *editor) Flush() (content string) {
 	content = string(e.text[e.lineIdx])
-	e.lineIdx = len(e.text)
-	e.text = append(e.text, []rune{})
+	if len(e.text[len(e.text)-1]) == 0 {
+		e.lineIdx = len(e.text) - 1
+	} else {
+		e.lineIdx = len(e.text)
+		e.text = append(e.text, []rune{})
+	}
 	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
 	e.offsetIdx = 0
