@@ -379,8 +379,24 @@ func (app *App) handleInput(buffer, content string) {
 		target := split[0]
 		content := split[1]
 		app.s.PrivMsg(target, content)
-		// TODO echo mssage
+		if !app.s.HasCapability("echo-message") {
+			if app.s.IsChannel(target) {
+				buffer = ui.Home
+			} else {
+				buffer = target
+			}
+			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), content, false, false)
+			app.win.AddLine(buffer, line)
+		}
 	case "R":
+		if buffer != ui.Home {
+			return
+		}
+
 		app.s.PrivMsg(app.lastQuery, args)
+		if !app.s.HasCapability("echo-message") {
+			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), args, false, false)
+			app.win.AddLine(ui.Home, line)
+		}
 	}
 }
