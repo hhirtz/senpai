@@ -66,8 +66,6 @@ func NewApp(cfg Config) (app *App, err error) {
 		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", "Registration failed"))
 	}
 
-	app.highlights = append(app.highlights, app.s.NickCf())
-
 	return
 }
 
@@ -110,9 +108,6 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 			line += " as " + app.s.Nick()
 		}
 		app.win.AddLine(ui.Home, ui.NewLineNow("--", line))
-		if app.cfg.Highlights == nil {
-			app.highlights[0] = app.s.NickCf()
-		}
 	case irc.SelfNickEvent:
 		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
 		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, true))
@@ -253,6 +248,9 @@ func (app *App) isHighlight(nick, content string) bool {
 		return false
 	}
 	contentCf := strings.ToLower(content)
+	if app.highlights == nil {
+		return strings.Contains(contentCf, app.s.NickCf())
+	}
 	for _, h := range app.highlights {
 		if strings.Contains(contentCf, h) {
 			return true
