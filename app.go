@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"log"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -23,7 +24,9 @@ type App struct {
 }
 
 func NewApp(cfg Config) (app *App, err error) {
-	app = &App{}
+	app = &App{
+		cfg: cfg,
+	}
 
 	if cfg.Highlights != nil {
 		app.highlights = make([]string, len(cfg.Highlights))
@@ -132,6 +135,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 			app.win.AddLine(ui.Home, l)
 			app.win.TypingStop(ui.Home, ev.Nick)
 			app.lastQuery = ev.Nick
+			app.notifyHighlight("", ev.Nick, ev.Content)
 		} else if ev.Command == "NOTICE" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
 			app.win.AddLine("", l)
@@ -144,6 +148,9 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE", isHighlight)
 		app.win.AddLine(ev.Channel, l)
 		app.win.TypingStop(ev.Channel, ev.Nick)
+		if isHighlight {
+			app.notifyHighlight(ev.Channel, ev.Nick, ev.Content)
+		}
 	case irc.QueryTagEvent:
 		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
 			app.win.TypingStart(ui.Home, ev.Nick)
@@ -257,6 +264,19 @@ func (app *App) isHighlight(nick, content string) bool {
 		}
 	}
 	return false
+}
+
+func (app *App) notifyHighlight(context, nick, content string) {
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		return
+	}
+	command := app.cfg.OnHighlight
+	command = strings.Replace(command, "%%", "%", -1)
+	command = strings.Replace(command, "%c", context, -1)
+	command = strings.Replace(command, "%n", nick, -1)
+	command = strings.Replace(command, "%m", content, -1)
+	exec.Command(sh, "-c", command).Run()
 }
 
 func (app *App) requestHistory() {

@@ -14,7 +14,8 @@ type Config struct {
 	Password *string
 
 	Highlights   []string
-	NickColWidth int `yaml:"nick-column-width"`
+	OnHighlight  string `yaml:"on-highlight"`
+	NickColWidth int    `yaml:"nick-column-width"`
 
 	Debug bool
 }
