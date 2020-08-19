@@ -97,6 +97,8 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		head := "DEBUG  IN --"
 		if ev.Outgoing {
 			head = "DEBUG OUT --"
+		} else if !ev.IsValid {
+			head = "DEBUG  IN ??"
 		}
 		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message))
 	case irc.RegisteredEvent:

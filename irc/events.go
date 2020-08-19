@@ -9,6 +9,7 @@ type Event interface{}
 type RawMessageEvent struct {
 	Message  string
 	Outgoing bool
+	IsValid  bool
 }
 
 type RegisteredEvent struct{}

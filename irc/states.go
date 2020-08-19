@@ -191,14 +191,16 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 		for r.Scan() {
 			line := r.Text()
 			msg, err := Tokenize(line)
-			if err != nil || !msg.IsValid() {
+			if err != nil {
 				continue
 			}
-
+			valid := msg.IsValid()
 			if s.debug {
-				s.evts <- RawMessageEvent{Message: line}
+				s.evts <- RawMessageEvent{Message: line, IsValid: valid}
 			}
-			s.msgs <- msg
+			if valid {
+				s.msgs <- msg
+			}
 		}
 
 		s.Stop()
