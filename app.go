@@ -36,6 +36,7 @@ func NewApp(cfg Config) (app *App, err error) {
 	app.win.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", cfg.Addr)))
 	conn, err = tls.Dial("tcp", cfg.Addr, nil)
 	if err != nil {
+		app.win.Close()
 		return
 	}
 
@@ -51,6 +52,8 @@ func NewApp(cfg Config) (app *App, err error) {
 		Debug:    cfg.Debug,
 	})
 	if err != nil {
+		app.win.Close()
+		_ = conn.Close()
 		return
 	}
 

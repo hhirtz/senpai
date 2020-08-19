@@ -214,8 +214,14 @@ func (s *Session) Running() bool {
 }
 
 func (s *Session) Stop() {
+	if !s.Running() {
+		return
+	}
 	s.running.Store(false)
 	_ = s.conn.Close()
+	close(s.acts)
+	close(s.evts)
+	close(s.msgs)
 }
 
 func (s *Session) Poll() (events <-chan Event) {
