@@ -34,6 +34,9 @@ func NewApp(cfg Config) (app *App, err error) {
 
 	app.win, err = ui.New(ui.Config{
 		NickColWidth: cfg.NickColWidth,
+		AutoComplete: func(cursorIdx int, text []rune) []ui.Completion {
+			return app.completions(cursorIdx, text)
+		},
 	})
 	if err != nil {
 		return
@@ -229,6 +232,11 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			if ok {
 				app.typing()
 			}
+		case tcell.KeyTab:
+			ok := app.win.InputAutoComplete()
+			if ok {
+				app.typing()
+			}
 		case tcell.KeyCR, tcell.KeyLF:
 			buffer := app.win.CurrentBuffer()
 			input := app.win.InputEnter()
@@ -403,4 +411,50 @@ func (app *App) handleInput(buffer, content string) {
 			app.win.AddLine(ui.Home, line)
 		}
 	}
+}
+
+func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
+	var cs []ui.Completion
+
+	if len(text) == 0 {
+		return cs
+	}
+
+	var start int
+	for start = cursorIdx - 1; 0 <= start; start-- {
+		if text[start] == ' ' {
+			break
+		}
+	}
+	start++
+	word := string(text[start:cursorIdx])
+	wordCf := strings.ToLower(word)
+	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
+		if strings.HasPrefix(strings.ToLower(name.Nick), wordCf) {
+			nickComp := []rune(name.Nick)
+			if start == 0 {
+				nickComp = append(nickComp, ':')
+			}
+			nickComp = append(nickComp, ' ')
+			c := make([]rune, len(text)+len(nickComp)-len(word))
+			copy(c[:start], text[:start])
+			if cursorIdx < len(text) {
+				copy(c[start+len(nickComp):], text[cursorIdx:])
+			}
+			copy(c[start:], nickComp)
+			cs = append(cs, ui.Completion{
+				Text:      c,
+				CursorIdx: start + len(nickComp),
+			})
+		}
+	}
+
+	if cs != nil {
+		cs = append(cs, ui.Completion{
+			Text:      text,
+			CursorIdx: cursorIdx,
+		})
+	}
+
+	return cs
 }

@@ -4,6 +4,11 @@ import (
 	"github.com/gdamore/tcell"
 )
 
+type Completion struct {
+	Text      []rune
+	CursorIdx int
+}
+
 // editor is the text field where the user writes messages and commands.
 type editor struct {
 	// text contains the written runes. An empty slice means no text is written.
@@ -26,13 +31,19 @@ type editor struct {
 
 	// width is the width of the screen.
 	width int
+
+	autoComplete func(cursorIdx int, text []rune) []Completion
+	autoCache    []Completion
+	autoCacheIdx int
+	completeIdx  int
 }
 
-func newEditor(width int) editor {
+func newEditor(width int, autoComplete func(cursorIdx int, text []rune) []Completion) editor {
 	return editor{
-		text:      [][]rune{{}},
-		textWidth: []int{0},
-		width:     width,
+		text:         [][]rune{{}},
+		textWidth:    []int{0},
+		width:        width,
+		autoComplete: autoComplete,
 	}
 }
 
@@ -40,6 +51,7 @@ func (e *editor) Resize(width int) {
 	if width < e.width {
 		e.cursorIdx = 0
 		e.offsetIdx = 0
+		e.autoCache = nil
 	}
 	e.width = width
 }
@@ -53,6 +65,12 @@ func (e *editor) TextLen() int {
 }
 
 func (e *editor) PutRune(r rune) {
+	e.putRune(r)
+	e.Right()
+	e.autoCache = nil
+}
+
+func (e *editor) putRune(r rune) {
 	e.text[e.lineIdx] = append(e.text[e.lineIdx], ' ')
 	copy(e.text[e.lineIdx][e.cursorIdx+1:], e.text[e.lineIdx][e.cursorIdx:])
 	e.text[e.lineIdx][e.cursorIdx] = r
@@ -63,8 +81,6 @@ func (e *editor) PutRune(r rune) {
 	for i := e.cursorIdx + 1; i < len(e.textWidth); i++ {
 		e.textWidth[i] = rw + e.textWidth[i-1]
 	}
-
-	e.Right()
 }
 
 func (e *editor) RemRune() (ok bool) {
@@ -73,6 +89,7 @@ func (e *editor) RemRune() (ok bool) {
 		return
 	}
 	e.remRuneAt(e.cursorIdx - 1)
+	e.autoCache = nil
 	e.Left()
 	return
 }
@@ -83,6 +100,7 @@ func (e *editor) RemRuneForward() (ok bool) {
 		return
 	}
 	e.remRuneAt(e.cursorIdx)
+	e.autoCache = nil
 	return
 }
 
@@ -110,10 +128,16 @@ func (e *editor) Flush() (content string) {
 	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
 	e.offsetIdx = 0
+	e.autoCache = nil
 	return
 }
 
 func (e *editor) Right() {
+	e.right()
+	e.autoCache = nil
+}
+
+func (e *editor) right() {
 	if e.cursorIdx == len(e.text[e.lineIdx]) {
 		return
 	}
@@ -138,18 +162,27 @@ func (e *editor) Left() {
 			e.offsetIdx = 0
 		}
 	}
+	e.autoCache = nil
 }
 
 func (e *editor) Home() {
+	if e.cursorIdx == 0 {
+		return
+	}
 	e.cursorIdx = 0
 	e.offsetIdx = 0
+	e.autoCache = nil
 }
 
 func (e *editor) End() {
+	if e.cursorIdx == len(e.text[e.lineIdx]) {
+		return
+	}
 	e.cursorIdx = len(e.text[e.lineIdx])
 	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
 		e.offsetIdx++
 	}
+	e.autoCache = nil
 }
 
 func (e *editor) Up() {
@@ -160,6 +193,7 @@ func (e *editor) Up() {
 	e.computeTextWidth()
 	e.cursorIdx = 0
 	e.offsetIdx = 0
+	e.autoCache = nil
 	e.End()
 }
 
@@ -175,7 +209,29 @@ func (e *editor) Down() {
 	e.computeTextWidth()
 	e.cursorIdx = 0
 	e.offsetIdx = 0
+	e.autoCache = nil
 	e.End()
+}
+
+func (e *editor) AutoComplete() (ok bool) {
+	if e.autoCache == nil {
+		e.autoCache = e.autoComplete(e.cursorIdx, e.text[e.lineIdx])
+		if e.autoCache == nil {
+			return false
+		}
+		if len(e.autoCache) == 0 {
+			e.autoCache = nil
+			return false
+		}
+		e.autoCacheIdx = 0
+	}
+
+	e.text[e.lineIdx] = e.autoCache[e.autoCacheIdx].Text
+	e.cursorIdx = e.autoCache[e.autoCacheIdx].CursorIdx
+	e.computeTextWidth()
+	e.autoCacheIdx = (e.autoCacheIdx + 1) % len(e.autoCache)
+
+	return true
 }
 
 func (e *editor) computeTextWidth() {

@@ -10,6 +10,7 @@ import (
 
 type Config struct {
 	NickColWidth int
+	AutoComplete func(cursorIdx int, text []rune) []Completion
 }
 
 type UI struct {
@@ -55,7 +56,7 @@ func New(config Config) (ui *UI, err error) {
 	ui.bs.Add(Home)
 	ui.bs.AddLine("", NewLineNow("--", homeMessages[hmIdx]))
 
-	ui.e = newEditor(w)
+	ui.e = newEditor(w, ui.config.AutoComplete)
 
 	ui.Resize()
 
@@ -193,6 +194,14 @@ func (ui *UI) InputBackspace() (ok bool) {
 
 func (ui *UI) InputDelete() (ok bool) {
 	ok = ui.e.RemRuneForward()
+	if ok {
+		ui.draw()
+	}
+	return
+}
+
+func (ui *UI) InputAutoComplete() (ok bool) {
+	ok = ui.e.AutoComplete()
 	if ok {
 		ui.draw()
 	}
