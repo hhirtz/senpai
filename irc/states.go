@@ -157,8 +157,8 @@ type Session struct {
 	chBatches map[string]HistoryEvent
 }
 
-func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err error) {
-	s = Session{
+func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error) {
+	s := &Session{
 		conn:          conn,
 		msgs:          make(chan Message, 16),
 		acts:          make(chan action, 16),
@@ -180,9 +180,9 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 
 	s.running.Store(true)
 
-	err = s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)
+	err := s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)
 	if err != nil {
-		return
+		return nil, err
 	}
 
 	go func() {
@@ -206,7 +206,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (s Session, err e
 
 	go s.run()
 
-	return
+	return s, nil
 }
 
 func (s *Session) Running() bool {

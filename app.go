@@ -14,7 +14,7 @@ import (
 
 type App struct {
 	win *ui.UI
-	s   irc.Session
+	s   *irc.Session
 
 	cfg        Config
 	highlights []string
@@ -24,6 +24,13 @@ type App struct {
 
 func NewApp(cfg Config) (app *App, err error) {
 	app = &App{}
+
+	if cfg.Highlights != nil {
+		app.highlights = make([]string, len(cfg.Highlights))
+		for i := range app.highlights {
+			app.highlights[i] = strings.ToLower(cfg.Highlights[i])
+		}
+	}
 
 	app.win, err = ui.New(ui.Config{
 		NickColWidth: cfg.NickColWidth,
@@ -36,7 +43,8 @@ func NewApp(cfg Config) (app *App, err error) {
 	app.win.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", cfg.Addr)))
 	conn, err = tls.Dial("tcp", cfg.Addr, nil)
 	if err != nil {
-		app.win.Close()
+		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", "Connection failed"))
+		err = nil
 		return
 	}
 
@@ -52,34 +60,32 @@ func NewApp(cfg Config) (app *App, err error) {
 		Debug:    cfg.Debug,
 	})
 	if err != nil {
-		app.win.Close()
-		_ = conn.Close()
-		return
+		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", "Registration failed"))
 	}
 
-	if cfg.Highlights != nil {
-		app.highlights = cfg.Highlights
-		for i := range app.highlights {
-			app.highlights[i] = strings.ToLower(app.highlights[i])
-		}
-	} else {
-		app.highlights = []string{app.s.NickCf()}
-	}
+	app.highlights = append(app.highlights, app.s.NickCf())
 
 	return
 }
 
 func (app *App) Close() {
 	app.win.Close()
-	app.s.Stop()
+	if app.s != nil {
+		app.s.Stop()
+	}
 }
 
 func (app *App) Run() {
 	for !app.win.ShouldExit() {
-		select {
-		case ev := <-app.s.Poll():
-			app.handleIRCEvent(ev)
-		case ev := <-app.win.Events:
+		if app.s != nil {
+			select {
+			case ev := <-app.s.Poll():
+				app.handleIRCEvent(ev)
+			case ev := <-app.win.Events:
+				app.handleUIEvent(ev)
+			}
+		} else {
+			ev := <-app.win.Events
 			app.handleUIEvent(ev)
 		}
 	}
@@ -176,61 +182,26 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.win.Resize()
 		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.win.ScrollUp()
-			buffer := app.win.CurrentBuffer()
-			if app.win.IsAtTop() && buffer != ui.Home {
-				at := time.Now()
-				if t := app.win.CurrentBufferOldestTime(); t != nil {
-					at = *t
-				}
-				app.s.RequestHistory(buffer, at)
-			}
+			app.requestHistory()
 		case tcell.KeyCtrlD, tcell.KeyPgDn:
 			app.win.ScrollDown()
 		case tcell.KeyCtrlN:
 			app.win.NextBuffer()
-			buffer := app.win.CurrentBuffer()
-			if app.win.IsAtTop() && buffer != ui.Home {
-				at := time.Now()
-				if t := app.win.CurrentBufferOldestTime(); t != nil {
-					at = *t
-				}
-				app.s.RequestHistory(buffer, at)
-			}
+			app.requestHistory()
 		case tcell.KeyCtrlP:
 			app.win.PreviousBuffer()
-			buffer := app.win.CurrentBuffer()
-			if app.win.IsAtTop() && buffer != ui.Home {
-				at := time.Now()
-				if t := app.win.CurrentBufferOldestTime(); t != nil {
-					at = *t
-				}
-				app.s.RequestHistory(buffer, at)
-			}
+			app.requestHistory()
 		case tcell.KeyRight:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.NextBuffer()
-				buffer := app.win.CurrentBuffer()
-				if app.win.IsAtTop() && buffer != ui.Home {
-					at := time.Now()
-					if t := app.win.CurrentBufferOldestTime(); t != nil {
-						at = *t
-					}
-					app.s.RequestHistory(buffer, at)
-				}
+				app.requestHistory()
 			} else {
 				app.win.InputRight()
 			}
 		case tcell.KeyLeft:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.PreviousBuffer()
-				buffer := app.win.CurrentBuffer()
-				if app.win.IsAtTop() && buffer != ui.Home {
-					at := time.Now()
-					if t := app.win.CurrentBufferOldestTime(); t != nil {
-						at = *t
-					}
-					app.s.RequestHistory(buffer, at)
-				}
+				app.requestHistory()
 			} else {
 				app.win.InputLeft()
 			}
@@ -244,13 +215,13 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.win.InputEnd()
 		case tcell.KeyBackspace2:
 			ok := app.win.InputBackspace()
-			if ok && app.win.InputLen() == 0 {
-				app.s.TypingStop(app.win.CurrentBuffer())
+			if ok {
+				app.typing()
 			}
 		case tcell.KeyDelete:
 			ok := app.win.InputDelete()
-			if ok && app.win.InputLen() == 0 {
-				app.s.TypingStop(app.win.CurrentBuffer())
+			if ok {
+				app.typing()
 			}
 		case tcell.KeyCR, tcell.KeyLF:
 			buffer := app.win.CurrentBuffer()
@@ -258,9 +229,7 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.handleInput(buffer, input)
 		case tcell.KeyRune:
 			app.win.InputRune(ev.Rune())
-			if app.win.CurrentBuffer() != ui.Home && !app.win.InputIsCommand() && !(app.win.InputLen() == 0 && ev.Rune() == '/') {
-				app.s.Typing(app.win.CurrentBuffer())
-			}
+			app.typing()
 		}
 	}
 }
@@ -276,6 +245,32 @@ func (app *App) isHighlight(nick, content string) bool {
 		}
 	}
 	return false
+}
+
+func (app *App) requestHistory() {
+	if app.s == nil {
+		return
+	}
+	buffer := app.win.CurrentBuffer()
+	if app.win.IsAtTop() && buffer != ui.Home {
+		at := time.Now()
+		if t := app.win.CurrentBufferOldestTime(); t != nil {
+			at = *t
+		}
+		app.s.RequestHistory(buffer, at)
+	}
+}
+
+func (app *App) typing() {
+	if app.s == nil {
+		return
+	}
+	buffer := app.win.CurrentBuffer()
+	if app.win.InputLen() == 0 {
+		app.s.TypingStop(buffer)
+	} else if buffer != ui.Home && !app.win.InputIsCommand() {
+		app.s.Typing(app.win.CurrentBuffer())
+	}
 }
 
 func parseCommand(s string) (command, args string) {
