@@ -100,7 +100,11 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		}
 		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message))
 	case irc.RegisteredEvent:
-		app.win.AddLine(ui.Home, ui.NewLineNow("--", "Connected to the server"))
+		line := "Connected to the server"
+		if app.s.Nick() != app.cfg.Nick {
+			line += " as " + app.s.Nick()
+		}
+		app.win.AddLine(ui.Home, ui.NewLineNow("--", line))
 		if app.cfg.Highlights == nil {
 			app.highlights[0] = app.s.NickCf()
 		}

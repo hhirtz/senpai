@@ -479,10 +479,7 @@ func (s *Session) handleStart(msg Message) (err error) {
 			s.handle(msg)
 		}
 	case errNicknameinuse:
-		s.nick = s.nick + "_"
-		s.nickCf = s.nickCf + "_"
-
-		err = s.send("NICK %s\r\n", s.nick)
+		err = s.send("NICK %s_\r\n", msg.Params[1])
 		if err != nil {
 			return
 		}

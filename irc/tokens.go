@@ -236,7 +236,7 @@ func (msg *Message) IsValid() bool {
 	switch msg.Command {
 	case "AUTHENTICATE", "PING", "PONG":
 		return 1 <= len(msg.Params)
-	case rplEndofnames, rplLoggedout, rplMotd, rplNotopic, rplWelcome, rplYourhost:
+	case rplEndofnames, rplLoggedout, rplMotd, errNicknameinuse, rplNotopic, rplWelcome, rplYourhost:
 		return 2 <= len(msg.Params)
 	case rplIsupport, rplLoggedin, rplTopic:
 		return 3 <= len(msg.Params)
