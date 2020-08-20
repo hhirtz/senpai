@@ -45,7 +45,7 @@ func StringWidth(s string) int {
 	return wb.Width()
 }
 
-type styleBuffer struct {
+type StyleBuffer struct {
 	st        tcell.Style
 	color     colorBuffer
 	bold      bool
@@ -54,7 +54,7 @@ type styleBuffer struct {
 	underline bool
 }
 
-func (sb *styleBuffer) Reset() {
+func (sb *StyleBuffer) Reset() {
 	sb.color.Reset()
 	sb.st = tcell.StyleDefault
 	sb.bold = false
@@ -63,7 +63,7 @@ func (sb *styleBuffer) Reset() {
 	sb.underline = false
 }
 
-func (sb *styleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
+func (sb *StyleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
 	if r == 0x00 || r == 0x0F {
 		sb.Reset()
 		return sb.st, 0

@@ -245,7 +245,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 		x = x0
 		y := y0
 
-		var sb styleBuffer
+		var sb StyleBuffer
 		sb.Reset()
 		for i, r := range line.body {
 			if 0 < len(nls) && i == nls[0] {

@@ -275,7 +275,7 @@ func (app *App) notifyHighlight(context, nick, content string) {
 	command = strings.Replace(command, "%%", "%", -1)
 	command = strings.Replace(command, "%c", context, -1)
 	command = strings.Replace(command, "%n", nick, -1)
-	command = strings.Replace(command, "%m", content, -1)
+	command = strings.Replace(command, "%m", cleanMessage(content), -1)
 	exec.Command(sh, "-c", command).Run()
 }
 
@@ -475,4 +475,19 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	}
 
 	return cs
+}
+
+func cleanMessage(s string) string {
+	var res strings.Builder
+	var sb ui.StyleBuffer
+	res.Grow(len(s))
+	for _, r := range s {
+		if _, ok := sb.WriteRune(r); ok != 0 {
+			if 1 < ok {
+				res.WriteRune(',')
+			}
+			res.WriteRune(r)
+		}
+	}
+	return res.String()
 }
