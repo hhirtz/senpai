@@ -95,7 +95,7 @@ func (e *editor) RemRune() (ok bool) {
 }
 
 func (e *editor) RemRuneForward() (ok bool) {
-	ok = e.cursorIdx < len(e.text)
+	ok = e.cursorIdx < len(e.text[e.lineIdx])
 	if !ok {
 		return
 	}
