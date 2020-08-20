@@ -22,7 +22,8 @@ go run ./cmd/irc
 
 Then, type `/join #senpai` and have a chat!
 
-Move around channels with `alt-left` and `alt-right` (or `ctrl-p` and `ctrl-n`).
+See `doc/senpai.1.scd` for more information and `doc/senpai.5.scd` for more
+configuration options!
 
 ## Contributing and stuff
 
