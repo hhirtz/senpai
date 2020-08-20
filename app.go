@@ -282,7 +282,11 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 		"%n", nick,
 		"%m", cleanMessage(content))
 	command := r.Replace(app.cfg.OnHighlight)
-	exec.Command(sh, "-c", command).Run()
+	err = exec.Command(sh, "-c", command).Run()
+	if err != nil {
+		line := fmt.Sprintf("Failed to invoke on-highlight command: %v", err)
+		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", line))
+	}
 }
 
 func (app *App) requestHistory() {
