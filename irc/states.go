@@ -802,10 +802,11 @@ func (s *Session) handle(msg Message) (err error) {
 		newNickCf := strings.ToLower(newNick)
 		t := msg.TimeOrNow()
 
-		formerUser := s.users[nickCf]
-		formerUser.Nick = newNick
-		delete(s.users, nickCf)
-		s.users[newNickCf] = formerUser
+		if formerUser, ok := s.users[nickCf]; ok {
+			formerUser.Nick = newNick
+			delete(s.users, nickCf)
+			s.users[newNickCf] = formerUser
+		}
 
 		if nickCf == s.nickCf {
 			s.evts <- SelfNickEvent{
