@@ -135,7 +135,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 			app.win.AddLine(ui.Home, l)
 			app.win.TypingStop(ui.Home, ev.Nick)
 			app.lastQuery = ev.Nick
-			app.notifyHighlight("", ev.Nick, ev.Content)
+			app.notifyHighlight(ui.Home, ev.Nick, ev.Content)
 		} else if ev.Command == "NOTICE" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
 			app.win.AddLine("", l)
@@ -266,16 +266,22 @@ func (app *App) isHighlight(nick, content string) bool {
 	return false
 }
 
-func (app *App) notifyHighlight(context, nick, content string) {
+func (app *App) notifyHighlight(buffer, nick, content string) {
 	sh, err := exec.LookPath("sh")
 	if err != nil {
 		return
 	}
-	command := app.cfg.OnHighlight
-	command = strings.Replace(command, "%%", "%", -1)
-	command = strings.Replace(command, "%c", context, -1)
-	command = strings.Replace(command, "%n", nick, -1)
-	command = strings.Replace(command, "%m", cleanMessage(content), -1)
+	here := "0"
+	if buffer == app.win.CurrentBuffer() {
+		here = "1"
+	}
+	r := strings.NewReplacer(
+		"%%", "%",
+		"%b", buffer,
+		"%h", here,
+		"%n", nick,
+		"%m", cleanMessage(content))
+	command := r.Replace(app.cfg.OnHighlight)
 	exec.Command(sh, "-c", command).Run()
 }
 

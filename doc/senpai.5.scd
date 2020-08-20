@@ -44,8 +44,8 @@ Some settings are required, the others are optional.
 :< *Description*
 |  %%
 :  literal %
-|  %c
-:  message context (channel name if available, otherwise empty)
+|  %b
+:  buffer where the message appeared
 |  %m
 :  content of the message
 |  %n
@@ -77,7 +77,7 @@ password: A secure password, I guess?
 highlights:
 	- guest
 	- senpai
-on-highlight: 'notify-send "[%c] %n" "%m"'
+on-highlight: 'if [ %h -eq 0 ]; then notify-send "[%b] %n" "%m"; fi'
 nick-column-width: 12
 ```
 
