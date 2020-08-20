@@ -55,7 +55,7 @@ Some settings are required, the others are optional.
 	The number of cell that the column for nicknames occupies in the timeline.
 	By default, 16.
 
-# EXAMPLE
+# EXAMPLES
 
 A minimal configuration file to connect to freenode as "Guest123456":
 
@@ -77,7 +77,11 @@ password: A secure password, I guess?
 highlights:
 	- guest
 	- senpai
-on-highlight: 'if [ %h -eq 0 ]; then notify-send "[%b] %n" "%m"; fi'
+on-highlight: |
+    FOCUS=$(swaymsg -t get_tree | jq '..|objects|select(.focused==true)|.name' | grep senpai | wc -l)
+    if [ %h -eq 0 ] || [ $FOCUS -eq 0 ]; then
+        notify-send "[%b] %n" "%m"
+    fi
 nick-column-width: 12
 ```
 
