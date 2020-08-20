@@ -220,7 +220,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 			break
 		}
 
-		x0 := 5 + 1 + nickColWidth + 2
+		x0 := 9 + nickColWidth
 
 		line := &b.lines[i]
 		nls := line.NewLines(width - x0)
@@ -234,13 +234,16 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 		}
 
 		head := truncate(line.head, nickColWidth, "\u2026")
-		x := 6 + nickColWidth - StringWidth(head)
+		x := 7 + nickColWidth - StringWidth(head)
 		c := identColor(line.head)
+		st = st.Foreground(colorFromCode(c))
 		if line.isHighlight {
 			st = st.Reverse(true)
 		}
+		screen.SetContent(x-1, y0, ' ', nil, st)
+		screen.SetContent(7+nickColWidth, y0, ' ', nil, st)
 		printString(screen, &x, y0, st.Foreground(colorFromCode(c)), head)
-		st = st.Reverse(false)
+		st = st.Reverse(false).Foreground(tcell.ColorDefault)
 
 		x = x0
 		y := y0
@@ -358,7 +361,7 @@ func (bs *bufferList) AddLine(title string, line Line) {
 	} else {
 		b.lines = append(b.lines, line)
 		if idx == bs.current && 0 < b.scrollAmt {
-			b.scrollAmt += len(line.NewLines(bs.width-8-bs.nickColWidth)) + 1
+			b.scrollAmt += len(line.NewLines(bs.width-9-bs.nickColWidth)) + 1
 		}
 	}
 
