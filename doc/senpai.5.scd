@@ -14,8 +14,8 @@ Some settings are required, the others are optional.
 
 *addr* (required)
 	The address (_host:port_) of the IRC server.  senpai only supports TLS
-	connections and thus the user must specify the TLS port of the server (in
-	most cases, 6697 or 7000).
+	connections and thus you must specify the TLS port of the server (in most
+	cases, 6697 or 7000).
 
 *nick* (required)
 	Your nickname, sent with a _NICK_ IRC message. It mustn't contain spaces or
@@ -37,8 +37,8 @@ Some settings are required, the others are optional.
 	when said by others.  By default, senpai will use your current nickname.
 
 *on-highlight*
-	A command to be executed via _sh_ when the user is highlighted.  The
-	following format specifiers are expanded with respect to the highlight:
+	A command to be executed via _sh_ when you are highlighted.  The following
+	format specifiers are expanded with respect to the highlight:
 
 [[ *Format specifier*
 :< *Description*
@@ -46,6 +46,8 @@ Some settings are required, the others are optional.
 :  literal %
 |  %b
 :  buffer where the message appeared
+|  %h
+:  equals 1 if _%b_ is the current buffer, 0 otherwise
 |  %m
 :  content of the message
 |  %n
@@ -66,7 +68,9 @@ user: senpai
 ```
 
 A more advanced configuration file that enables SASL authentication, sends
-notifications on highlight and decrease the width of the nick column to 12:
+notifications on highlight and decreases the width of the nick column to 12
+(note: _swaymsg_ is specific to sway, a wayland compositor.  Use whatever you
+need to know if the terminal emulator that runs senpai has focus):
 
 ```
 addr: chat.freenode.net:6697

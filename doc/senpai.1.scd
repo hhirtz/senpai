@@ -43,19 +43,18 @@ The user interface of senpai consists of 4 parts.  Starting from the bottom:
 The *buffer list*, shows joined channels.  The special buffer *home* is where
 private messages and server notices are shown.
 
-On the row above, *input field* is where you type in messages or commands (see
-*COMMANDS*).  By default, when you type a message, senpai will send a
-notification to the current channel and other will be able to know you are
-typing.
+On the row above, the *input field* is where you type in messages or commands
+(see *COMMANDS*).  By default, when you type a message, senpai will inform
+others in the channel that you are typing.
 
 On the row above, the *status line* (or... just a line if nothing is
-happening...) is where typing indicator are shown (e.g. "dan- is typing...").
+happening...) is where typing indicators are shown (e.g. "dan- is typing...").
 
-Finally, the *timeline* is displayed on the rest of the screen.  There are
-several types of messages in the timeline:
+Finally, the *timeline* is displayed on the rest of the screen.  Several types
+of messages are in the timeline:
 
 - User messages are shown with their nicknames,
-- User actions (*/me*) are shown with an asterisk (*\**) followed by the user
+- User actions (*/me*) are shown with an asterisk (*\**) followed by the user's
   nickname,
 - Status messages, such as joins, parts, topics and name lists, are shown with
   two dashes (*--*),
@@ -94,40 +93,40 @@ several types of messages in the timeline:
 
 # COMMANDS
 
-If the user types and sends a message that starts with a slash (*/*), it will
-instead be interpreted as a command:
+If you type and send a message that starts with a slash (*/*), it will instead
+be interpreted as a command:
 
 	/_name_ argument1 argument2...
 
 _name_ is matched case-insensitively.  It can be one of the following:
 
 *J*, *JOIN* <channel>
-	Joins the given channel.
+	Join the given channel.
 
 *PART* [channel]
 	Part the given channel, defaults to the current one if omitted.
 
 *NAMES*
-	Shows the member list of the current channel.  Powerlevels (such as _@_ for
+	Show the member list of the current channel.  Powerlevels (such as _@_ for
 	"operator", or _+_ for "voice") are shown in green.
 
 *TOPIC* [topic]
-	If _topic_ is omitted, shows the topic of the current channel and, if
+	If _topic_ is omitted, show the topic of the current channel and, if
 	available, the person who set it and the time when it has been set.
 
 	Otherwise, change the topic of the current channel to _topic_.
 
 *MSG* <target> <content>
-	Sends _content_ to _target_.
+	Send _content_ to _target_.
 
 *R* <content>
-	Reply to the last person who sent you a private message.
+	Reply to the last person who sent a private message.
 
 *ME* <content>
-	Sends a message prefixed with your nick (a user action).
+	Send a message prefixed with your nick (a user action).
 
 *QUOTE* <raw message>
-	Sends _raw message_ verbatim.
+	Send _raw message_ verbatim.
 
 # SEE ALSO
 
