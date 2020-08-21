@@ -119,6 +119,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, false))
 	case irc.SelfJoinEvent:
 		app.win.AddBuffer(ev.Channel)
+		app.s.RequestHistory(ev.Channel, time.Now())
 	case irc.UserJoinEvent:
 		line := fmt.Sprintf("\x033+\x0314%s\x03", ev.Nick)
 		app.win.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true, false))
