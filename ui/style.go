@@ -169,44 +169,26 @@ func (cb *colorBuffer) WriteRune(r rune) (ok int) {
 	return
 }
 
+var ansiCodes = []tcell.Color{
+	// Taken from <https://modern.ircdocs.horse/formatting.html>
+	tcell.ColorWhite, tcell.ColorBlack, tcell.ColorBlue, tcell.ColorGreen,
+	tcell.ColorRed, tcell.ColorBrown, tcell.ColorPurple, tcell.ColorOrange,
+	tcell.ColorYellow, tcell.ColorLightGreen, tcell.ColorTeal, tcell.ColorLightCyan,
+	tcell.ColorLightBlue, tcell.ColorPink, tcell.ColorGrey, tcell.ColorLightGrey,
+	/* 16-27 */ 52, 94, 100, 58, 22, 29, 23, 24, 17, 54, 53, 89,
+	/* 28-39 */ 88, 130, 142, 64, 28, 35, 30, 25, 18, 91, 90, 125,
+	/* 40-51 */ 124, 166, 184, 106, 34, 49, 37, 33, 19, 129, 127, 161,
+	/* 52-63 */ 196, 208, 226, 154, 46, 86, 51, 75, 21, 171, 201, 198,
+	/* 64-75 */ 203, 215, 227, 191, 83, 122, 87, 111, 63, 177, 207, 205,
+	/* 76-87 */ 217, 223, 229, 193, 157, 158, 159, 153, 147, 183, 219, 212,
+	/* 88-98 */ 16, 233, 235, 237, 239, 241, 244, 247, 250, 254, 231,
+}
+
 func colorFromCode(code int) (color tcell.Color) {
-	switch code {
-	case 0:
-		color = tcell.ColorWhite
-	case 1:
-		color = tcell.ColorBlack
-	case 2:
-		color = tcell.ColorBlue
-	case 3:
-		color = tcell.ColorGreen
-	case 4:
-		color = tcell.ColorRed
-	case 5:
-		color = tcell.ColorBrown
-	case 6:
-		color = tcell.ColorPurple
-	case 7:
-		color = tcell.ColorOrange
-	case 8:
-		color = tcell.ColorYellow
-	case 9:
-		color = tcell.ColorLightGreen
-	case 10:
-		color = tcell.ColorTeal
-	case 11:
-		color = tcell.ColorFuchsia
-	case 12:
-		color = tcell.ColorLightBlue
-	case 13:
-		color = tcell.ColorPink
-	case 14:
-		color = tcell.ColorGrey
-	case 15:
-		color = tcell.ColorLightGrey
-	case 99:
+	if code < 0 || len(ansiCodes) <= code {
 		color = tcell.ColorDefault
-	default:
-		color = tcell.Color(code)
+	} else {
+		color = ansiCodes[code]
 	}
 	return
 }
