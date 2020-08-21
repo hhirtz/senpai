@@ -604,16 +604,18 @@ func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {
 	screen.SetContent(x+4, y, mn1, nil, st)
 }
 
+// see <https://modern.ircdocs.horse/formatting.html>
+var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
+
 func identColor(s string) (code int) {
 	h := fnv.New32()
 	_, _ = h.Write([]byte(s))
 
-	code = int(h.Sum32()) % 96
-	if 1 <= code {
-		code++
-	}
-	if 8 <= code {
-		code++
+	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
+	for _, c := range identColorBlacklist {
+		if c <= code {
+			code++
+		}
 	}
 
 	return
