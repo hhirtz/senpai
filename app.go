@@ -397,7 +397,7 @@ func (app *App) handleInput(buffer, content string) {
 			if who == "" {
 				line = fmt.Sprintf("\x0314Topic: %s", topic)
 			} else {
-				line = fmt.Sprintf("\x0314Topic (by %s, %s): %s", who, at.Format("Mon Jan 2 15:04:05"), topic)
+				line = fmt.Sprintf("\x0314Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
 			}
 			app.win.AddLine(buffer, ui.NewLineNow("--", line))
 		} else {
