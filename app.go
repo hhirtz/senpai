@@ -309,9 +309,12 @@ func (app *App) typing() {
 		return
 	}
 	buffer := app.win.CurrentBuffer()
+	if buffer == ui.Home {
+		return
+	}
 	if app.win.InputLen() == 0 {
 		app.s.TypingStop(buffer)
-	} else if buffer != ui.Home && !app.win.InputIsCommand() {
+	} else if !app.win.InputIsCommand() {
 		app.s.Typing(app.win.CurrentBuffer())
 	}
 }
