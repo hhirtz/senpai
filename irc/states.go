@@ -303,7 +303,7 @@ func (s *Session) SetTopic(channel, topic string) {
 }
 
 func (s *Session) setTopic(act actionSetTopic) (err error) {
-	err = s.send("TOPIC %s %s\r\n", act.Channel, act.Topic)
+	err = s.send("TOPIC %s :%s\r\n", act.Channel, act.Topic)
 	return
 }
 
