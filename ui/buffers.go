@@ -230,7 +230,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 		}
 
 		if i == 0 || b.lines[i-1].at.Truncate(time.Minute) != line.at.Truncate(time.Minute) {
-			printTime(screen, 0, y0, st.Bold(true), line.at)
+			printTime(screen, 0, y0, st.Bold(true), line.at.Local())
 		}
 
 		head := truncate(line.head, nickColWidth, "\u2026")
@@ -383,9 +383,9 @@ func (bs *bufferList) AddLines(title string, lines []Line) {
 	limit := len(lines)
 
 	if 0 < len(b.lines) {
-		firstLineTime := b.lines[0].at.Round(time.Millisecond)
-		for i := len(lines) - 1; 0 <= i; i-- {
-			if firstLineTime == lines[i].at.Round(time.Millisecond) {
+		firstLineTime := b.lines[0].at.Unix()
+		for i, l := range lines {
+			if firstLineTime < l.at.Unix() {
 				limit = i
 				break
 			}
