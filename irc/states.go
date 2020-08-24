@@ -631,6 +631,7 @@ func (s *Session) handle(msg Message) (err error) {
 				Name:    msg.Params[0],
 				Members: map[*User]string{},
 			}
+			s.evts <- SelfJoinEvent{Channel: msg.Params[0]}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if _, ok := s.users[nickCf]; !ok {
 				s.users[nickCf] = &User{Nick: nick}
@@ -708,11 +709,6 @@ func (s *Session) handle(msg Message) (err error) {
 			}
 
 			s.channels[channelCf] = c
-		}
-	case rplEndofnames:
-		channelCf := strings.ToLower(msg.Params[1])
-		if c, ok := s.channels[channelCf]; ok {
-			s.evts <- SelfJoinEvent{Channel: c.Name}
 		}
 	case rplTopic:
 		channelCf := strings.ToLower(msg.Params[1])
