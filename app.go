@@ -359,15 +359,21 @@ func (app *App) handleInput(buffer, content string) {
 	case "J", "JOIN":
 		app.s.Join(args)
 	case "PART":
-		if buffer == ui.Home {
-			return
+		channel := buffer
+		reason := args
+		spl := strings.SplitN(args, " ", 2)
+		if 0 < len(spl) && app.s.IsChannel(spl[0]) {
+			channel = spl[0]
+			if 1 < len(spl) {
+				reason = spl[1]
+			} else {
+				reason = ""
+			}
 		}
 
-		if args == "" {
-			args = buffer
+		if channel != ui.Home {
+			app.s.Part(channel, reason)
 		}
-
-		app.s.Part(args)
 	case "NAMES":
 		if buffer == ui.Home {
 			return

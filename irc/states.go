@@ -80,6 +80,7 @@ type (
 	}
 	actionPart struct {
 		Channel string
+		Reason  string
 	}
 	actionSetTopic struct {
 		Channel string
@@ -289,12 +290,12 @@ func (s *Session) join(act actionJoin) (err error) {
 	return
 }
 
-func (s *Session) Part(channel string) {
-	s.acts <- actionPart{channel}
+func (s *Session) Part(channel, reason string) {
+	s.acts <- actionPart{channel, reason}
 }
 
 func (s *Session) part(act actionPart) (err error) {
-	err = s.send("PART %s\r\n", act.Channel)
+	err = s.send("PART %s :%s\r\n", act.Channel, act.Reason)
 	return
 }
 
