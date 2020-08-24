@@ -194,26 +194,32 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			app.win.Resize()
 		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.win.ScrollUp()
-			app.requestHistory()
+			if app.s == nil {
+				return
+			}
+			buffer := app.win.CurrentBuffer()
+			if app.win.IsAtTop() && buffer != ui.Home {
+				at := time.Now()
+				if t := app.win.CurrentBufferOldestTime(); t != nil {
+					at = *t
+				}
+				app.s.RequestHistory(buffer, at)
+			}
 		case tcell.KeyCtrlD, tcell.KeyPgDn:
 			app.win.ScrollDown()
 		case tcell.KeyCtrlN:
 			app.win.NextBuffer()
-			app.requestHistory()
 		case tcell.KeyCtrlP:
 			app.win.PreviousBuffer()
-			app.requestHistory()
 		case tcell.KeyRight:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.NextBuffer()
-				app.requestHistory()
 			} else {
 				app.win.InputRight()
 			}
 		case tcell.KeyLeft:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.PreviousBuffer()
-				app.requestHistory()
 			} else {
 				app.win.InputLeft()
 			}
@@ -287,20 +293,6 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	if err != nil {
 		line := fmt.Sprintf("Failed to invoke on-highlight command: %v", err)
 		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", line))
-	}
-}
-
-func (app *App) requestHistory() {
-	if app.s == nil {
-		return
-	}
-	buffer := app.win.CurrentBuffer()
-	if app.win.IsAtTop() && buffer != ui.Home {
-		at := time.Now()
-		if t := app.win.CurrentBufferOldestTime(); t != nil {
-			at = *t
-		}
-		app.s.RequestHistory(buffer, at)
 	}
 }
 
