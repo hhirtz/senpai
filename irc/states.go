@@ -720,7 +720,7 @@ func (s *Session) handle(msg Message) (err error) {
 		channelCf := strings.ToLower(msg.Params[1])
 		t, _ := strconv.ParseInt(msg.Params[3], 10, 64)
 		if c, ok := s.channels[channelCf]; ok {
-			c.TopicWho = msg.Params[2]
+			c.TopicWho, _, _ = FullMask(msg.Params[2])
 			c.TopicTime = time.Unix(t, 0)
 			s.channels[channelCf] = c
 		}
