@@ -847,6 +847,7 @@ func (s *Session) privmsgToEvent(msg Message) (ev Event) {
 		// PRIVMSG to self
 		ev = QueryMessageEvent{
 			Nick:    nick,
+			Target:  msg.Params[0],
 			Command: msg.Command,
 			Content: msg.Params[1],
 			Time:    t,

@@ -48,6 +48,7 @@ type UserPartEvent struct {
 
 type QueryMessageEvent struct {
 	Nick    string
+	Target  string
 	Command string
 	Content string
 	Time    time.Time

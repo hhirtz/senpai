@@ -132,11 +132,20 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		}
 	case irc.QueryMessageEvent:
 		if ev.Command == "PRIVMSG" {
-			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, false, true)
+			isHighlight := true
+			head := ev.Nick
+			if app.s.NickCf() == strings.ToLower(ev.Nick) {
+				isHighlight = false
+				head = "\u2192 " + ev.Target
+			} else {
+				app.lastQuery = ev.Nick
+			}
+			l := ui.LineFromIRCMessage(ev.Time, head, ev.Content, false, false)
 			app.win.AddLine(ui.Home, l)
 			app.win.TypingStop(ui.Home, ev.Nick)
-			app.lastQuery = ev.Nick
-			app.notifyHighlight(ui.Home, ev.Nick, ev.Content)
+			if isHighlight {
+				app.notifyHighlight(ui.Home, ev.Nick, ev.Content)
+			}
 		} else if ev.Command == "NOTICE" {
 			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
 			app.win.AddLine("", l)
@@ -431,7 +440,8 @@ func (app *App) handleInput(buffer, content string) {
 
 		app.s.PrivMsg(app.lastQuery, args)
 		if !app.s.HasCapability("echo-message") {
-			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), args, false, false)
+			head := "\u2192 " + app.lastQuery
+			line := ui.LineFromIRCMessage(time.Now(), head, args, false, false)
 			app.win.AddLine(ui.Home, line)
 		}
 	}
