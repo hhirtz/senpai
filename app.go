@@ -3,7 +3,7 @@ package senpai
 import (
 	"crypto/tls"
 	"fmt"
-	"log"
+	"hash/fnv"
 	"os/exec"
 	"strings"
 	"time"
@@ -46,10 +46,17 @@ func NewApp(cfg Config) (app *App, err error) {
 	}
 
 	var conn *tls.Conn
-	app.win.AddLine(ui.Home, ui.NewLineNow("--", fmt.Sprintf("Connecting to %s...", cfg.Addr)))
+	app.addLineNow(ui.Home, ui.Line{
+		Head: "--",
+		Body: fmt.Sprintf("Connecting to %s...", cfg.Addr),
+	})
 	conn, err = tls.Dial("tcp", cfg.Addr, nil)
 	if err != nil {
-		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", "Connection failed"))
+		app.addLineNow(ui.Home, ui.Line{
+			Head:      "!!",
+			HeadColor: ui.ColorRed,
+			Body:      "Connection failed",
+		})
 		err = nil
 		return
 	}
@@ -66,7 +73,11 @@ func NewApp(cfg Config) (app *App, err error) {
 		Debug:    cfg.Debug,
 	})
 	if err != nil {
-		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", "Registration failed"))
+		app.addLineNow(ui.Home, ui.Line{
+			Head:      "!!",
+			HeadColor: ui.ColorRed,
+			Body:      "Registration failed",
+		})
 	}
 
 	return
@@ -84,7 +95,17 @@ func (app *App) Run() {
 		if app.s != nil {
 			select {
 			case ev := <-app.s.Poll():
-				app.handleIRCEvent(ev)
+				evs := []irc.Event{ev}
+			Batch:
+				for i := 0; i < 64; i++ {
+					select {
+					case ev := <-app.s.Poll():
+						evs = append(evs, ev)
+					default:
+						break Batch
+					}
+				}
+				app.handleIRCEvents(evs)
 			case ev := <-app.win.Events:
 				app.handleUIEvent(ev)
 			}
@@ -95,99 +116,114 @@ func (app *App) Run() {
 	}
 }
 
+func (app *App) handleIRCEvents(evs []irc.Event) {
+	for _, ev := range evs {
+		app.handleIRCEvent(ev)
+	}
+	app.draw()
+}
+
 func (app *App) handleIRCEvent(ev irc.Event) {
 	switch ev := ev.(type) {
 	case irc.RawMessageEvent:
-		head := "DEBUG  IN --"
+		head := "IN --"
 		if ev.Outgoing {
-			head = "DEBUG OUT --"
+			head = "OUT --"
 		} else if !ev.IsValid {
-			head = "DEBUG  IN ??"
+			head = "IN ??"
 		}
-		app.win.AddLine(ui.Home, ui.NewLineNow(head, ev.Message))
+		app.win.AddLine(ui.Home, false, ui.Line{
+			At:   time.Now(),
+			Head: head,
+			Body: ev.Message,
+		})
 	case irc.RegisteredEvent:
-		line := "Connected to the server"
+		body := "Connected to the server"
 		if app.s.Nick() != app.cfg.Nick {
-			line += " as " + app.s.Nick()
+			body += " as " + app.s.Nick()
 		}
-		app.win.AddLine(ui.Home, ui.NewLineNow("--", line))
+		app.win.AddLine(ui.Home, false, ui.Line{
+			At:   time.Now(),
+			Head: "--",
+			Body: body,
+		})
 	case irc.SelfNickEvent:
-		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
-		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, true))
+		app.win.AddLine(app.win.CurrentBuffer(), true, ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, app.s.Nick()),
+			Highlight: true,
+		})
 	case irc.UserNickEvent:
-		line := fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.NewNick)
-		app.win.AddLine(ui.Home, ui.NewLine(ev.Time, "--", line, true, false))
+		for _, c := range app.s.ChannelsSharedWith(ev.User.Name) {
+			app.win.AddLine(c, false, ui.Line{
+				At:        ev.Time,
+				Head:      "--",
+				Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.User.Name),
+				Mergeable: true,
+			})
+		}
 	case irc.SelfJoinEvent:
 		app.win.AddBuffer(ev.Channel)
 		app.s.RequestHistory(ev.Channel, time.Now())
 	case irc.UserJoinEvent:
-		line := fmt.Sprintf("\x033+\x0314%s\x03", ev.Nick)
-		app.win.AddLine(ev.Channel, ui.NewLine(ev.Time, "--", line, true, false))
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:        time.Now(),
+			Head:      "--",
+			Body:      fmt.Sprintf("\x033+\x0314%s\x03", ev.User.Name),
+			Mergeable: true,
+		})
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
-		line := fmt.Sprintf("\x034-\x0314%s\x03", ev.Nick)
-		for _, channel := range ev.Channels {
-			app.win.AddLine(channel, ui.NewLine(ev.Time, "--", line, true, false))
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User.Name),
+			Mergeable: true,
+		})
+	case irc.UserQuitEvent:
+		for _, c := range ev.Channels {
+			app.win.AddLine(c, false, ui.Line{
+				At:        ev.Time,
+				Head:      "--",
+				Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User.Name),
+				Mergeable: true,
+			})
 		}
-	case irc.QueryMessageEvent:
-		if ev.Command == "PRIVMSG" {
-			isHighlight := true
-			head := ev.Nick
-			if app.s.NickCf() == strings.ToLower(ev.Nick) {
-				isHighlight = false
-				head = "\u2192 " + ev.Target
-			} else {
-				app.lastQuery = ev.Nick
-			}
-			l := ui.LineFromIRCMessage(ev.Time, head, ev.Content, false, false)
-			app.win.AddLine(ui.Home, l)
-			app.win.TypingStop(ui.Home, ev.Nick)
-			if isHighlight {
-				app.notifyHighlight(ui.Home, ev.Nick, ev.Content)
-			}
-		} else if ev.Command == "NOTICE" {
-			l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, true, false)
-			app.win.AddLine("", l)
-			app.win.TypingStop("", ev.Nick)
-		} else {
-			log.Panicf("received unknown command for query event: %q\n", ev.Command)
+	case irc.MessageEvent:
+		buffer, line, hlNotification := app.formatMessage(ev)
+		app.win.AddLine(buffer, hlNotification, line)
+		if hlNotification {
+			app.notifyHighlight(buffer, ev.User.Name, ev.Content)
 		}
-	case irc.ChannelMessageEvent:
-		isHighlight := app.isHighlight(ev.Nick, ev.Content)
-		l := ui.LineFromIRCMessage(ev.Time, ev.Nick, ev.Content, ev.Command == "NOTICE", isHighlight)
-		app.win.AddLine(ev.Channel, l)
-		app.win.TypingStop(ev.Channel, ev.Nick)
-		if isHighlight {
-			app.notifyHighlight(ev.Channel, ev.Nick, ev.Content)
+		app.win.TypingStop(buffer, ev.User.Name)
+		if !ev.TargetIsChannel && app.s.NickCf() != app.s.Casemap(ev.User.Name) {
+			app.lastQuery = ev.User.Name
 		}
-	case irc.QueryTagEvent:
+	case irc.TagEvent:
+		buffer := ev.Target
+		if !ev.TargetIsChannel {
+			buffer = ui.Home
+		}
 		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
-			app.win.TypingStart(ui.Home, ev.Nick)
+			app.win.TypingStart(buffer, ev.User.Name)
 		} else if ev.Typing == irc.TypingDone {
-			app.win.TypingStop(ui.Home, ev.Nick)
-		}
-	case irc.ChannelTagEvent:
-		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
-			app.win.TypingStart(ev.Channel, ev.Nick)
-		} else if ev.Typing == irc.TypingDone {
-			app.win.TypingStop(ev.Channel, ev.Nick)
+			app.win.TypingStop(buffer, ev.User.Name)
 		}
 	case irc.HistoryEvent:
 		var lines []ui.Line
 		for _, m := range ev.Messages {
 			switch m := m.(type) {
-			case irc.ChannelMessageEvent:
-				isHighlight := app.isHighlight(m.Nick, m.Content)
-				l := ui.LineFromIRCMessage(m.Time, m.Nick, m.Content, m.Command == "NOTICE", isHighlight)
-				lines = append(lines, l)
+			case irc.MessageEvent:
+				_, line, _ := app.formatMessage(m)
+				lines = append(lines, line)
 			default:
-				panic("TODO")
 			}
 		}
 		app.win.AddLines(ev.Target, lines)
 	case error:
-		log.Panicln(ev)
+		panic(ev)
 	}
 }
 
@@ -258,18 +294,28 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 		case tcell.KeyCR, tcell.KeyLF:
 			buffer := app.win.CurrentBuffer()
 			input := app.win.InputEnter()
-			app.handleInput(buffer, input)
+			err := app.handleInput(buffer, input)
+			if err != nil {
+				app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+					At:        time.Now(),
+					Head:      "!!",
+					HeadColor: ui.ColorRed,
+					Body:      fmt.Sprintf("%q: %s", input, err),
+				})
+			}
 		case tcell.KeyRune:
 			app.win.InputRune(ev.Rune())
 			app.typing()
+		default:
+			return
 		}
+	default:
+		return
 	}
+	app.draw()
 }
 
-func (app *App) isHighlight(nick, content string) bool {
-	if app.s.NickCf() == strings.ToLower(nick) {
-		return false
-	}
+func (app *App) isHighlight(content string) bool {
 	contentCf := strings.ToLower(content)
 	if app.highlights == nil {
 		return strings.Contains(contentCf, app.s.NickCf())
@@ -300,8 +346,12 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	command := r.Replace(app.cfg.OnHighlight)
 	err = exec.Command(sh, "-c", command).Run()
 	if err != nil {
-		line := fmt.Sprintf("Failed to invoke on-highlight command: %v", err)
-		app.win.AddLine(ui.Home, ui.NewLineNow("ERROR --", line))
+		app.win.AddLine(ui.Home, false, ui.Line{
+			At:        time.Now(),
+			Head:      "ERROR --",
+			HeadColor: ui.ColorRed,
+			Body:      fmt.Sprintf("Failed to invoke on-highlight command: %v", err),
+		})
 	}
 }
 
@@ -320,139 +370,6 @@ func (app *App) typing() {
 	}
 }
 
-func parseCommand(s string) (command, args string) {
-	if s == "" {
-		return
-	}
-
-	if s[0] != '/' {
-		args = s
-		return
-	}
-
-	i := strings.IndexByte(s, ' ')
-	if i < 0 {
-		i = len(s)
-	}
-
-	command = strings.ToUpper(s[1:i])
-	args = strings.TrimLeft(s[i:], " ")
-
-	return
-}
-
-func (app *App) handleInput(buffer, content string) {
-	cmd, args := parseCommand(content)
-
-	switch cmd {
-	case "":
-		if buffer == ui.Home || len(strings.TrimSpace(args)) == 0 {
-			return
-		}
-
-		app.s.PrivMsg(buffer, args)
-		if !app.s.HasCapability("echo-message") {
-			app.win.AddLine(buffer, ui.NewLineNow(app.s.Nick(), args))
-		}
-	case "QUOTE":
-		app.s.SendRaw(args)
-	case "J", "JOIN":
-		app.s.Join(args)
-	case "PART":
-		channel := buffer
-		reason := args
-		spl := strings.SplitN(args, " ", 2)
-		if 0 < len(spl) && app.s.IsChannel(spl[0]) {
-			channel = spl[0]
-			if 1 < len(spl) {
-				reason = spl[1]
-			} else {
-				reason = ""
-			}
-		}
-
-		if channel != ui.Home {
-			app.s.Part(channel, reason)
-		}
-	case "NAMES":
-		if buffer == ui.Home {
-			return
-		}
-
-		var sb strings.Builder
-		sb.WriteString("\x0314Names: ")
-		for _, name := range app.s.Names(buffer) {
-			if name.PowerLevel != "" {
-				sb.WriteString("\x033")
-				sb.WriteString(name.PowerLevel)
-				sb.WriteString("\x0314")
-			}
-			sb.WriteString(name.Nick)
-			sb.WriteRune(' ')
-		}
-		line := sb.String()
-		app.win.AddLine(buffer, ui.NewLineNow("--", line[:len(line)-1]))
-	case "TOPIC":
-		if buffer == ui.Home {
-			return
-		}
-
-		if args == "" {
-			var line string
-
-			topic, who, at := app.s.Topic(buffer)
-			if who == "" {
-				line = fmt.Sprintf("\x0314Topic: %s", topic)
-			} else {
-				line = fmt.Sprintf("\x0314Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
-			}
-			app.win.AddLine(buffer, ui.NewLineNow("--", line))
-		} else {
-			app.s.SetTopic(buffer, args)
-		}
-	case "ME":
-		if buffer == ui.Home {
-			return
-		}
-
-		args := fmt.Sprintf("\x01ACTION %s\x01", args)
-		app.s.PrivMsg(buffer, args)
-		if !app.s.HasCapability("echo-message") {
-			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), args, false, false)
-			app.win.AddLine(buffer, line)
-		}
-	case "MSG":
-		split := strings.SplitN(args, " ", 2)
-		if len(split) < 2 {
-			return
-		}
-
-		target := split[0]
-		content := split[1]
-		app.s.PrivMsg(target, content)
-		if !app.s.HasCapability("echo-message") {
-			if app.s.IsChannel(target) {
-				buffer = ui.Home
-			} else {
-				buffer = target
-			}
-			line := ui.LineFromIRCMessage(time.Now(), app.s.Nick(), content, false, false)
-			app.win.AddLine(buffer, line)
-		}
-	case "R":
-		if buffer != ui.Home {
-			return
-		}
-
-		app.s.PrivMsg(app.lastQuery, args)
-		if !app.s.HasCapability("echo-message") {
-			head := "\u2192 " + app.lastQuery
-			line := ui.LineFromIRCMessage(time.Now(), head, args, false, false)
-			app.win.AddLine(ui.Home, line)
-		}
-	}
-}
-
 func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	var cs []ui.Completion
 
@@ -468,10 +385,10 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	}
 	start++
 	word := string(text[start:cursorIdx])
-	wordCf := strings.ToLower(word)
+	wordCf := app.s.Casemap(word)
 	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
-		if strings.HasPrefix(strings.ToLower(name.Nick), wordCf) {
-			nickComp := []rune(name.Nick)
+		if strings.HasPrefix(app.s.Casemap(name.Name.Name), wordCf) {
+			nickComp := []rune(name.Name.Name)
 			if start == 0 {
 				nickComp = append(nickComp, ':')
 			}
@@ -497,6 +414,82 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	}
 
 	return cs
+}
+
+func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
+	isFromSelf := app.s.NickCf() == app.s.Casemap(ev.User.Name)
+	isHighlight := app.isHighlight(ev.Content)
+	isAction := strings.HasPrefix(ev.Content, "\x01ACTION")
+	isQuery := !ev.TargetIsChannel && ev.Command == "PRIVMSG"
+	isNotice := ev.Command == "NOTICE"
+
+	if !ev.TargetIsChannel && isNotice {
+		buffer = app.win.CurrentBuffer()
+	} else if !ev.TargetIsChannel {
+		buffer = ui.Home
+	} else {
+		buffer = ev.Target
+	}
+
+	hlLine := ev.TargetIsChannel && isHighlight && !isFromSelf
+	hlNotification = (isHighlight || isQuery) && !isFromSelf
+
+	head := ev.User.Name
+	headColor := ui.ColorWhite
+	if isFromSelf && isQuery {
+		head = "\u2192 " + ev.Target
+		headColor = app.identColor(ev.Target)
+	} else if isAction || isNotice {
+		head = "*"
+	} else {
+		headColor = app.identColor(head)
+	}
+
+	body := strings.TrimSuffix(ev.Content, "\x01")
+	if isNotice && isAction {
+		c := ircColorSequence(app.identColor(ev.User.Name))
+		body = fmt.Sprintf("(%s%s\x0F:%s)", c, ev.User.Name, body[7:])
+	} else if isAction {
+		c := ircColorSequence(app.identColor(ev.User.Name))
+		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User.Name, body[7:])
+	} else if isNotice {
+		c := ircColorSequence(app.identColor(ev.User.Name))
+		body = fmt.Sprintf("(%s%s\x0F: %s)", c, ev.User.Name, body)
+	}
+
+	line = ui.Line{
+		At:        ev.Time,
+		Head:      head,
+		Body:      body,
+		HeadColor: headColor,
+		Highlight: hlLine,
+	}
+	return
+}
+
+func ircColorSequence(code int) string {
+	var c [3]rune
+	c[0] = 0x03
+	c[1] = rune(code/10) + '0'
+	c[2] = rune(code%10) + '0'
+	return string(c[:])
+}
+
+// see <https://modern.ircdocs.horse/formatting.html>
+var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
+
+func (app *App) identColor(s string) (code int) {
+	h := fnv.New32()
+	_, _ = h.Write([]byte(s))
+
+	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
+	for _, c := range identColorBlacklist {
+		if c <= code {
+			code++
+		}
+	}
+
+	return
 }
 
 func cleanMessage(s string) string {

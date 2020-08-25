@@ -100,6 +100,9 @@ be interpreted as a command:
 
 _name_ is matched case-insensitively.  It can be one of the following:
 
+*HELP* [search]
+    Show the list of command (or a commands that match the given search terms).
+
 *J*, *JOIN* <channel>
 	Join the given channel.
 

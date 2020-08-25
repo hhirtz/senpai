@@ -169,6 +169,14 @@ func (cb *colorBuffer) WriteRune(r rune) (ok int) {
 	return
 }
 
+const (
+	ColorWhite = iota
+	ColorBlack
+	ColorBlue
+	ColorGreen
+	ColorRed
+)
+
 var ansiCodes = []tcell.Color{
 	// Taken from <https://modern.ircdocs.horse/formatting.html>
 	tcell.ColorWhite, tcell.ColorBlack, tcell.ColorBlue, tcell.ColorGreen,

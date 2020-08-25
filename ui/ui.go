@@ -19,8 +19,8 @@ type UI struct {
 	exit   atomic.Value // bool
 	config Config
 
-	bs bufferList
-	e  editor
+	bs BufferList
+	e  Editor
 }
 
 func New(config Config) (ui *UI, err error) {
@@ -52,11 +52,15 @@ func New(config Config) (ui *UI, err error) {
 	ui.exit.Store(false)
 
 	hmIdx := rand.Intn(len(homeMessages))
-	ui.bs = newBufferList(w, h, ui.config.NickColWidth)
+	ui.bs = NewBufferList(w, h, ui.config.NickColWidth)
 	ui.bs.Add(Home)
-	ui.bs.AddLine("", NewLineNow("--", homeMessages[hmIdx]))
+	ui.bs.AddLine("", false, Line{
+		At:   time.Now(),
+		Head: "--",
+		Body: homeMessages[hmIdx],
+	})
 
-	ui.e = newEditor(w, ui.config.AutoComplete)
+	ui.e = NewEditor(w, ui.config.AutoComplete)
 
 	ui.Resize()
 
@@ -85,22 +89,18 @@ func (ui *UI) CurrentBufferOldestTime() (t *time.Time) {
 
 func (ui *UI) NextBuffer() {
 	ui.bs.Next()
-	ui.draw()
 }
 
 func (ui *UI) PreviousBuffer() {
 	ui.bs.Previous()
-	ui.draw()
 }
 
 func (ui *UI) ScrollUp() {
 	ui.bs.ScrollUp()
-	ui.draw()
 }
 
 func (ui *UI) ScrollDown() {
 	ui.bs.ScrollDown()
-	ui.draw()
 }
 
 func (ui *UI) IsAtTop() bool {
@@ -108,37 +108,27 @@ func (ui *UI) IsAtTop() bool {
 }
 
 func (ui *UI) AddBuffer(title string) {
-	ok := ui.bs.Add(title)
-	if ok {
-		ui.draw()
-	}
+	_ = ui.bs.Add(title)
 }
 
 func (ui *UI) RemoveBuffer(title string) {
-	ok := ui.bs.Remove(title)
-	if ok {
-		ui.draw()
-	}
+	_ = ui.bs.Remove(title)
 }
 
-func (ui *UI) AddLine(buffer string, line Line) {
-	ui.bs.AddLine(buffer, line)
-	ui.draw()
+func (ui *UI) AddLine(buffer string, highlight bool, line Line) {
+	ui.bs.AddLine(buffer, highlight, line)
 }
 
 func (ui *UI) AddLines(buffer string, lines []Line) {
 	ui.bs.AddLines(buffer, lines)
-	ui.draw()
 }
 
 func (ui *UI) TypingStart(buffer, nick string) {
 	ui.bs.TypingStart(buffer, nick)
-	ui.draw()
 }
 
 func (ui *UI) TypingStop(buffer, nick string) {
 	ui.bs.TypingStop(buffer, nick)
-	ui.draw()
 }
 
 func (ui *UI) InputIsCommand() bool {
@@ -151,77 +141,56 @@ func (ui *UI) InputLen() int {
 
 func (ui *UI) InputRune(r rune) {
 	ui.e.PutRune(r)
-	ui.draw()
 }
 
 func (ui *UI) InputRight() {
 	ui.e.Right()
-	ui.draw()
 }
 
 func (ui *UI) InputLeft() {
 	ui.e.Left()
-	ui.draw()
 }
 
 func (ui *UI) InputHome() {
 	ui.e.Home()
-	ui.draw()
 }
 
 func (ui *UI) InputEnd() {
 	ui.e.End()
-	ui.draw()
 }
 
 func (ui *UI) InputUp() {
 	ui.e.Up()
-	ui.draw()
 }
 
 func (ui *UI) InputDown() {
 	ui.e.Down()
-	ui.draw()
 }
 
 func (ui *UI) InputBackspace() (ok bool) {
-	ok = ui.e.RemRune()
-	if ok {
-		ui.draw()
-	}
-	return
+	return ui.e.RemRune()
 }
 
 func (ui *UI) InputDelete() (ok bool) {
-	ok = ui.e.RemRuneForward()
-	if ok {
-		ui.draw()
-	}
-	return
+	return ui.e.RemRuneForward()
 }
 
 func (ui *UI) InputAutoComplete() (ok bool) {
-	ok = ui.e.AutoComplete()
-	if ok {
-		ui.draw()
-	}
-	return
+	return ui.e.AutoComplete()
 }
 
 func (ui *UI) InputEnter() (content string) {
-	content = ui.e.Flush()
-	ui.draw()
-	return
+	return ui.e.Flush()
 }
 
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	ui.e.Resize(w)
 	ui.bs.Resize(w, h)
-	ui.draw()
+	ui.Draw()
 }
 
-func (ui *UI) draw() {
+func (ui *UI) Draw() {
 	_, h := ui.screen.Size()
 	ui.e.Draw(ui.screen, h-2)
 	ui.bs.Draw(ui.screen)

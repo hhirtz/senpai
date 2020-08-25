@@ -2,7 +2,6 @@ package ui
 
 import (
 	"fmt"
-	"hash/fnv"
 	"math"
 	"strings"
 	"time"
@@ -31,55 +30,28 @@ type point struct {
 }
 
 type Line struct {
-	at   time.Time
-	head string
-	body string
-
-	isStatus    bool
-	isHighlight bool
+	At        time.Time
+	Head      string
+	Body      string
+	HeadColor int
+	Highlight bool
+	Mergeable bool
 
 	splitPoints []point
 	width       int
 	newLines    []int
 }
 
-func NewLine(at time.Time, head string, body string, isStatus bool, isHighlight bool) Line {
-	l := Line{
-		at:          at,
-		head:        head,
-		body:        body,
-		isStatus:    isStatus,
-		isHighlight: isHighlight,
-		splitPoints: []point{},
-		newLines:    []int{},
-	}
-	l.computeSplitPoints()
-	return l
-}
-
-func NewLineNow(head, body string) Line {
-	return NewLine(time.Now(), head, body, false, false)
-}
-
-func LineFromIRCMessage(at time.Time, nick string, content string, isNotice bool, isHighlight bool) Line {
-	if strings.HasPrefix(content, "\x01ACTION") {
-		c := ircColorCode(identColor(nick))
-		content = fmt.Sprintf("%s%s\x0F%s", c, nick, content[7:])
-		nick = "*"
-	} else if isNotice {
-		c := ircColorCode(identColor(nick))
-		content = fmt.Sprintf("(%s%s\x0F: %s)", c, nick, content)
-		nick = "*"
-	}
-	return NewLine(at, nick, content, false, isHighlight)
-}
-
 func (l *Line) computeSplitPoints() {
+	if l.splitPoints == nil {
+		l.splitPoints = []point{}
+	}
+
 	var wb widthBuffer
 	lastWasSplit := false
 	l.splitPoints = l.splitPoints[:0]
 
-	for i, r := range l.body {
+	for i, r := range l.Body {
 		curIsSplit := IsSplitRune(r)
 
 		if i == 0 || lastWasSplit != curIsSplit {
@@ -97,7 +69,7 @@ func (l *Line) computeSplitPoints() {
 	if !lastWasSplit {
 		l.splitPoints = append(l.splitPoints, point{
 			X:     wb.Width(),
-			I:     len(l.body),
+			I:     len(l.Body),
 			Split: true,
 		})
 	}
@@ -112,6 +84,9 @@ func (l *Line) NewLines(width int) []int {
 
 	if l.width == width {
 		return l.newLines
+	}
+	if l.newLines == nil {
+		l.newLines = []int{}
 	}
 	l.newLines = l.newLines[:0]
 	l.width = width
@@ -158,7 +133,7 @@ func (l *Line) NewLines(width int) []int {
 			// the word.
 			var wb widthBuffer
 			h := 1
-			for j, r := range l.body[sp1.I:sp2.I] {
+			for j, r := range l.Body[sp1.I:sp2.I] {
 				wb.WriteRune(r)
 				if h*width < x+wb.Width() {
 					l.newLines = append(l.newLines, sp1.I+j)
@@ -185,7 +160,7 @@ func (l *Line) NewLines(width int) []int {
 		}
 	}
 
-	if 0 < len(l.newLines) && l.newLines[len(l.newLines)-1] == len(l.body) {
+	if 0 < len(l.newLines) && l.newLines[len(l.newLines)-1] == len(l.Body) {
 		// DROP any newline that is placed at the end of the string because we
 		// don't care about those.
 		l.newLines = l.newLines[:len(l.newLines)-1]
@@ -229,20 +204,19 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 			continue
 		}
 
-		if i == 0 || b.lines[i-1].at.Truncate(time.Minute) != line.at.Truncate(time.Minute) {
-			printTime(screen, 0, y0, st.Bold(true), line.at.Local())
+		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
+			printTime(screen, 0, y0, st.Bold(true), line.At.Local())
 		}
 
-		head := truncate(line.head, nickColWidth, "\u2026")
+		head := truncate(line.Head, nickColWidth, "\u2026")
 		x := 7 + nickColWidth - StringWidth(head)
-		c := identColor(line.head)
-		st = st.Foreground(colorFromCode(c))
-		if line.isHighlight {
+		st = st.Foreground(colorFromCode(line.HeadColor))
+		if line.Highlight {
 			st = st.Reverse(true)
 		}
 		screen.SetContent(x-1, y0, ' ', nil, st)
 		screen.SetContent(7+nickColWidth, y0, ' ', nil, st)
-		printString(screen, &x, y0, st.Foreground(colorFromCode(c)), head)
+		printString(screen, &x, y0, st, head)
 		st = st.Reverse(false).Foreground(tcell.ColorDefault)
 
 		x = x0
@@ -250,7 +224,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 
 		var sb StyleBuffer
 		sb.Reset()
-		for i, r := range line.body {
+		for i, r := range line.Body {
 			if 0 < len(nls) && i == nls[0] {
 				x = x0
 				y++
@@ -280,7 +254,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 	b.isAtTop = 0 <= y0
 }
 
-type bufferList struct {
+type BufferList struct {
 	list    []buffer
 	current int
 
@@ -289,8 +263,8 @@ type bufferList struct {
 	nickColWidth int
 }
 
-func newBufferList(width, height, nickColWidth int) bufferList {
-	return bufferList{
+func NewBufferList(width, height, nickColWidth int) BufferList {
+	return BufferList{
 		list:         []buffer{},
 		width:        width,
 		height:       height,
@@ -298,24 +272,24 @@ func newBufferList(width, height, nickColWidth int) bufferList {
 	}
 }
 
-func (bs *bufferList) Resize(width, height int) {
+func (bs *BufferList) Resize(width, height int) {
 	bs.width = width
 	bs.height = height
 }
 
-func (bs *bufferList) Next() {
+func (bs *BufferList) Next() {
 	bs.current = (bs.current + 1) % len(bs.list)
 	bs.list[bs.current].highlights = 0
 	bs.list[bs.current].unread = false
 }
 
-func (bs *bufferList) Previous() {
+func (bs *BufferList) Previous() {
 	bs.current = (bs.current - 1 + len(bs.list)) % len(bs.list)
 	bs.list[bs.current].highlights = 0
 	bs.list[bs.current].unread = false
 }
 
-func (bs *bufferList) Add(title string) (ok bool) {
+func (bs *BufferList) Add(title string) (ok bool) {
 	lTitle := strings.ToLower(title)
 	for _, b := range bs.list {
 		if strings.ToLower(b.title) == lTitle {
@@ -328,7 +302,7 @@ func (bs *bufferList) Add(title string) (ok bool) {
 	return
 }
 
-func (bs *bufferList) Remove(title string) (ok bool) {
+func (bs *BufferList) Remove(title string) (ok bool) {
 	lTitle := strings.ToLower(title)
 	for i, b := range bs.list {
 		if strings.ToLower(b.title) == lTitle {
@@ -343,7 +317,7 @@ func (bs *bufferList) Remove(title string) (ok bool) {
 	return
 }
 
-func (bs *bufferList) AddLine(title string, line Line) {
+func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -351,29 +325,30 @@ func (bs *bufferList) AddLine(title string, line Line) {
 
 	b := &bs.list[idx]
 	n := len(b.lines)
-	line.body = strings.TrimRight(line.body, "\t ")
+	line.Body = strings.TrimRight(line.Body, "\t ")
 
-	if line.isStatus && n != 0 && b.lines[n-1].isStatus {
+	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
-		l.body += " " + line.body
+		l.Body += "  " + line.Body
 		l.computeSplitPoints()
 		l.width = 0
 	} else {
+		line.computeSplitPoints()
 		b.lines = append(b.lines, line)
 		if idx == bs.current && 0 < b.scrollAmt {
 			b.scrollAmt += len(line.NewLines(bs.width-9-bs.nickColWidth)) + 1
 		}
 	}
 
-	if !line.isStatus && idx != bs.current {
+	if !line.Mergeable && idx != bs.current {
 		b.unread = true
 	}
-	if line.isHighlight && idx != bs.current {
+	if highlight && idx != bs.current {
 		b.highlights++
 	}
 }
 
-func (bs *bufferList) AddLines(title string, lines []Line) {
+func (bs *BufferList) AddLines(title string, lines []Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -383,19 +358,22 @@ func (bs *bufferList) AddLines(title string, lines []Line) {
 	limit := len(lines)
 
 	if 0 < len(b.lines) {
-		firstLineTime := b.lines[0].at.Unix()
+		firstLineTime := b.lines[0].At.Unix()
 		for i, l := range lines {
-			if firstLineTime < l.at.Unix() {
+			if firstLineTime < l.At.Unix() {
 				limit = i
 				break
 			}
 		}
 	}
+	for i := 0; i < limit; i++ {
+		lines[i].computeSplitPoints()
+	}
 
 	b.lines = append(lines[:limit], b.lines...)
 }
 
-func (bs *bufferList) TypingStart(title, nick string) {
+func (bs *BufferList) TypingStart(title, nick string) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -411,7 +389,7 @@ func (bs *bufferList) TypingStart(title, nick string) {
 	b.typings = append(b.typings, nick)
 }
 
-func (bs *bufferList) TypingStop(title, nick string) {
+func (bs *BufferList) TypingStop(title, nick string) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -427,19 +405,19 @@ func (bs *bufferList) TypingStop(title, nick string) {
 	}
 }
 
-func (bs *bufferList) Current() (title string) {
+func (bs *BufferList) Current() (title string) {
 	return bs.list[bs.current].title
 }
 
-func (bs *bufferList) CurrentOldestTime() (t *time.Time) {
+func (bs *BufferList) CurrentOldestTime() (t *time.Time) {
 	ls := bs.list[bs.current].lines
 	if 0 < len(ls) {
-		t = &ls[0].at
+		t = &ls[0].At
 	}
 	return
 }
 
-func (bs *bufferList) ScrollUp() {
+func (bs *BufferList) ScrollUp() {
 	b := &bs.list[bs.current]
 	if b.isAtTop {
 		return
@@ -447,7 +425,7 @@ func (bs *bufferList) ScrollUp() {
 	b.scrollAmt += bs.height / 2
 }
 
-func (bs *bufferList) ScrollDown() {
+func (bs *BufferList) ScrollDown() {
 	b := &bs.list[bs.current]
 	b.scrollAmt -= bs.height / 2
 
@@ -456,12 +434,12 @@ func (bs *bufferList) ScrollDown() {
 	}
 }
 
-func (bs *bufferList) IsAtTop() bool {
+func (bs *BufferList) IsAtTop() bool {
 	b := &bs.list[bs.current]
 	return b.isAtTop
 }
 
-func (bs *bufferList) idx(title string) int {
+func (bs *BufferList) idx(title string) int {
 	if title == "" {
 		return bs.current
 	}
@@ -475,13 +453,13 @@ func (bs *bufferList) idx(title string) int {
 	return -1
 }
 
-func (bs *bufferList) Draw(screen tcell.Screen) {
+func (bs *BufferList) Draw(screen tcell.Screen) {
 	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3, bs.nickColWidth)
 	bs.drawStatusBar(screen, bs.height-3)
 	bs.drawTitleList(screen, bs.height-1)
 }
 
-func (bs *bufferList) drawStatusBar(screen tcell.Screen, y int) {
+func (bs *BufferList) drawStatusBar(screen tcell.Screen, y int) {
 	st := tcell.StyleDefault.Dim(true)
 	nicks := bs.list[bs.current].typings
 	verb := " is typing..."
@@ -517,7 +495,7 @@ func (bs *bufferList) drawStatusBar(screen tcell.Screen, y int) {
 	}
 }
 
-func (bs *bufferList) drawTitleList(screen tcell.Screen, y int) {
+func (bs *BufferList) drawTitleList(screen tcell.Screen, y int) {
 	var widths []int
 	for _, b := range bs.list {
 		width := StringWidth(b.title)
@@ -604,24 +582,7 @@ func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {
 	screen.SetContent(x+4, y, mn1, nil, st)
 }
 
-// see <https://modern.ircdocs.horse/formatting.html>
-var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
-
-func identColor(s string) (code int) {
-	h := fnv.New32()
-	_, _ = h.Write([]byte(s))
-
-	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
-	for _, c := range identColorBlacklist {
-		if c <= code {
-			code++
-		}
-	}
-
-	return
-}
-
-func ircColorCode(code int) string {
+func IrcColorCode(code int) string {
 	var c [3]rune
 	c[0] = 0x03
 	c[1] = rune(code/10) + '0'

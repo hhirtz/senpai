@@ -16,13 +16,12 @@ type RegisteredEvent struct{}
 
 type SelfNickEvent struct {
 	FormerNick string
-	NewNick    string
 	Time       time.Time
 }
 
 type UserNickEvent struct {
+	User       *Prefix
 	FormerNick string
-	NewNick    string
 	Time       time.Time
 }
 
@@ -31,7 +30,7 @@ type SelfJoinEvent struct {
 }
 
 type UserJoinEvent struct {
-	Nick    string
+	User    *Prefix
 	Channel string
 	Time    time.Time
 }
@@ -41,38 +40,32 @@ type SelfPartEvent struct {
 }
 
 type UserPartEvent struct {
-	Nick     string
+	User    *Prefix
+	Channel string
+	Time    time.Time
+}
+
+type UserQuitEvent struct {
+	User     *Prefix
 	Channels []string
 	Time     time.Time
 }
 
-type QueryMessageEvent struct {
-	Nick    string
-	Target  string
-	Command string
-	Content string
-	Time    time.Time
+type MessageEvent struct {
+	User            *Prefix
+	Target          string
+	TargetIsChannel bool
+	Command         string
+	Content         string
+	Time            time.Time
 }
 
-type ChannelMessageEvent struct {
-	Nick    string
-	Channel string
-	Command string
-	Content string
-	Time    time.Time
-}
-
-type QueryTagEvent struct {
-	Nick   string
-	Typing int
-	Time   time.Time
-}
-
-type ChannelTagEvent struct {
-	Nick    string
-	Channel string
-	Typing  int
-	Time    time.Time
+type TagEvent struct {
+	User            *Prefix
+	Target          string
+	TargetIsChannel bool
+	Typing          int
+	Time            time.Time
 }
 
 type HistoryEvent struct {

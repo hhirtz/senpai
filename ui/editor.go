@@ -9,8 +9,8 @@ type Completion struct {
 	CursorIdx int
 }
 
-// editor is the text field where the user writes messages and commands.
-type editor struct {
+// Editor is the text field where the user writes messages and commands.
+type Editor struct {
 	// text contains the written runes. An empty slice means no text is written.
 	text [][]rune
 
@@ -38,8 +38,8 @@ type editor struct {
 	completeIdx  int
 }
 
-func newEditor(width int, autoComplete func(cursorIdx int, text []rune) []Completion) editor {
-	return editor{
+func NewEditor(width int, autoComplete func(cursorIdx int, text []rune) []Completion) Editor {
+	return Editor{
 		text:         [][]rune{{}},
 		textWidth:    []int{0},
 		width:        width,
@@ -47,7 +47,7 @@ func newEditor(width int, autoComplete func(cursorIdx int, text []rune) []Comple
 	}
 }
 
-func (e *editor) Resize(width int) {
+func (e *Editor) Resize(width int) {
 	if width < e.width {
 		e.cursorIdx = 0
 		e.offsetIdx = 0
@@ -56,21 +56,21 @@ func (e *editor) Resize(width int) {
 	e.width = width
 }
 
-func (e *editor) IsCommand() bool {
+func (e *Editor) IsCommand() bool {
 	return len(e.text[e.lineIdx]) != 0 && e.text[e.lineIdx][0] == '/'
 }
 
-func (e *editor) TextLen() int {
+func (e *Editor) TextLen() int {
 	return len(e.text[e.lineIdx])
 }
 
-func (e *editor) PutRune(r rune) {
+func (e *Editor) PutRune(r rune) {
 	e.putRune(r)
 	e.Right()
 	e.autoCache = nil
 }
 
-func (e *editor) putRune(r rune) {
+func (e *Editor) putRune(r rune) {
 	e.text[e.lineIdx] = append(e.text[e.lineIdx], ' ')
 	copy(e.text[e.lineIdx][e.cursorIdx+1:], e.text[e.lineIdx][e.cursorIdx:])
 	e.text[e.lineIdx][e.cursorIdx] = r
@@ -83,7 +83,7 @@ func (e *editor) putRune(r rune) {
 	}
 }
 
-func (e *editor) RemRune() (ok bool) {
+func (e *Editor) RemRune() (ok bool) {
 	ok = 0 < e.cursorIdx
 	if !ok {
 		return
@@ -94,7 +94,7 @@ func (e *editor) RemRune() (ok bool) {
 	return
 }
 
-func (e *editor) RemRuneForward() (ok bool) {
+func (e *Editor) RemRuneForward() (ok bool) {
 	ok = e.cursorIdx < len(e.text[e.lineIdx])
 	if !ok {
 		return
@@ -104,7 +104,7 @@ func (e *editor) RemRuneForward() (ok bool) {
 	return
 }
 
-func (e *editor) remRuneAt(idx int) {
+func (e *Editor) remRuneAt(idx int) {
 	// TODO avoid looping twice
 	rw := e.textWidth[idx+1] - e.textWidth[idx]
 	for i := idx + 1; i < len(e.textWidth); i++ {
@@ -117,7 +117,7 @@ func (e *editor) remRuneAt(idx int) {
 	e.text[e.lineIdx] = e.text[e.lineIdx][:len(e.text[e.lineIdx])-1]
 }
 
-func (e *editor) Flush() (content string) {
+func (e *Editor) Flush() (content string) {
 	content = string(e.text[e.lineIdx])
 	if len(e.text[len(e.text)-1]) == 0 {
 		e.lineIdx = len(e.text) - 1
@@ -132,12 +132,12 @@ func (e *editor) Flush() (content string) {
 	return
 }
 
-func (e *editor) Right() {
+func (e *Editor) Right() {
 	e.right()
 	e.autoCache = nil
 }
 
-func (e *editor) right() {
+func (e *Editor) right() {
 	if e.cursorIdx == len(e.text[e.lineIdx]) {
 		return
 	}
@@ -151,7 +151,7 @@ func (e *editor) right() {
 	}
 }
 
-func (e *editor) Left() {
+func (e *Editor) Left() {
 	if e.cursorIdx == 0 {
 		return
 	}
@@ -165,7 +165,7 @@ func (e *editor) Left() {
 	e.autoCache = nil
 }
 
-func (e *editor) Home() {
+func (e *Editor) Home() {
 	if e.cursorIdx == 0 {
 		return
 	}
@@ -174,7 +174,7 @@ func (e *editor) Home() {
 	e.autoCache = nil
 }
 
-func (e *editor) End() {
+func (e *Editor) End() {
 	if e.cursorIdx == len(e.text[e.lineIdx]) {
 		return
 	}
@@ -185,7 +185,7 @@ func (e *editor) End() {
 	e.autoCache = nil
 }
 
-func (e *editor) Up() {
+func (e *Editor) Up() {
 	if e.lineIdx == 0 {
 		return
 	}
@@ -197,7 +197,7 @@ func (e *editor) Up() {
 	e.End()
 }
 
-func (e *editor) Down() {
+func (e *Editor) Down() {
 	if e.lineIdx == len(e.text)-1 {
 		if len(e.text[e.lineIdx]) == 0 {
 			return
@@ -213,7 +213,7 @@ func (e *editor) Down() {
 	e.End()
 }
 
-func (e *editor) AutoComplete() (ok bool) {
+func (e *Editor) AutoComplete() (ok bool) {
 	if e.autoCache == nil {
 		e.autoCache = e.autoComplete(e.cursorIdx, e.text[e.lineIdx])
 		if e.autoCache == nil {
@@ -234,7 +234,7 @@ func (e *editor) AutoComplete() (ok bool) {
 	return true
 }
 
-func (e *editor) computeTextWidth() {
+func (e *Editor) computeTextWidth() {
 	e.textWidth = e.textWidth[:1]
 	rw := 0
 	for _, r := range e.text[e.lineIdx] {
@@ -243,7 +243,7 @@ func (e *editor) computeTextWidth() {
 	}
 }
 
-func (e *editor) Draw(screen tcell.Screen, y int) {
+func (e *Editor) Draw(screen tcell.Screen, y int) {
 	st := tcell.StyleDefault
 
 	x := 0

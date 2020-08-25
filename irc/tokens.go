@@ -8,6 +8,18 @@ import (
 	"time"
 )
 
+func CasemapASCII(name string) string {
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for _, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
 func word(s string) (w, rest string) {
 	split := strings.SplitN(s, " ", 2)
 
@@ -125,14 +137,67 @@ var (
 	errUnknownCommand  = errors.New("unknown command")
 )
 
+type Prefix struct {
+	Name string
+	User string
+	Host string
+}
+
+func ParsePrefix(s string) (p *Prefix) {
+	if s == "" {
+		return
+	}
+
+	p = &Prefix{}
+
+	spl0 := strings.Split(s, "@")
+	if 1 < len(spl0) {
+		p.Host = spl0[1]
+	}
+
+	spl1 := strings.Split(spl0[0], "!")
+	if 1 < len(spl1) {
+		p.User = spl1[1]
+	}
+
+	p.Name = spl1[0]
+
+	return
+}
+
+func (p *Prefix) Copy() *Prefix {
+	if p == nil {
+		return nil
+	}
+	res := &Prefix{}
+	*res = *p
+	return res
+}
+
+func (p *Prefix) String() string {
+	if p == nil {
+		return ""
+	}
+
+	if p.User != "" && p.Host != "" {
+		return p.Name + "!" + p.User + "@" + p.Host
+	} else if p.User != "" {
+		return p.Name + "!" + p.User
+	} else if p.Host != "" {
+		return p.Name + "@" + p.Host
+	} else {
+		return p.Name
+	}
+}
+
 type Message struct {
 	Tags    map[string]string
-	Prefix  string
+	Prefix  *Prefix
 	Command string
 	Params  []string
 }
 
-func Tokenize(line string) (msg Message, err error) {
+func ParseMessage(line string) (msg Message, err error) {
 	line = strings.TrimLeft(line, " ")
 	if line == "" {
 		err = errEmptyMessage
@@ -156,7 +221,7 @@ func Tokenize(line string) (msg Message, err error) {
 		var prefix string
 
 		prefix, line = word(line)
-		msg.Prefix = prefix[1:]
+		msg.Prefix = ParsePrefix(prefix[1:])
 	}
 
 	line = strings.TrimLeft(line, " ")
@@ -211,9 +276,9 @@ func (msg *Message) String() string {
 		sb.WriteRune(' ')
 	}
 
-	if msg.Prefix != "" {
+	if msg.Prefix != nil {
 		sb.WriteRune(':')
-		sb.WriteString(msg.Prefix)
+		sb.WriteString(msg.Prefix.String())
 		sb.WriteRune(' ')
 	}
 
@@ -245,11 +310,11 @@ func (msg *Message) IsValid() bool {
 	case rplWhoreply:
 		return 8 <= len(msg.Params)
 	case "JOIN", "NICK", "PART", "TAGMSG":
-		return 1 <= len(msg.Params) && msg.Prefix != ""
+		return 1 <= len(msg.Params) && msg.Prefix != nil
 	case "PRIVMSG", "NOTICE", "TOPIC":
-		return 2 <= len(msg.Params) && msg.Prefix != ""
+		return 2 <= len(msg.Params) && msg.Prefix != nil
 	case "QUIT":
-		return msg.Prefix != ""
+		return msg.Prefix != nil
 	case "CAP":
 		return 3 <= len(msg.Params) &&
 			(msg.Params[1] == "LS" ||
@@ -317,33 +382,13 @@ func (msg *Message) TimeOrNow() time.Time {
 	return time.Now()
 }
 
-func FullMask(s string) (nick, user, host string) {
-	if s == "" {
-		return
-	}
-
-	spl0 := strings.Split(s, "@")
-	if 1 < len(spl0) {
-		host = spl0[1]
-	}
-
-	spl1 := strings.Split(spl0[0], "!")
-	if 1 < len(spl1) {
-		user = spl1[1]
-	}
-
-	nick = spl1[0]
-
-	return
-}
-
 type Cap struct {
 	Name   string
 	Value  string
 	Enable bool
 }
 
-func TokenizeCaps(caps string) (diff []Cap) {
+func ParseCaps(caps string) (diff []Cap) {
 	for _, c := range strings.Split(caps, " ") {
 		if c == "" || c == "-" || c == "=" || c == "-=" {
 			continue
@@ -370,26 +415,22 @@ func TokenizeCaps(caps string) (diff []Cap) {
 	return
 }
 
-type Name struct {
+type Member struct {
 	PowerLevel string
-	Nick       string
-	User       string
-	Host       string
+	Name       *Prefix
 }
 
-func TokenizeNames(trailing string, prefixes string) (names []Name) {
-	for _, name := range strings.Split(trailing, " ") {
-		if name == "" {
+func ParseNameReply(trailing string, prefixes string) (names []Member) {
+	for _, word := range strings.Split(trailing, " ") {
+		if word == "" {
 			continue
 		}
 
-		var item Name
-
-		mask := strings.TrimLeft(name, prefixes)
-		item.Nick, item.User, item.Host = FullMask(mask)
-		item.PowerLevel = name[:len(name)-len(mask)]
-
-		names = append(names, item)
+		name := strings.TrimLeft(word, prefixes)
+		names = append(names, Member{
+			PowerLevel: word[:len(word)-len(name)],
+			Name:       ParsePrefix(name),
+		})
 	}
 
 	return
