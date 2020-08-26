@@ -45,14 +45,16 @@ func NewApp(cfg Config) (app *App, err error) {
 		return
 	}
 
+	app.initWindow()
+
 	var conn *tls.Conn
-	app.addLineNow(ui.Home, ui.Line{
+	app.addLineNow(Home, ui.Line{
 		Head: "--",
 		Body: fmt.Sprintf("Connecting to %s...", cfg.Addr),
 	})
 	conn, err = tls.Dial("tcp", cfg.Addr, nil)
 	if err != nil {
-		app.addLineNow(ui.Home, ui.Line{
+		app.addLineNow(Home, ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
 			Body:      "Connection failed",
@@ -73,7 +75,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		Debug:    cfg.Debug,
 	})
 	if err != nil {
-		app.addLineNow(ui.Home, ui.Line{
+		app.addLineNow(Home, ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
 			Body:      "Registration failed",
@@ -132,7 +134,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		} else if !ev.IsValid {
 			head = "IN ??"
 		}
-		app.win.AddLine(ui.Home, false, ui.Line{
+		app.win.AddLine(Home, false, ui.Line{
 			At:   time.Now(),
 			Head: head,
 			Body: ev.Message,
@@ -142,7 +144,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		if app.s.Nick() != app.cfg.Nick {
 			body += " as " + app.s.Nick()
 		}
-		app.win.AddLine(ui.Home, false, ui.Line{
+		app.win.AddLine(Home, false, ui.Line{
 			At:   time.Now(),
 			Head: "--",
 			Body: body,
@@ -204,7 +206,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 	case irc.TagEvent:
 		buffer := ev.Target
 		if !ev.TargetIsChannel {
-			buffer = ui.Home
+			buffer = Home
 		}
 		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
 			app.win.TypingStart(buffer, ev.User.Name)
@@ -231,19 +233,21 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	switch ev := ev.(type) {
 	case *tcell.EventResize:
 		app.win.Resize()
+		app.draw()
 	case *tcell.EventKey:
 		switch ev.Key() {
 		case tcell.KeyCtrlC:
 			app.win.Exit()
 		case tcell.KeyCtrlL:
 			app.win.Resize()
+			app.draw()
 		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.win.ScrollUp()
 			if app.s == nil {
 				return
 			}
 			buffer := app.win.CurrentBuffer()
-			if app.win.IsAtTop() && buffer != ui.Home {
+			if app.win.IsAtTop() && buffer != Home {
 				at := time.Now()
 				if t := app.win.CurrentBufferOldestTime(); t != nil {
 					at = *t
@@ -346,7 +350,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	command := r.Replace(app.cfg.OnHighlight)
 	err = exec.Command(sh, "-c", command).Run()
 	if err != nil {
-		app.win.AddLine(ui.Home, false, ui.Line{
+		app.win.AddLine(Home, false, ui.Line{
 			At:        time.Now(),
 			Head:      "ERROR --",
 			HeadColor: ui.ColorRed,
@@ -360,7 +364,7 @@ func (app *App) typing() {
 		return
 	}
 	buffer := app.win.CurrentBuffer()
-	if buffer == ui.Home {
+	if buffer == Home {
 		return
 	}
 	if app.win.InputLen() == 0 {
@@ -426,7 +430,7 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	if !ev.TargetIsChannel && isNotice {
 		buffer = app.win.CurrentBuffer()
 	} else if !ev.TargetIsChannel {
-		buffer = ui.Home
+		buffer = Home
 	} else {
 		buffer = ev.Target
 	}

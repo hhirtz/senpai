@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"math/rand"
 	"sync/atomic"
 	"time"
 
@@ -51,17 +50,8 @@ func New(config Config) (ui *UI, err error) {
 
 	ui.exit.Store(false)
 
-	hmIdx := rand.Intn(len(homeMessages))
 	ui.bs = NewBufferList(w, h, ui.config.NickColWidth)
-	ui.bs.Add(Home)
-	ui.bs.AddLine("", false, Line{
-		At:   time.Now(),
-		Head: "--",
-		Body: homeMessages[hmIdx],
-	})
-
 	ui.e = NewEditor(w, ui.config.AutoComplete)
-
 	ui.Resize()
 
 	return
@@ -187,7 +177,6 @@ func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	ui.e.Resize(w)
 	ui.bs.Resize(w, h)
-	ui.Draw()
 }
 
 func (ui *UI) Draw() {

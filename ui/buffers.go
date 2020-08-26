@@ -9,17 +9,6 @@ import (
 	"github.com/gdamore/tcell"
 )
 
-var Home = "home"
-
-var homeMessages = []string{
-	"\x1dYou open an IRC client.",
-	"Welcome to the Internet Relay Network!",
-	"Mentions & cie go here.",
-	"May the IRC be with you.",
-	"Hey! I'm senpai, you everyday IRC student!",
-	"Student? No, I'm an IRC \x02client\x02!",
-}
-
 func IsSplitRune(r rune) bool {
 	return r == ' ' || r == '\t'
 }

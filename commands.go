@@ -168,7 +168,7 @@ func commandDoJoin(app *App, buffer string, args []string) (err error) {
 }
 
 func commandDoMe(app *App, buffer string, args []string) (err error) {
-	if buffer == ui.Home {
+	if buffer == Home {
 		buffer = app.lastQuery
 	}
 	content := fmt.Sprintf("\x01ACTION %s\x01", args[0])
@@ -240,7 +240,7 @@ func commandDoPart(app *App, buffer string, args []string) (err error) {
 		}
 	}
 
-	if channel != ui.Home {
+	if channel != Home {
 		app.s.Part(channel, reason)
 	} else {
 		err = fmt.Errorf("cannot part home!")
@@ -331,7 +331,7 @@ func (app *App) handleInput(buffer, content string) error {
 	if len(args) < cmd.MinArgs {
 		return fmt.Errorf("usage: %s %s", cmdName, cmd.Usage)
 	}
-	if buffer == ui.Home && !cmd.AllowHome {
+	if buffer == Home && !cmd.AllowHome {
 		return fmt.Errorf("command %q cannot be executed from home", cmdName)
 	}
 
