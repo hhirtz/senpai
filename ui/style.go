@@ -80,7 +80,7 @@ func (sb *StyleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
 	}
 	if r == 0x1D {
 		sb.italic = !sb.italic
-		//sb.st = st.Italic(sb.italic)
+		sb.st = st.Italic(sb.italic)
 		return sb.st, 0
 	}
 	if r == 0x1F {
