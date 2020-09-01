@@ -335,6 +335,8 @@ func (s *Session) PrivMsg(target, content string) {
 
 func (s *Session) privMsg(act actionPrivMsg) (err error) {
 	err = s.send("PRIVMSG %s :%s\r\n", act.Target, act.Content)
+	target := s.Casemap(act.Target)
+	delete(s.typingStamps, target)
 	return
 }
 
