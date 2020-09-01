@@ -113,12 +113,8 @@ func (ui *UI) AddLines(buffer string, lines []Line) {
 	ui.bs.AddLines(buffer, lines)
 }
 
-func (ui *UI) TypingStart(buffer, nick string) {
-	ui.bs.TypingStart(buffer, nick)
-}
-
-func (ui *UI) TypingStop(buffer, nick string) {
-	ui.bs.TypingStop(buffer, nick)
+func (ui *UI) SetStatus(status string) {
+	ui.bs.SetStatus(status)
 }
 
 func (ui *UI) InputIsCommand() bool {

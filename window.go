@@ -2,6 +2,7 @@ package senpai
 
 import (
 	"math/rand"
+	"strings"
 	"time"
 
 	"git.sr.ht/~taiite/senpai/ui"
@@ -36,5 +37,26 @@ func (app *App) addLineNow(buffer string, line ui.Line) {
 }
 
 func (app *App) draw() {
+	if app.s != nil {
+		app.setStatus()
+	}
 	app.win.Draw()
+}
+
+func (app *App) setStatus() {
+	ts := app.s.Typings(app.win.CurrentBuffer())
+	status := ""
+	if 3 < len(ts) {
+		status = "several people are typing..."
+	} else {
+		verb := " is typing..."
+		if 1 < len(ts) {
+			verb = " are typing..."
+			status = strings.Join(ts[:len(ts)-1], ", ") + " and "
+		}
+		if 0 < len(ts) {
+			status += ts[len(ts)-1] + verb
+		}
+	}
+	app.win.SetStatus(status)
 }

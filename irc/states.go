@@ -139,6 +139,7 @@ type Session struct {
 
 	running      atomic.Value // bool
 	registered   bool
+	typings      *Typings
 	typingStamps map[string]time.Time
 
 	nick   string
@@ -165,6 +166,7 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 		acts:          make(chan action, 64),
 		evts:          make(chan Event, 64),
 		debug:         params.Debug,
+		typings:       NewTypings(),
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
 		nickCf:        CasemapASCII(params.Nickname),
@@ -265,6 +267,17 @@ func (s *Session) Names(channel string) []Member {
 		}
 	}
 	return names
+}
+
+func (s *Session) Typings(target string) []string {
+	targetCf := s.Casemap(target)
+	var res []string
+	for t := range s.typings.targets {
+		if targetCf == t.Target {
+			res = append(res, s.users[t.Name].Name.Name)
+		}
+	}
+	return res
 }
 
 func (s *Session) ChannelsSharedWith(name string) []string {
@@ -419,6 +432,13 @@ func (s *Session) run() {
 				err = s.handle(msg)
 			} else {
 				err = s.handleStart(msg)
+			}
+		case t := <-s.typings.Stops():
+			s.evts <- TagEvent{
+				User:   s.users[t.Name].Name,
+				Target: s.channels[t.Target].Name,
+				Typing: TypingDone,
+				Time:   time.Now(),
 			}
 		}
 
@@ -686,12 +706,12 @@ func (s *Session) handle(msg Message) (err error) {
 			if u, ok := s.users[nickCf]; ok {
 				delete(c.Members, u)
 				s.cleanUser(u)
-				t := msg.TimeOrNow()
+				s.typings.Done(channelCf, nickCf)
 
 				s.evts <- UserPartEvent{
 					User:    msg.Prefix.Copy(),
 					Channel: c.Name,
-					Time:    t,
+					Time:    msg.TimeOrNow(),
 				}
 			}
 		}
@@ -699,20 +719,20 @@ func (s *Session) handle(msg Message) (err error) {
 		nickCf := s.Casemap(msg.Prefix.Name)
 
 		if u, ok := s.users[nickCf]; ok {
-			t := msg.TimeOrNow()
 			var channels []string
-			for _, c := range s.channels {
+			for channelCf, c := range s.channels {
 				if _, ok := c.Members[u]; ok {
 					channels = append(channels, c.Name)
 					delete(c.Members, u)
 					s.cleanUser(u)
+					s.typings.Done(channelCf, nickCf)
 				}
 			}
 
 			s.evts <- UserQuitEvent{
 				User:     msg.Prefix.Copy(),
 				Channels: channels,
-				Time:     t,
+				Time:     msg.TimeOrNow(),
 			}
 		}
 	case rplNamreply:
@@ -776,10 +796,13 @@ func (s *Session) handle(msg Message) (err error) {
 		if t, ok := msg.Tags["+typing"]; ok {
 			if t == "active" {
 				typing = TypingActive
+				s.typings.Active(targetCf, nickCf)
 			} else if t == "paused" {
 				typing = TypingPaused
+				s.typings.Active(targetCf, nickCf)
 			} else if t == "done" {
 				typing = TypingDone
+				s.typings.Done(targetCf, nickCf)
 			}
 		} else {
 			break
@@ -859,6 +882,7 @@ func (s *Session) handle(msg Message) (err error) {
 func (s *Session) privmsgToEvent(msg Message) (ev MessageEvent) {
 	targetCf := s.Casemap(msg.Params[0])
 
+	s.typings.Done(targetCf, s.Casemap(msg.Prefix.Name))
 	ev = MessageEvent{
 		User:    msg.Prefix.Copy(), // TODO correctly casemap
 		Target:  msg.Params[0],     // TODO correctly casemap

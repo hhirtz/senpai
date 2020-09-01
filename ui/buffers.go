@@ -163,8 +163,7 @@ type buffer struct {
 	highlights int
 	unread     bool
 
-	lines   []Line
-	typings []string
+	lines []Line
 
 	scrollAmt int
 	isAtTop   bool
@@ -246,6 +245,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 type BufferList struct {
 	list    []buffer
 	current int
+	status  string
 
 	width        int
 	height       int
@@ -362,36 +362,8 @@ func (bs *BufferList) AddLines(title string, lines []Line) {
 	b.lines = append(lines[:limit], b.lines...)
 }
 
-func (bs *BufferList) TypingStart(title, nick string) {
-	idx := bs.idx(title)
-	if idx < 0 {
-		return
-	}
-	b := &bs.list[idx]
-
-	lNick := strings.ToLower(nick)
-	for _, n := range b.typings {
-		if strings.ToLower(n) == lNick {
-			return
-		}
-	}
-	b.typings = append(b.typings, nick)
-}
-
-func (bs *BufferList) TypingStop(title, nick string) {
-	idx := bs.idx(title)
-	if idx < 0 {
-		return
-	}
-	b := &bs.list[idx]
-
-	lNick := strings.ToLower(nick)
-	for i, n := range b.typings {
-		if strings.ToLower(n) == lNick {
-			b.typings = append(b.typings[:i], b.typings[i+1:]...)
-			return
-		}
-	}
+func (bs *BufferList) SetStatus(status string) {
+	bs.status = status
 }
 
 func (bs *BufferList) Current() (title string) {
@@ -450,38 +422,19 @@ func (bs *BufferList) Draw(screen tcell.Screen) {
 
 func (bs *BufferList) drawStatusBar(screen tcell.Screen, y int) {
 	st := tcell.StyleDefault.Dim(true)
-	nicks := bs.list[bs.current].typings
-	verb := " is typing..."
 
 	for x := 0; x < bs.width; x++ {
 		screen.SetContent(x, y, 0x2500, nil, st)
 	}
 
-	if len(nicks) == 0 {
+	if bs.status == "" {
 		return
 	}
 
-	screen.SetContent(1, y, 0x2524, nil, st)
-
 	x := 2
-	if 1 < len(nicks) {
-		verb = " are typing..."
-		for _, nick := range nicks[:len(nicks)-2] {
-			printString(screen, &x, y, st, nick)
-			printString(screen, &x, y, st, ", ")
-		}
-		printString(screen, &x, y, st, nicks[len(nicks)-2])
-		printString(screen, &x, y, st, " and ")
-	}
-	if 0 < len(nicks) {
-		printString(screen, &x, y, st, nicks[len(nicks)-1])
-		printString(screen, &x, y, st, verb)
-	}
-
-	if 0 < x {
-		screen.SetContent(x, y, 0x251c, nil, st)
-		x++
-	}
+	screen.SetContent(1, y, 0x2524, nil, st)
+	printString(screen, &x, y, st, bs.status)
+	screen.SetContent(x, y, 0x251c, nil, st)
 }
 
 func (bs *BufferList) drawTitleList(screen tcell.Screen, y int) {

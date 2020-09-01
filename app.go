@@ -199,19 +199,8 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 		if hlNotification {
 			app.notifyHighlight(buffer, ev.User.Name, ev.Content)
 		}
-		app.win.TypingStop(buffer, ev.User.Name)
 		if !ev.TargetIsChannel && app.s.NickCf() != app.s.Casemap(ev.User.Name) {
 			app.lastQuery = ev.User.Name
-		}
-	case irc.TagEvent:
-		buffer := ev.Target
-		if !ev.TargetIsChannel {
-			buffer = Home
-		}
-		if ev.Typing == irc.TypingActive || ev.Typing == irc.TypingPaused {
-			app.win.TypingStart(buffer, ev.User.Name)
-		} else if ev.Typing == irc.TypingDone {
-			app.win.TypingStop(buffer, ev.User.Name)
 		}
 	case irc.HistoryEvent:
 		var lines []ui.Line
