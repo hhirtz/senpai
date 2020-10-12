@@ -2,7 +2,7 @@
 
 Welcome home, desune~
 
-![a screenshot of your senpai!](https://f.dille.cc/TAIITE/78061c61b.png)
+![a screenshot of your senpai!](https://ellidri.org/senpai/screen.png)
 
 Works best with soju!
 
