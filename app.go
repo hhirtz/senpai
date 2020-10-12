@@ -377,8 +377,8 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 		}
 	}
 	start++
-	word := string(text[start:cursorIdx])
-	wordCf := app.s.Casemap(word)
+	word := text[start:cursorIdx]
+	wordCf := app.s.Casemap(string(word))
 	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
 		if strings.HasPrefix(app.s.Casemap(name.Name.Name), wordCf) {
 			nickComp := []rune(name.Name.Name)

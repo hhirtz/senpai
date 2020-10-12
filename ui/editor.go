@@ -35,7 +35,6 @@ type Editor struct {
 	autoComplete func(cursorIdx int, text []rune) []Completion
 	autoCache    []Completion
 	autoCacheIdx int
-	completeIdx  int
 }
 
 func NewEditor(width int, autoComplete func(cursorIdx int, text []rune) []Completion) Editor {
