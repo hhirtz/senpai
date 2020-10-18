@@ -46,12 +46,13 @@ func StringWidth(s string) int {
 }
 
 type StyleBuffer struct {
-	st        tcell.Style
-	color     colorBuffer
-	bold      bool
-	reverse   bool
-	italic    bool
-	underline bool
+	st            tcell.Style
+	color         colorBuffer
+	bold          bool
+	reverse       bool
+	italic        bool
+	strikethrough bool
+	underline     bool
 }
 
 func (sb *StyleBuffer) Reset() {
@@ -60,6 +61,7 @@ func (sb *StyleBuffer) Reset() {
 	sb.bold = false
 	sb.reverse = false
 	sb.italic = false
+	sb.strikethrough = false
 	sb.underline = false
 }
 
@@ -81,6 +83,11 @@ func (sb *StyleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
 	if r == 0x1D {
 		sb.italic = !sb.italic
 		sb.st = st.Italic(sb.italic)
+		return sb.st, 0
+	}
+	if r == 0x1E {
+		sb.strikethrough = !sb.strikethrough
+		sb.st = st.StrikeThrough(sb.strikethrough)
 		return sb.st, 0
 	}
 	if r == 0x1F {
