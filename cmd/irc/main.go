@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"git.sr.ht/~taiite/senpai"
-	"github.com/gdamore/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 func init() {

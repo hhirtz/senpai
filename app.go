@@ -10,12 +10,13 @@ import (
 
 	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
-	"github.com/gdamore/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 type App struct {
-	win *ui.UI
-	s   *irc.Session
+	win     *ui.UI
+	s       *irc.Session
+	pasting bool
 
 	cfg        Config
 	highlights []string
@@ -122,7 +123,9 @@ func (app *App) handleIRCEvents(evs []irc.Event) {
 	for _, ev := range evs {
 		app.handleIRCEvent(ev)
 	}
-	app.draw()
+	if !app.pasting {
+		app.draw()
+	}
 }
 
 func (app *App) handleIRCEvent(ev irc.Event) {
@@ -222,14 +225,14 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	switch ev := ev.(type) {
 	case *tcell.EventResize:
 		app.win.Resize()
-		app.draw()
+	case *tcell.EventPaste:
+		app.pasting = ev.Start()
 	case *tcell.EventKey:
 		switch ev.Key() {
 		case tcell.KeyCtrlC:
 			app.win.Exit()
 		case tcell.KeyCtrlL:
 			app.win.Resize()
-			app.draw()
 		case tcell.KeyCtrlU, tcell.KeyPgUp:
 			app.win.ScrollUp()
 			if app.s == nil {
@@ -305,7 +308,9 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	default:
 		return
 	}
-	app.draw()
+	if !app.pasting {
+		app.draw()
+	}
 }
 
 func (app *App) isHighlight(content string) bool {

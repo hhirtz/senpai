@@ -4,7 +4,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/gdamore/tcell"
+	"github.com/gdamore/tcell/v2"
 )
 
 type Config struct {
@@ -36,6 +36,7 @@ func New(config Config) (ui *UI, err error) {
 	if err != nil {
 		return
 	}
+	ui.screen.EnablePaste()
 
 	w, h := ui.screen.Size()
 	ui.screen.Clear()
