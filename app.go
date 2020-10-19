@@ -196,6 +196,12 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 				Mergeable: true,
 			})
 		}
+	case irc.TopicChangeEvent:
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:   ev.Time,
+			Head: "--",
+			Body: fmt.Sprintf("\x0314Topic changed to: %s\x03", ev.Topic),
+		})
 	case irc.MessageEvent:
 		buffer, line, hlNotification := app.formatMessage(ev)
 		app.win.AddLine(buffer, hlNotification, line)

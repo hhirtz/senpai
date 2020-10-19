@@ -51,6 +51,13 @@ type UserQuitEvent struct {
 	Time     time.Time
 }
 
+type TopicChangeEvent struct {
+	User    *Prefix
+	Channel string
+	Topic   string
+	Time    time.Time
+}
+
 type MessageEvent struct {
 	User            *Prefix
 	Target          string

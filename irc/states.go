@@ -780,6 +780,12 @@ func (s *Session) handle(msg Message) (err error) {
 			c.TopicWho = msg.Prefix.Copy()
 			c.TopicTime = msg.TimeOrNow()
 			s.channels[channelCf] = c
+			s.evts <- TopicChangeEvent{
+				User:    msg.Prefix.Copy(),
+				Channel: c.Name,
+				Topic:   c.Topic,
+				Time:    c.TopicTime,
+			}
 		}
 	case "PRIVMSG", "NOTICE":
 		s.evts <- s.privmsgToEvent(msg)
