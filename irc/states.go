@@ -700,7 +700,7 @@ func (s *Session) handle(msg Message) (err error) {
 				for u := range c.Members {
 					s.cleanUser(u)
 				}
-				s.evts <- SelfPartEvent{Channel: msg.Params[0]}
+				s.evts <- SelfPartEvent{Channel: c.Name}
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if u, ok := s.users[nickCf]; ok {
@@ -710,6 +710,31 @@ func (s *Session) handle(msg Message) (err error) {
 
 				s.evts <- UserPartEvent{
 					User:    msg.Prefix.Copy(),
+					Channel: c.Name,
+					Time:    msg.TimeOrNow(),
+				}
+			}
+		}
+	case "KICK":
+		channelCf := s.Casemap(msg.Params[0])
+		nickCf := s.Casemap(msg.Params[1])
+
+		if nickCf == s.nickCf {
+			if c, ok := s.channels[channelCf]; ok {
+				delete(s.channels, channelCf)
+				for u := range c.Members {
+					s.cleanUser(u)
+				}
+				s.evts <- SelfPartEvent{Channel: c.Name}
+			}
+		} else if c, ok := s.channels[channelCf]; ok {
+			if u, ok := s.users[nickCf]; ok {
+				delete(c.Members, u)
+				s.cleanUser(u)
+				s.typings.Done(channelCf, nickCf)
+
+				s.evts <- UserPartEvent{
+					User:    u.Name.Copy(),
 					Channel: c.Name,
 					Time:    msg.TimeOrNow(),
 				}
