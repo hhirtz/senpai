@@ -315,6 +315,7 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 	b := &bs.list[idx]
 	n := len(b.lines)
 	line.Body = strings.TrimRight(line.Body, "\t ")
+	line.At = line.At.UTC()
 
 	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
