@@ -169,7 +169,7 @@ type buffer struct {
 	isAtTop   bool
 }
 
-func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int) {
+func (b *buffer) DrawLines(screen tcell.Screen, x0, width, height, nickColWidth int) {
 	st := tcell.StyleDefault
 	for x := 0; x < width; x++ {
 		for y := 0; y < height; y++ {
@@ -183,38 +183,38 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 			break
 		}
 
-		x0 := 9 + nickColWidth
+		x1 := x0 + 9 + nickColWidth
 
 		line := &b.lines[i]
-		nls := line.NewLines(width - x0)
+		nls := line.NewLines(width - x1)
 		y0 -= len(nls) + 1
 		if height <= y0 {
 			continue
 		}
 
 		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
-			printTime(screen, 0, y0, st.Bold(true), line.At.Local())
+			printTime(screen, x0, y0, st.Bold(true), line.At.Local())
 		}
 
 		head := truncate(line.Head, nickColWidth, "\u2026")
-		x := 7 + nickColWidth - StringWidth(head)
+		x := x0 + 7 + nickColWidth - StringWidth(head)
 		st = st.Foreground(colorFromCode(line.HeadColor))
 		if line.Highlight {
 			st = st.Reverse(true)
 		}
 		screen.SetContent(x-1, y0, ' ', nil, st)
-		screen.SetContent(7+nickColWidth, y0, ' ', nil, st)
+		screen.SetContent(x0+7+nickColWidth, y0, ' ', nil, st)
 		printString(screen, &x, y0, st, head)
 		st = st.Reverse(false).Foreground(tcell.ColorDefault)
 
-		x = x0
+		x = x1
 		y := y0
 
 		var sb StyleBuffer
 		sb.Reset()
 		for i, r := range line.Body {
 			if 0 < len(nls) && i == nls[0] {
-				x = x0
+				x = x1
 				y++
 				nls = nls[1:]
 				if height < y {
@@ -222,7 +222,7 @@ func (b *buffer) DrawLines(screen tcell.Screen, width, height, nickColWidth int)
 				}
 			}
 
-			if y != y0 && x == x0 && IsSplitRune(r) {
+			if y != y0 && x == x1 && IsSplitRune(r) {
 				continue
 			}
 
@@ -416,7 +416,7 @@ func (bs *BufferList) idx(title string) int {
 }
 
 func (bs *BufferList) Draw(screen tcell.Screen) {
-	bs.list[bs.current].DrawLines(screen, bs.width, bs.height-3, bs.nickColWidth)
+	bs.list[bs.current].DrawLines(screen, 0, bs.width, bs.height-3, bs.nickColWidth)
 	bs.drawStatusBar(screen, bs.height-3)
 	bs.drawTitleList(screen, bs.height-1)
 }
