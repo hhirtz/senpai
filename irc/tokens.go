@@ -379,7 +379,7 @@ func (msg *Message) TimeOrNow() time.Time {
 	if ok {
 		return t
 	}
-	return time.Now()
+	return time.Now().UTC()
 }
 
 type Cap struct {
