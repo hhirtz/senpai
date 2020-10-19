@@ -416,8 +416,8 @@ func (bs *BufferList) idx(title string) int {
 }
 
 func (bs *BufferList) Draw(screen tcell.Screen) {
-	bs.list[bs.current].DrawLines(screen, 0, bs.width, bs.height-3, bs.nickColWidth)
-	bs.drawStatusBar(screen, bs.height-3)
+	bs.list[bs.current].DrawLines(screen, 0, bs.width, bs.height-2, bs.nickColWidth)
+	bs.drawStatusBar(screen, bs.height-2)
 	bs.drawTitleList(screen, bs.height-1)
 }
 

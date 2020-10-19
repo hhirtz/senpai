@@ -173,12 +173,12 @@ func (ui *UI) InputEnter() (content string) {
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	ui.e.Resize(w)
-	ui.bs.Resize(w, h)
+	ui.bs.Resize(w, h-1)
 }
 
 func (ui *UI) Draw() {
 	_, h := ui.screen.Size()
-	ui.e.Draw(ui.screen, h-2)
+	ui.e.Draw(ui.screen, h-1)
 	ui.bs.Draw(ui.screen)
 	ui.screen.Show()
 }
