@@ -18,8 +18,10 @@ type UI struct {
 	exit   atomic.Value // bool
 	config Config
 
-	bs BufferList
-	e  Editor
+	bs     BufferList
+	e      Editor
+	prompt string
+	status string
 }
 
 func New(config Config) (ui *UI, err error) {
@@ -115,7 +117,11 @@ func (ui *UI) AddLines(buffer string, lines []Line) {
 }
 
 func (ui *UI) SetStatus(status string) {
-	ui.bs.SetStatus(status)
+	ui.status = status
+}
+
+func (ui *UI) SetPrompt(prompt string) {
+	ui.prompt = prompt
 }
 
 func (ui *UI) InputIsCommand() bool {
@@ -172,13 +178,41 @@ func (ui *UI) InputEnter() (content string) {
 
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
-	ui.e.Resize(w)
-	ui.bs.Resize(w, h-1)
+	ui.e.Resize(w - 25 - ui.config.NickColWidth)
+	ui.bs.ResizeTimeline(w-16, h-2, ui.config.NickColWidth)
 }
 
 func (ui *UI) Draw() {
-	_, h := ui.screen.Size()
-	ui.e.Draw(ui.screen, h-1)
-	ui.bs.Draw(ui.screen)
+	w, h := ui.screen.Size()
+
+	ui.e.Draw(ui.screen, 25+ui.config.NickColWidth, h-1)
+
+	ui.bs.DrawTimeline(ui.screen, 16, 0, ui.config.NickColWidth)
+	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, 16, h)
+	ui.drawStatusBar(16, h-2, w-16)
+
+	for x := 16; x < 25+ui.config.NickColWidth; x++ {
+		ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
+	}
+	st := tcell.StyleDefault.Foreground(colorFromCode(IdentColor(ui.prompt)))
+	printIdent(ui.screen, 23, h-1, ui.config.NickColWidth, st, ui.prompt)
+
 	ui.screen.Show()
+}
+
+func (ui *UI) drawStatusBar(x0, y, width int) {
+	st := tcell.StyleDefault.Dim(true)
+
+	for x := x0; x < x0+width; x++ {
+		ui.screen.SetContent(x, y, ' ', nil, st)
+	}
+
+	if ui.status == "" {
+		return
+	}
+
+	x := x0 + 5 + ui.config.NickColWidth
+	printString(ui.screen, &x, y, st, "--")
+	x += 2
+	printString(ui.screen, &x, y, st, ui.status)
 }

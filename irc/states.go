@@ -872,6 +872,8 @@ func (s *Session) handle(msg Message) (err error) {
 			delete(s.users, nickCf)
 			s.users[newNickCf] = formerUser
 			u = formerUser.Name.Copy()
+		} else {
+			break
 		}
 
 		if nickCf == s.nickCf {

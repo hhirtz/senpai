@@ -242,20 +242,20 @@ func (e *Editor) computeTextWidth() {
 	}
 }
 
-func (e *Editor) Draw(screen tcell.Screen, y int) {
+func (e *Editor) Draw(screen tcell.Screen, x0, y int) {
 	st := tcell.StyleDefault
 
-	x := 0
+	x := x0
 	i := e.offsetIdx
 
-	for i < len(e.text[e.lineIdx]) && x < e.width {
+	for i < len(e.text[e.lineIdx]) && x < x0+e.width {
 		r := e.text[e.lineIdx][i]
 		screen.SetContent(x, y, r, nil, st)
 		x += runeWidth(r)
 		i++
 	}
 
-	for x < e.width {
+	for x < x0+e.width {
 		screen.SetContent(x, y, ' ', nil, st)
 		x++
 	}
@@ -265,7 +265,7 @@ func (e *Editor) Draw(screen tcell.Screen, y int) {
 	if e.cursorIdx+1 < len(e.textWidth) {
 		curEnd = e.textWidth[e.cursorIdx+1] - e.textWidth[e.offsetIdx]
 	}
-	for x := curStart; x < curEnd; x++ {
+	for x := x0 + curStart; x < x0+curEnd; x++ {
 		screen.ShowCursor(x, y)
 	}
 }

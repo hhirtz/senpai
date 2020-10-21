@@ -3,7 +3,6 @@ package senpai
 import (
 	"crypto/tls"
 	"fmt"
-	"hash/fnv"
 	"os/exec"
 	"strings"
 	"time"
@@ -45,6 +44,7 @@ func NewApp(cfg Config) (app *App, err error) {
 	if err != nil {
 		return
 	}
+	app.win.SetPrompt(">")
 
 	app.initWindow()
 
@@ -261,19 +261,31 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 		case tcell.KeyRight:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.NextBuffer()
+				app.updatePrompt()
 			} else {
 				app.win.InputRight()
 			}
 		case tcell.KeyLeft:
 			if ev.Modifiers() == tcell.ModAlt {
 				app.win.PreviousBuffer()
+				app.updatePrompt()
 			} else {
 				app.win.InputLeft()
 			}
 		case tcell.KeyUp:
-			app.win.InputUp()
+			if ev.Modifiers() == tcell.ModAlt {
+				app.win.PreviousBuffer()
+			} else {
+				app.win.InputUp()
+			}
+			app.updatePrompt()
 		case tcell.KeyDown:
-			app.win.InputDown()
+			if ev.Modifiers() == tcell.ModAlt {
+				app.win.NextBuffer()
+			} else {
+				app.win.InputDown()
+			}
+			app.updatePrompt()
 		case tcell.KeyHome:
 			app.win.InputHome()
 		case tcell.KeyEnd:
@@ -282,11 +294,13 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 			ok := app.win.InputBackspace()
 			if ok {
 				app.typing()
+				app.updatePrompt()
 			}
 		case tcell.KeyDelete:
 			ok := app.win.InputDelete()
 			if ok {
 				app.typing()
+				app.updatePrompt()
 			}
 		case tcell.KeyTab:
 			ok := app.win.InputAutoComplete()
@@ -305,9 +319,11 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 					Body:      fmt.Sprintf("%q: %s", input, err),
 				})
 			}
+			app.updatePrompt()
 		case tcell.KeyRune:
 			app.win.InputRune(ev.Rune())
 			app.typing()
+			app.updatePrompt()
 		default:
 			return
 		}
@@ -442,22 +458,22 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	headColor := ui.ColorWhite
 	if isFromSelf && isQuery {
 		head = "\u2192 " + ev.Target
-		headColor = app.identColor(ev.Target)
+		headColor = ui.IdentColor(ev.Target)
 	} else if isAction || isNotice {
 		head = "*"
 	} else {
-		headColor = app.identColor(head)
+		headColor = ui.IdentColor(head)
 	}
 
 	body := strings.TrimSuffix(ev.Content, "\x01")
 	if isNotice && isAction {
-		c := ircColorSequence(app.identColor(ev.User.Name))
+		c := ircColorSequence(ui.IdentColor(ev.User.Name))
 		body = fmt.Sprintf("(%s%s\x0F:%s)", c, ev.User.Name, body[7:])
 	} else if isAction {
-		c := ircColorSequence(app.identColor(ev.User.Name))
+		c := ircColorSequence(ui.IdentColor(ev.User.Name))
 		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User.Name, body[7:])
 	} else if isNotice {
-		c := ircColorSequence(app.identColor(ev.User.Name))
+		c := ircColorSequence(ui.IdentColor(ev.User.Name))
 		body = fmt.Sprintf("(%s%s\x0F: %s)", c, ev.User.Name, body)
 	}
 
@@ -471,29 +487,22 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	return
 }
 
+func (app *App) updatePrompt() {
+	buffer := app.win.CurrentBuffer()
+	command := app.win.InputIsCommand()
+	if buffer == Home || command {
+		app.win.SetPrompt(">")
+	} else {
+		app.win.SetPrompt(app.s.Nick())
+	}
+}
+
 func ircColorSequence(code int) string {
 	var c [3]rune
 	c[0] = 0x03
 	c[1] = rune(code/10) + '0'
 	c[2] = rune(code%10) + '0'
 	return string(c[:])
-}
-
-// see <https://modern.ircdocs.horse/formatting.html>
-var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
-
-func (app *App) identColor(s string) (code int) {
-	h := fnv.New32()
-	_, _ = h.Write([]byte(s))
-
-	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
-	for _, c := range identColorBlacklist {
-		if c <= code {
-			code++
-		}
-	}
-
-	return
 }
 
 func cleanMessage(s string) string {

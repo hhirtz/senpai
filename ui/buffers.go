@@ -1,8 +1,6 @@
 package ui
 
 import (
-	"fmt"
-	"math"
 	"strings"
 	"time"
 
@@ -169,101 +167,31 @@ type buffer struct {
 	isAtTop   bool
 }
 
-func (b *buffer) DrawLines(screen tcell.Screen, x0, width, height, nickColWidth int) {
-	st := tcell.StyleDefault
-	for x := 0; x < width; x++ {
-		for y := 0; y < height; y++ {
-			screen.SetContent(x, y, ' ', nil, st)
-		}
-	}
-
-	y0 := b.scrollAmt + height
-	for i := len(b.lines) - 1; 0 <= i; i-- {
-		if y0 < 0 {
-			break
-		}
-
-		x1 := x0 + 9 + nickColWidth
-
-		line := &b.lines[i]
-		nls := line.NewLines(width - x1)
-		y0 -= len(nls) + 1
-		if height <= y0 {
-			continue
-		}
-
-		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
-			printTime(screen, x0, y0, st.Bold(true), line.At.Local())
-		}
-
-		head := truncate(line.Head, nickColWidth, "\u2026")
-		x := x0 + 7 + nickColWidth - StringWidth(head)
-		st = st.Foreground(colorFromCode(line.HeadColor))
-		if line.Highlight {
-			st = st.Reverse(true)
-		}
-		screen.SetContent(x-1, y0, ' ', nil, st)
-		screen.SetContent(x0+7+nickColWidth, y0, ' ', nil, st)
-		printString(screen, &x, y0, st, head)
-		st = st.Reverse(false).Foreground(tcell.ColorDefault)
-
-		x = x1
-		y := y0
-
-		var sb StyleBuffer
-		sb.Reset()
-		for i, r := range line.Body {
-			if 0 < len(nls) && i == nls[0] {
-				x = x1
-				y++
-				nls = nls[1:]
-				if height < y {
-					break
-				}
-			}
-
-			if y != y0 && x == x1 && IsSplitRune(r) {
-				continue
-			}
-
-			if st, ok := sb.WriteRune(r); ok != 0 {
-				if 1 < ok {
-					screen.SetContent(x, y, ',', nil, st)
-					x++
-				}
-				screen.SetContent(x, y, r, nil, st)
-				x += runeWidth(r)
-			}
-		}
-
-		sb.Reset()
-	}
-
-	b.isAtTop = 0 <= y0
-}
-
 type BufferList struct {
 	list    []buffer
 	current int
-	status  string
 
-	width        int
-	height       int
+	tlWidth      int
+	tlHeight     int
 	nickColWidth int
 }
 
-func NewBufferList(width, height, nickColWidth int) BufferList {
+func NewBufferList(tlWidth, tlHeight, nickColWidth int) BufferList {
 	return BufferList{
 		list:         []buffer{},
-		width:        width,
-		height:       height,
+		tlWidth:      tlWidth,
+		tlHeight:     tlHeight,
 		nickColWidth: nickColWidth,
 	}
 }
 
-func (bs *BufferList) Resize(width, height int) {
-	bs.width = width
-	bs.height = height
+func (bs *BufferList) ResizeTimeline(tlWidth, tlHeight, nickColWidth int) {
+	bs.tlWidth = tlWidth
+	bs.tlHeight = tlHeight
+}
+
+func (bs *BufferList) tlInnerWidth() int {
+	return bs.tlWidth - bs.nickColWidth - 9
 }
 
 func (bs *BufferList) Next() {
@@ -326,7 +254,7 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 		line.computeSplitPoints()
 		b.lines = append(b.lines, line)
 		if idx == bs.current && 0 < b.scrollAmt {
-			b.scrollAmt += len(line.NewLines(bs.width-9-bs.nickColWidth)) + 1
+			b.scrollAmt += len(line.NewLines(bs.tlInnerWidth())) + 1
 		}
 	}
 
@@ -363,10 +291,6 @@ func (bs *BufferList) AddLines(title string, lines []Line) {
 	b.lines = append(lines[:limit], b.lines...)
 }
 
-func (bs *BufferList) SetStatus(status string) {
-	bs.status = status
-}
-
 func (bs *BufferList) Current() (title string) {
 	return bs.list[bs.current].title
 }
@@ -384,12 +308,12 @@ func (bs *BufferList) ScrollUp() {
 	if b.isAtTop {
 		return
 	}
-	b.scrollAmt += bs.height / 2
+	b.scrollAmt += bs.tlHeight / 2
 }
 
 func (bs *BufferList) ScrollDown() {
 	b := &bs.list[bs.current]
-	b.scrollAmt -= bs.height / 2
+	b.scrollAmt -= bs.tlHeight / 2
 
 	if b.scrollAmt < 0 {
 		b.scrollAmt = 0
@@ -415,57 +339,28 @@ func (bs *BufferList) idx(title string) int {
 	return -1
 }
 
-func (bs *BufferList) Draw(screen tcell.Screen) {
-	bs.list[bs.current].DrawLines(screen, 0, bs.width, bs.height-2, bs.nickColWidth)
-	bs.drawStatusBar(screen, bs.height-2)
-	bs.drawTitleList(screen, bs.height-1)
-}
-
-func (bs *BufferList) drawStatusBar(screen tcell.Screen, y int) {
-	st := tcell.StyleDefault.Dim(true)
-
-	for x := 0; x < bs.width; x++ {
-		screen.SetContent(x, y, 0x2500, nil, st)
-	}
-
-	if bs.status == "" {
-		return
-	}
-
-	x := 2
-	screen.SetContent(1, y, 0x2524, nil, st)
-	printString(screen, &x, y, st, bs.status)
-	screen.SetContent(x, y, 0x251c, nil, st)
-}
-
-func (bs *BufferList) drawTitleList(screen tcell.Screen, y int) {
-	var widths []int
-	for _, b := range bs.list {
-		width := StringWidth(b.title)
-		if 0 < b.highlights {
-			width += int(math.Log10(float64(b.highlights))) + 3
-		}
-		widths = append(widths, width)
-	}
-
+func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width, height int) {
+	width--
 	st := tcell.StyleDefault
 
-	for x := 0; x < bs.width; x++ {
-		screen.SetContent(x, y, ' ', nil, st)
+	for y := y0; y < y0+height; y++ {
+		for x := x0; x < x0+width; x++ {
+			screen.SetContent(x, y, ' ', nil, st)
+		}
+		screen.SetContent(x0+width, y, 0x2502, nil, st.Dim(true))
 	}
 
-	x := (bs.width - widths[bs.current]) / 2
-	printString(screen, &x, y, st.Underline(true), bs.list[bs.current].title)
-	x += 2
-
-	i := (bs.current + 1) % len(bs.list)
-	for x < bs.width && i != bs.current {
-		b := &bs.list[i]
+	for i, b := range bs.list {
 		st = tcell.StyleDefault
+		x := x0
+		y := y0 + i
 		if b.unread {
 			st = st.Bold(true)
+		} else if y == bs.current {
+			st = st.Underline(true)
 		}
-		printString(screen, &x, y, st, b.title)
+		title := truncate(b.title, width, "\u2026")
+		printString(screen, &x, y, st, title)
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
 			screen.SetContent(x, y, ' ', nil, st)
@@ -474,55 +369,74 @@ func (bs *BufferList) drawTitleList(screen tcell.Screen, y int) {
 			screen.SetContent(x, y, ' ', nil, st)
 			x++
 		}
-		x += 2
-		i = (i + 1) % len(bs.list)
+		y++
 	}
+}
 
-	i = (bs.current - 1 + len(bs.list)) % len(bs.list)
-	x = (bs.width - widths[bs.current]) / 2
-	for 0 < x && i != bs.current {
-		x -= widths[i] + 2
-		b := &bs.list[i]
-		st = tcell.StyleDefault
-		if b.unread {
-			st = st.Bold(true)
-		}
-		printString(screen, &x, y, st, b.title)
-		if 0 < b.highlights {
-			st = st.Foreground(tcell.ColorRed).Reverse(true)
+func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int) {
+	st := tcell.StyleDefault
+	for x := x0; x < x0+bs.tlWidth; x++ {
+		for y := y0; y < y0+bs.tlHeight; y++ {
 			screen.SetContent(x, y, ' ', nil, st)
-			x++
-			printNumber(screen, &x, y, st, b.highlights)
-			screen.SetContent(x, y, ' ', nil, st)
-			x++
 		}
-		x -= widths[i]
-		i = (i - 1 + len(bs.list)) % len(bs.list)
 	}
-}
 
-func printString(screen tcell.Screen, x *int, y int, st tcell.Style, s string) {
-	for _, r := range s {
-		screen.SetContent(*x, y, r, nil, st)
-		*x += runeWidth(r)
+	b := &bs.list[bs.current]
+	yi := b.scrollAmt + y0 + bs.tlHeight
+	for i := len(b.lines) - 1; 0 <= i; i-- {
+		if yi < 0 {
+			break
+		}
+
+		x1 := x0 + 9 + nickColWidth
+
+		line := &b.lines[i]
+		nls := line.NewLines(bs.tlInnerWidth())
+		yi -= len(nls) + 1
+		if y0+bs.tlHeight <= yi {
+			continue
+		}
+
+		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
+			printTime(screen, x0, yi, st.Bold(true), line.At.Local())
+		}
+
+		identSt := st.Foreground(colorFromCode(line.HeadColor)).Reverse(line.Highlight)
+		printIdent(screen, x0+7, yi, nickColWidth, identSt, line.Head)
+
+		x := x1
+		y := yi
+
+		var sb StyleBuffer
+		sb.Reset()
+		for i, r := range line.Body {
+			if 0 < len(nls) && i == nls[0] {
+				x = x1
+				y++
+				nls = nls[1:]
+				if bs.tlHeight < y {
+					break
+				}
+			}
+
+			if y != yi && x == x1 && IsSplitRune(r) {
+				continue
+			}
+
+			if st, ok := sb.WriteRune(r); ok != 0 {
+				if 1 < ok {
+					screen.SetContent(x, y, ',', nil, st)
+					x++
+				}
+				screen.SetContent(x, y, r, nil, st)
+				x += runeWidth(r)
+			}
+		}
+
+		sb.Reset()
 	}
-}
 
-func printNumber(screen tcell.Screen, x *int, y int, st tcell.Style, n int) {
-	s := fmt.Sprintf("%d", n)
-	printString(screen, x, y, st, s)
-}
-
-func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {
-	hr0 := rune(t.Hour()/10) + '0'
-	hr1 := rune(t.Hour()%10) + '0'
-	mn0 := rune(t.Minute()/10) + '0'
-	mn1 := rune(t.Minute()%10) + '0'
-	screen.SetContent(x+0, y, hr0, nil, st)
-	screen.SetContent(x+1, y, hr1, nil, st)
-	screen.SetContent(x+2, y, ':', nil, st)
-	screen.SetContent(x+3, y, mn0, nil, st)
-	screen.SetContent(x+4, y, mn1, nil, st)
+	b.isAtTop = y0 <= yi
 }
 
 func IrcColorCode(code int) string {

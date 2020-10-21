@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"hash/fnv"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -221,5 +223,22 @@ func colorFromCode(code int) (color tcell.Color) {
 	} else {
 		color = tcell.NewHexColor(hexCodes[code-16])
 	}
+	return
+}
+
+// see <https://modern.ircdocs.horse/formatting.html>
+var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
+
+func IdentColor(s string) (code int) {
+	h := fnv.New32()
+	_, _ = h.Write([]byte(s))
+
+	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
+	for _, c := range identColorBlacklist {
+		if c <= code {
+			code++
+		}
+	}
+
 	return
 }
