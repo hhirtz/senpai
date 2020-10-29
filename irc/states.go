@@ -257,7 +257,11 @@ func (s *Session) NickCf() string {
 }
 
 func (s *Session) IsChannel(name string) bool {
-	return strings.IndexAny(name, "#&") == 0 // TODO compute CHANTYPES
+	chantypes, ok := s.features["CHANTYPES"]
+	if !ok {
+		chantypes = "#&"
+	}
+	return strings.IndexAny(name, chantypes) == 0
 }
 
 func (s *Session) Casemap(name string) string {
