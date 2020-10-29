@@ -20,6 +20,26 @@ func CasemapASCII(name string) string {
 	return sb.String()
 }
 
+func CasemapRFC1459(name string) string {
+	var sb strings.Builder
+	sb.Grow(len(name))
+	for _, r := range name {
+		if 'A' <= r && r <= 'Z' {
+			r += 'a' - 'A'
+		} else if r == '[' {
+			r = '{'
+		} else if r == ']' {
+			r = '}'
+		} else if r == '\\' {
+			r = '|'
+		} else if r == '~' {
+			r = '^'
+		}
+		sb.WriteRune(r)
+	}
+	return sb.String()
+}
+
 func word(s string) (w, rest string) {
 	split := strings.SplitN(s, " ", 2)
 

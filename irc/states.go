@@ -265,8 +265,11 @@ func (s *Session) IsChannel(name string) bool {
 }
 
 func (s *Session) Casemap(name string) string {
-	// TODO use CASEMAPPING
-	return CasemapASCII(name)
+	if s.features["CASEMAPPING"] == "ascii" {
+		return CasemapASCII(name)
+	} else {
+		return CasemapRFC1459(name)
+	}
 }
 
 func (s *Session) Users() []string {
