@@ -16,6 +16,7 @@ type Config struct {
 	Highlights   []string
 	OnHighlight  string `yaml:"on-highlight"`
 	NickColWidth int    `yaml:"nick-column-width"`
+	ChanColWidth int    `yaml:"chan-column-width"`
 
 	Debug bool
 }
@@ -24,6 +25,9 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	err = yaml.Unmarshal(buf, &cfg)
 	if cfg.NickColWidth <= 0 {
 		cfg.NickColWidth = 16
+	}
+	if cfg.ChanColWidth <= 0 {
+		cfg.ChanColWidth = 16
 	}
 	return
 }

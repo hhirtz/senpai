@@ -9,6 +9,7 @@ import (
 
 type Config struct {
 	NickColWidth int
+	ChanColWidth int
 	AutoComplete func(cursorIdx int, text []rune) []Completion
 }
 
@@ -178,24 +179,24 @@ func (ui *UI) InputEnter() (content string) {
 
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
-	ui.e.Resize(w - 25 - ui.config.NickColWidth)
-	ui.bs.ResizeTimeline(w-16, h-2, ui.config.NickColWidth)
+	ui.e.Resize(w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth)
+	ui.bs.ResizeTimeline(w-ui.config.ChanColWidth, h-2, ui.config.NickColWidth)
 }
 
 func (ui *UI) Draw() {
 	w, h := ui.screen.Size()
 
-	ui.e.Draw(ui.screen, 25+ui.config.NickColWidth, h-1)
+	ui.e.Draw(ui.screen, 9+ui.config.ChanColWidth+ui.config.NickColWidth, h-1)
 
-	ui.bs.DrawTimeline(ui.screen, 16, 0, ui.config.NickColWidth)
-	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, 16, h)
-	ui.drawStatusBar(16, h-2, w-16)
+	ui.bs.DrawTimeline(ui.screen, ui.config.ChanColWidth, 0, ui.config.NickColWidth)
+	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
+	ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth)
 
-	for x := 16; x < 25+ui.config.NickColWidth; x++ {
+	for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {
 		ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
 	}
 	st := tcell.StyleDefault.Foreground(colorFromCode(IdentColor(ui.prompt)))
-	printIdent(ui.screen, 23, h-1, ui.config.NickColWidth, st, ui.prompt)
+	printIdent(ui.screen, ui.config.ChanColWidth+7, h-1, ui.config.NickColWidth, st, ui.prompt)
 
 	ui.screen.Show()
 }

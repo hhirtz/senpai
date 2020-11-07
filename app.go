@@ -37,6 +37,7 @@ func NewApp(cfg Config) (app *App, err error) {
 
 	app.win, err = ui.New(ui.Config{
 		NickColWidth: cfg.NickColWidth,
+		ChanColWidth: cfg.ChanColWidth,
 		AutoComplete: func(cursorIdx int, text []rune) []ui.Completion {
 			return app.completions(cursorIdx, text)
 		},
