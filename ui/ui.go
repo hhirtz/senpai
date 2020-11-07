@@ -39,6 +39,7 @@ func New(config Config) (ui *UI, err error) {
 	if err != nil {
 		return
 	}
+	ui.screen.EnableMouse()
 	ui.screen.EnablePaste()
 
 	w, h := ui.screen.Size()
@@ -90,11 +91,19 @@ func (ui *UI) PreviousBuffer() {
 }
 
 func (ui *UI) ScrollUp() {
-	ui.bs.ScrollUp()
+	ui.bs.ScrollUp(ui.bs.tlHeight / 2)
 }
 
 func (ui *UI) ScrollDown() {
-	ui.bs.ScrollDown()
+	ui.bs.ScrollDown(ui.bs.tlHeight / 2)
+}
+
+func (ui *UI) ScrollUpBy(n int) {
+	ui.bs.ScrollUp(n)
+}
+
+func (ui *UI) ScrollDownBy(n int) {
+	ui.bs.ScrollDown(n)
 }
 
 func (ui *UI) IsAtTop() bool {

@@ -303,17 +303,17 @@ func (bs *BufferList) CurrentOldestTime() (t *time.Time) {
 	return
 }
 
-func (bs *BufferList) ScrollUp() {
+func (bs *BufferList) ScrollUp(n int) {
 	b := &bs.list[bs.current]
 	if b.isAtTop {
 		return
 	}
-	b.scrollAmt += bs.tlHeight / 2
+	b.scrollAmt += n
 }
 
-func (bs *BufferList) ScrollDown() {
+func (bs *BufferList) ScrollDown(n int) {
 	b := &bs.list[bs.current]
-	b.scrollAmt -= bs.tlHeight / 2
+	b.scrollAmt -= n
 
 	if b.scrollAmt < 0 {
 		b.scrollAmt = 0

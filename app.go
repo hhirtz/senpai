@@ -228,20 +228,13 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 	}
 }
 
-func (app *App) handleUIEvent(ev tcell.Event) {
-	switch ev := ev.(type) {
-	case *tcell.EventResize:
-		app.win.Resize()
-	case *tcell.EventPaste:
-		app.pasting = ev.Start()
-	case *tcell.EventKey:
-		switch ev.Key() {
-		case tcell.KeyCtrlC:
-			app.win.Exit()
-		case tcell.KeyCtrlL:
-			app.win.Resize()
-		case tcell.KeyCtrlU, tcell.KeyPgUp:
-			app.win.ScrollUp()
+func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
+	x, _ := ev.Position()
+	if ev.Buttons()&tcell.WheelUp != 0 {
+		if x < app.cfg.ChanColWidth {
+			// TODO scroll chan list
+		} else {
+			app.win.ScrollUpBy(4)
 			if app.s == nil {
 				return
 			}
@@ -253,81 +246,123 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 				}
 				app.s.RequestHistory(buffer, at)
 			}
-		case tcell.KeyCtrlD, tcell.KeyPgDn:
-			app.win.ScrollDown()
-		case tcell.KeyCtrlN:
-			app.win.NextBuffer()
-		case tcell.KeyCtrlP:
-			app.win.PreviousBuffer()
-		case tcell.KeyRight:
-			if ev.Modifiers() == tcell.ModAlt {
-				app.win.NextBuffer()
-				app.updatePrompt()
-			} else {
-				app.win.InputRight()
-			}
-		case tcell.KeyLeft:
-			if ev.Modifiers() == tcell.ModAlt {
-				app.win.PreviousBuffer()
-				app.updatePrompt()
-			} else {
-				app.win.InputLeft()
-			}
-		case tcell.KeyUp:
-			if ev.Modifiers() == tcell.ModAlt {
-				app.win.PreviousBuffer()
-			} else {
-				app.win.InputUp()
-			}
-			app.updatePrompt()
-		case tcell.KeyDown:
-			if ev.Modifiers() == tcell.ModAlt {
-				app.win.NextBuffer()
-			} else {
-				app.win.InputDown()
-			}
-			app.updatePrompt()
-		case tcell.KeyHome:
-			app.win.InputHome()
-		case tcell.KeyEnd:
-			app.win.InputEnd()
-		case tcell.KeyBackspace2:
-			ok := app.win.InputBackspace()
-			if ok {
-				app.typing()
-				app.updatePrompt()
-			}
-		case tcell.KeyDelete:
-			ok := app.win.InputDelete()
-			if ok {
-				app.typing()
-				app.updatePrompt()
-			}
-		case tcell.KeyTab:
-			ok := app.win.InputAutoComplete()
-			if ok {
-				app.typing()
-			}
-		case tcell.KeyCR, tcell.KeyLF:
-			buffer := app.win.CurrentBuffer()
-			input := app.win.InputEnter()
-			err := app.handleInput(buffer, input)
-			if err != nil {
-				app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
-					At:        time.Now(),
-					Head:      "!!",
-					HeadColor: ui.ColorRed,
-					Body:      fmt.Sprintf("%q: %s", input, err),
-				})
-			}
-			app.updatePrompt()
-		case tcell.KeyRune:
-			app.win.InputRune(ev.Rune())
-			app.typing()
-			app.updatePrompt()
-		default:
+		}
+	}
+	if ev.Buttons()&tcell.WheelDown != 0 {
+		if x < app.cfg.ChanColWidth {
+			// TODO scroll chan list
+		} else {
+			app.win.ScrollDownBy(4)
+		}
+	}
+}
+
+func (app *App) handleKeyEvent(ev *tcell.EventKey) {
+	switch ev.Key() {
+	case tcell.KeyCtrlC:
+		app.win.Exit()
+	case tcell.KeyCtrlL:
+		app.win.Resize()
+	case tcell.KeyCtrlU, tcell.KeyPgUp:
+		app.win.ScrollUp()
+		if app.s == nil {
 			return
 		}
+		buffer := app.win.CurrentBuffer()
+		if app.win.IsAtTop() && buffer != Home {
+			at := time.Now()
+			if t := app.win.CurrentBufferOldestTime(); t != nil {
+				at = *t
+			}
+			app.s.RequestHistory(buffer, at)
+		}
+	case tcell.KeyCtrlD, tcell.KeyPgDn:
+		app.win.ScrollDown()
+	case tcell.KeyCtrlN:
+		app.win.NextBuffer()
+	case tcell.KeyCtrlP:
+		app.win.PreviousBuffer()
+	case tcell.KeyRight:
+		if ev.Modifiers() == tcell.ModAlt {
+			app.win.NextBuffer()
+			app.updatePrompt()
+		} else {
+			app.win.InputRight()
+		}
+	case tcell.KeyLeft:
+		if ev.Modifiers() == tcell.ModAlt {
+			app.win.PreviousBuffer()
+			app.updatePrompt()
+		} else {
+			app.win.InputLeft()
+		}
+	case tcell.KeyUp:
+		if ev.Modifiers() == tcell.ModAlt {
+			app.win.PreviousBuffer()
+		} else {
+			app.win.InputUp()
+		}
+		app.updatePrompt()
+	case tcell.KeyDown:
+		if ev.Modifiers() == tcell.ModAlt {
+			app.win.NextBuffer()
+		} else {
+			app.win.InputDown()
+		}
+		app.updatePrompt()
+	case tcell.KeyHome:
+		app.win.InputHome()
+	case tcell.KeyEnd:
+		app.win.InputEnd()
+	case tcell.KeyBackspace2:
+		ok := app.win.InputBackspace()
+		if ok {
+			app.typing()
+			app.updatePrompt()
+		}
+	case tcell.KeyDelete:
+		ok := app.win.InputDelete()
+		if ok {
+			app.typing()
+			app.updatePrompt()
+		}
+	case tcell.KeyTab:
+		ok := app.win.InputAutoComplete()
+		if ok {
+			app.typing()
+		}
+	case tcell.KeyCR, tcell.KeyLF:
+		buffer := app.win.CurrentBuffer()
+		input := app.win.InputEnter()
+		err := app.handleInput(buffer, input)
+		if err != nil {
+			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+				At:        time.Now(),
+				Head:      "!!",
+				HeadColor: ui.ColorRed,
+				Body:      fmt.Sprintf("%q: %s", input, err),
+			})
+		}
+		app.updatePrompt()
+	case tcell.KeyRune:
+		app.win.InputRune(ev.Rune())
+		app.typing()
+		app.updatePrompt()
+	default:
+		return
+	}
+}
+
+func (app *App) handleUIEvent(ev tcell.Event) {
+	switch ev := ev.(type) {
+	case *tcell.EventResize:
+		app.win.Resize()
+	case *tcell.EventPaste:
+		app.pasting = ev.Start()
+	case *tcell.EventMouse:
+		app.handleMouseEvent(ev)
+	case *tcell.EventKey:
+		app.handleKeyEvent(ev)
 	default:
 		return
 	}
