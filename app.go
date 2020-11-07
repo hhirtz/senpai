@@ -229,7 +229,7 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 }
 
 func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
-	x, _ := ev.Position()
+	x, y := ev.Position()
 	if ev.Buttons()&tcell.WheelUp != 0 {
 		if x < app.cfg.ChanColWidth {
 			// TODO scroll chan list
@@ -254,6 +254,15 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 		} else {
 			app.win.ScrollDownBy(4)
 		}
+	}
+	if ev.Buttons()&tcell.ButtonPrimary != 0 && x < app.cfg.ChanColWidth {
+		app.win.ClickBuffer(y)
+	}
+	if ev.Buttons() == 0 {
+		if y == app.win.ClickedBuffer() && x < app.cfg.ChanColWidth {
+			app.win.GoToBufferNo(y)
+		}
+		app.win.ClickBuffer(-1)
 	}
 }
 

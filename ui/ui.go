@@ -90,6 +90,20 @@ func (ui *UI) PreviousBuffer() {
 	ui.bs.Previous()
 }
 
+func (ui *UI) ClickedBuffer() int {
+	return ui.bs.clicked
+}
+
+func (ui *UI) ClickBuffer(i int) {
+	if i < len(ui.bs.list) {
+		ui.bs.clicked = i
+	}
+}
+
+func (ui *UI) GoToBufferNo(i int) {
+	ui.bs.To(i)
+}
+
 func (ui *UI) ScrollUp() {
 	ui.bs.ScrollUp(ui.bs.tlHeight / 2)
 }

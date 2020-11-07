@@ -170,6 +170,7 @@ type buffer struct {
 type BufferList struct {
 	list    []buffer
 	current int
+	clicked int
 
 	tlWidth      int
 	tlHeight     int
@@ -179,6 +180,7 @@ type BufferList struct {
 func NewBufferList(tlWidth, tlHeight, nickColWidth int) BufferList {
 	return BufferList{
 		list:         []buffer{},
+		clicked:      -1,
 		tlWidth:      tlWidth,
 		tlHeight:     tlHeight,
 		nickColWidth: nickColWidth,
@@ -192,6 +194,14 @@ func (bs *BufferList) ResizeTimeline(tlWidth, tlHeight, nickColWidth int) {
 
 func (bs *BufferList) tlInnerWidth() int {
 	return bs.tlWidth - bs.nickColWidth - 9
+}
+
+func (bs *BufferList) To(i int) {
+	if 0 <= i && i < len(bs.list) {
+		bs.current = i
+		bs.list[bs.current].highlights = 0
+		bs.list[bs.current].unread = false
+	}
 }
 
 func (bs *BufferList) Next() {
@@ -359,6 +369,9 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		} else if y == bs.current {
 			st = st.Underline(true)
 		}
+		if i == bs.clicked {
+			st = st.Reverse(true).Dim(true)
+		}
 		title := truncate(b.title, width, "\u2026")
 		printString(screen, &x, y, st, title)
 		if 0 < b.highlights {
@@ -368,6 +381,13 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			printNumber(screen, &x, y, st, b.highlights)
 			screen.SetContent(x, y, ' ', nil, st)
 			x++
+		}
+		if i == bs.clicked {
+			st = st.Bold(false).Underline(false)
+			for ; x < x0+width; x++ {
+				screen.SetContent(x, y, ' ', nil, st)
+			}
+			screen.SetContent(x0+width, y, 0x2590, nil, st)
 		}
 		y++
 	}
