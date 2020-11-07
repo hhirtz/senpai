@@ -78,6 +78,12 @@ of messages are in the timeline:
 *CTRL-P*, *ALT-LEFT*
 	Go to the previous buffer.
 
+*ALT-HOME*
+	Go to the first buffer.
+
+*ALT-END*
+	Go to the last buffer.
+
 *UP*, *DOWN*, *LEFT*, *RIGHT*, *HOME*, *END*, *BACKSPACE*, *DELETE*
 	Edit the text in the input field.
 

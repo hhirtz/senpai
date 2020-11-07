@@ -197,8 +197,11 @@ func (bs *BufferList) tlInnerWidth() int {
 }
 
 func (bs *BufferList) To(i int) {
-	if 0 <= i && i < len(bs.list) {
+	if 0 <= i {
 		bs.current = i
+		if len(bs.list) <= bs.current {
+			bs.current = len(bs.list) - 1
+		}
 		bs.list[bs.current].highlights = 0
 		bs.list[bs.current].unread = false
 	}

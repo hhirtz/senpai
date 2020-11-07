@@ -235,17 +235,7 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 			// TODO scroll chan list
 		} else {
 			app.win.ScrollUpBy(4)
-			if app.s == nil {
-				return
-			}
-			buffer := app.win.CurrentBuffer()
-			if app.win.IsAtTop() && buffer != Home {
-				at := time.Now()
-				if t := app.win.CurrentBufferOldestTime(); t != nil {
-					at = *t
-				}
-				app.s.RequestHistory(buffer, at)
-			}
+			app.requestHistory()
 		}
 	}
 	if ev.Buttons()&tcell.WheelDown != 0 {
@@ -274,17 +264,7 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		app.win.Resize()
 	case tcell.KeyCtrlU, tcell.KeyPgUp:
 		app.win.ScrollUp()
-		if app.s == nil {
-			return
-		}
-		buffer := app.win.CurrentBuffer()
-		if app.win.IsAtTop() && buffer != Home {
-			at := time.Now()
-			if t := app.win.CurrentBufferOldestTime(); t != nil {
-				at = *t
-			}
-			app.s.RequestHistory(buffer, at)
-		}
+		app.requestHistory()
 	case tcell.KeyCtrlD, tcell.KeyPgDn:
 		app.win.ScrollDown()
 	case tcell.KeyCtrlN:
@@ -320,9 +300,18 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		}
 		app.updatePrompt()
 	case tcell.KeyHome:
-		app.win.InputHome()
+		if ev.Modifiers() == tcell.ModAlt {
+			app.win.GoToBufferNo(0)
+		} else {
+			app.win.InputHome()
+		}
 	case tcell.KeyEnd:
-		app.win.InputEnd()
+		if ev.Modifiers() == tcell.ModAlt {
+			maxInt := int(^uint(0) >> 1)
+			app.win.GoToBufferNo(maxInt)
+		} else {
+			app.win.InputEnd()
+		}
 	case tcell.KeyBackspace2:
 		ok := app.win.InputBackspace()
 		if ok {
@@ -377,6 +366,20 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	}
 	if !app.pasting {
 		app.draw()
+	}
+}
+
+func (app *App) requestHistory() {
+	if app.s == nil {
+		return
+	}
+	buffer := app.win.CurrentBuffer()
+	if app.win.IsAtTop() && buffer != Home {
+		at := time.Now()
+		if t := app.win.CurrentBufferOldestTime(); t != nil {
+			at = *t
+		}
+		app.s.RequestHistory(buffer, at)
 	}
 }
 
