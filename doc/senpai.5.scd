@@ -23,11 +23,12 @@ Some settings are required, the others are optional.
 
 *real*
 	Your real name, or actually just a field that will be available to others
-	and may contain spaces and colons.  Sent with the _USER_ IRC message.
+	and may contain spaces and colons.  Sent with the _USER_ IRC message.  By
+	default, the value of *nick* is used.
 
-*user* (required)
+*user*
 	Your username, sent with the _USER_ IRC message and also used for SASL
-	authentication.
+	authentication.  By default, the value of *nick* is used.
 
 *password*
 	Your password, used for SASL authentication.
@@ -57,6 +58,9 @@ Some settings are required, the others are optional.
 	The number of cell that the column for nicknames occupies in the timeline.
 	By default, 16.
 
+*chan-column-width*
+	The number of cell that the column for channels occupies.  By default, 16.
+
 # EXAMPLES
 
 A minimal configuration file to connect to freenode as "Guest123456":
@@ -64,7 +68,6 @@ A minimal configuration file to connect to freenode as "Guest123456":
 ```
 addr: chat.freenode.net:6697
 nick: Guest123456
-user: senpai
 ```
 
 A more advanced configuration file that enables SASL authentication, sends
