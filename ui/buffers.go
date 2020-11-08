@@ -386,7 +386,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			x++
 		}
 		if i == bs.clicked {
-			st = st.Bold(false).Underline(false)
+			st = tcell.StyleDefault.Reverse(true).Dim(true)
 			for ; x < x0+width; x++ {
 				screen.SetContent(x, y, ' ', nil, st)
 			}
