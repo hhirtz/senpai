@@ -463,6 +463,9 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	}
 	start++
 	word := text[start:cursorIdx]
+	if len(word) == 0 {
+		return cs
+	}
 	wordCf := app.s.Casemap(string(word))
 	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
 		if strings.HasPrefix(app.s.Casemap(name.Name.Name), wordCf) {
