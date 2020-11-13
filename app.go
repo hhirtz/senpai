@@ -251,6 +251,7 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	if ev.Buttons() == 0 {
 		if y == app.win.ClickedBuffer() && x < app.cfg.ChanColWidth {
 			app.win.GoToBufferNo(y)
+			app.updatePrompt()
 		}
 		app.win.ClickBuffer(-1)
 	}
