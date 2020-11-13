@@ -370,6 +370,8 @@ func (app *App) handleUIEvent(ev tcell.Event) {
 	}
 }
 
+// requestHistory is a wrapper around irc.Session.RequestHistory to only request
+// history when needed.
 func (app *App) requestHistory() {
 	if app.s == nil {
 		return
@@ -384,6 +386,7 @@ func (app *App) requestHistory() {
 	}
 }
 
+// isHighlight reports whether the given message content is a highlight.
 func (app *App) isHighlight(content string) bool {
 	contentCf := strings.ToLower(content)
 	if app.highlights == nil {
@@ -397,6 +400,8 @@ func (app *App) isHighlight(content string) bool {
 	return false
 }
 
+// notifyHighlight executes the "on-highlight" command according to the given
+// message context.
 func (app *App) notifyHighlight(buffer, nick, content string) {
 	sh, err := exec.LookPath("sh")
 	if err != nil {
@@ -424,6 +429,8 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	}
 }
 
+// typing sends typing notifications to the IRC server according to the user
+// input.
 func (app *App) typing() {
 	if app.s == nil {
 		return
@@ -439,6 +446,8 @@ func (app *App) typing() {
 	}
 }
 
+// completions computes the list of completions given the input text and the
+// cursor position.
 func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	var cs []ui.Completion
 
@@ -485,6 +494,12 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	return cs
 }
 
+// formatMessage sets how a given message must be formatted.
+//
+// It computes three things:
+// - which buffer the message must be added to,
+// - the UI line,
+// - whether senpai must trigger the "on-highlight" command.
 func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
 	isFromSelf := app.s.NickCf() == app.s.Casemap(ev.User.Name)
 	isHighlight := app.isHighlight(ev.Content)
@@ -536,6 +551,7 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	return
 }
 
+// updatePrompt changes the prompt text according to the application context.
 func (app *App) updatePrompt() {
 	buffer := app.win.CurrentBuffer()
 	command := app.win.InputIsCommand()
@@ -546,6 +562,7 @@ func (app *App) updatePrompt() {
 	}
 }
 
+// ircColorSequence returns the color formatting sequence of a color code.
 func ircColorSequence(code int) string {
 	var c [3]rune
 	c[0] = 0x03
@@ -554,6 +571,7 @@ func ircColorSequence(code int) string {
 	return string(c[:])
 }
 
+// cleanMessage removes IRC formatting from a string.
 func cleanMessage(s string) string {
 	var res strings.Builder
 	var sb ui.StyleBuffer
