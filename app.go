@@ -455,36 +455,10 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 		return cs
 	}
 
-	var start int
-	for start = cursorIdx - 1; 0 <= start; start-- {
-		if text[start] == ' ' {
-			break
-		}
-	}
-	start++
-	word := text[start:cursorIdx]
-	if len(word) == 0 {
-		return cs
-	}
-	wordCf := app.s.Casemap(string(word))
-	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
-		if strings.HasPrefix(app.s.Casemap(name.Name.Name), wordCf) {
-			nickComp := []rune(name.Name.Name)
-			if start == 0 {
-				nickComp = append(nickComp, ':')
-			}
-			nickComp = append(nickComp, ' ')
-			c := make([]rune, len(text)+len(nickComp)-len(word))
-			copy(c[:start], text[:start])
-			if cursorIdx < len(text) {
-				copy(c[start+len(nickComp):], text[cursorIdx:])
-			}
-			copy(c[start:], nickComp)
-			cs = append(cs, ui.Completion{
-				Text:      c,
-				CursorIdx: start + len(nickComp),
-			})
-		}
+	buffer := app.win.CurrentBuffer()
+	if app.s.IsChannel(buffer) {
+		cs = app.completionsChannelTopic(cs, cursorIdx, text)
+		cs = app.completionsChannelMembers(cs, cursorIdx, text)
 	}
 
 	if cs != nil {
