@@ -229,6 +229,12 @@ func (e *Editor) AutoComplete() (ok bool) {
 	e.cursorIdx = e.autoCache[e.autoCacheIdx].CursorIdx
 	e.computeTextWidth()
 	e.autoCacheIdx = (e.autoCacheIdx + 1) % len(e.autoCache)
+	if len(e.textWidth) <= e.offsetIdx {
+		e.offsetIdx = 0
+	}
+	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
+		e.offsetIdx++
+	}
 
 	return true
 }
