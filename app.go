@@ -143,6 +143,22 @@ func (app *App) handleIRCEvent(ev irc.Event) {
 			Head: head,
 			Body: ev.Message,
 		})
+	case irc.ErrorEvent:
+		var severity string
+		switch ev.Severity {
+		case irc.SeverityNote:
+			severity = "Note"
+		case irc.SeverityWarn:
+			severity = "Warning"
+		case irc.SeverityFail:
+			severity = "Error"
+		}
+		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			At:        time.Now(),
+			Head:      "!!",
+			HeadColor: ui.ColorRed,
+			Body:      fmt.Sprintf("%s (code %s): %s", severity, ev.Code, ev.Message),
+		})
 	case irc.RegisteredEvent:
 		body := "Connected to the server"
 		if app.s.Nick() != app.cfg.Nick {

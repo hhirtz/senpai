@@ -12,6 +12,12 @@ type RawMessageEvent struct {
 	IsValid  bool
 }
 
+type ErrorEvent struct {
+	Severity Severity
+	Code     string
+	Message  string
+}
+
 type RegisteredEvent struct{}
 
 type SelfNickEvent struct {

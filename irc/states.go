@@ -909,9 +909,22 @@ func (s *Session) handle(msg Message) (err error) {
 			}
 		}
 	case "FAIL":
-		s.evts <- RawMessageEvent{
-			Message: msg.String(),
-			IsValid: true,
+		s.evts <- ErrorEvent{
+			Severity: SeverityFail,
+			Code:     msg.Params[1],
+			Message:  msg.Params[len(msg.Params)-1],
+		}
+	case "WARN":
+		s.evts <- ErrorEvent{
+			Severity: SeverityWarn,
+			Code:     msg.Params[1],
+			Message:  msg.Params[len(msg.Params)-1],
+		}
+	case "NOTE":
+		s.evts <- ErrorEvent{
+			Severity: SeverityNote,
+			Code:     msg.Params[1],
+			Message:  msg.Params[len(msg.Params)-1],
 		}
 	case "PING":
 		err = s.send("PONG :%s\r\n", msg.Params[0])
@@ -925,6 +938,14 @@ func (s *Session) handle(msg Message) (err error) {
 		}
 		_ = s.conn.Close()
 	default:
+		// reply handling
+		if ReplySeverity(msg.Command) == SeverityFail {
+			s.evts <- ErrorEvent{
+				Severity: SeverityFail,
+				Code:     msg.Command,
+				Message:  msg.Params[len(msg.Params)-1],
+			}
+		}
 	}
 
 	return

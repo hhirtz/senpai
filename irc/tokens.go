@@ -303,7 +303,7 @@ func (msg *Message) IsValid() bool {
 		return 1 <= len(msg.Params)
 	case rplEndofnames, rplLoggedout, rplMotd, errNicknameinuse, rplNotopic, rplWelcome, rplYourhost:
 		return 2 <= len(msg.Params)
-	case rplIsupport, rplLoggedin, rplTopic:
+	case rplIsupport, rplLoggedin, rplTopic, "FAIL", "WARN", "NOTE":
 		return 3 <= len(msg.Params)
 	case rplNamreply:
 		return 4 <= len(msg.Params)
@@ -349,7 +349,11 @@ func (msg *Message) IsValid() bool {
 		}
 		return msg.Params[0][0] == '-'
 	default:
-		return false
+		if len(msg.Command) != 3 || len(msg.Params) < 2 {
+			return false
+		}
+		_, err := strconv.Atoi(msg.Command)
+		return err == nil
 	}
 }
 
@@ -380,6 +384,34 @@ func (msg *Message) TimeOrNow() time.Time {
 		return t
 	}
 	return time.Now().UTC()
+}
+
+type Severity int
+
+const (
+	SeverityNote Severity = iota
+	SeverityWarn
+	SeverityFail
+)
+
+func ReplySeverity(reply string) Severity {
+	switch reply[0] {
+	case '4', '5':
+		if reply == "422" {
+			return SeverityNote
+		} else {
+			return SeverityFail
+		}
+	case '9':
+		switch reply[2] {
+		case '2', '4', '5', '6', '7':
+			return SeverityFail
+		default:
+			return SeverityNote
+		}
+	default:
+		return SeverityNote
+	}
 }
 
 type Cap struct {
