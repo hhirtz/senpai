@@ -265,6 +265,14 @@ func (s *Session) Casemap(name string) string {
 	return CasemapASCII(name)
 }
 
+func (s *Session) Users() []string {
+	users := make([]string, 0, len(s.users))
+	for _, u := range s.users {
+		users = append(users, u.Name.Name)
+	}
+	return users
+}
+
 func (s *Session) Names(channel string) []Member {
 	var names []Member
 	if c, ok := s.channels[s.Casemap(channel)]; ok {

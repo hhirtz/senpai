@@ -56,6 +56,44 @@ func (app *App) completionsChannelTopic(cs []ui.Completion, cursorIdx int, text 
 	return cs
 }
 
+func (app *App) completionsMsg(cs []ui.Completion, cursorIdx int, text []rune) []ui.Completion {
+	if !hasPrefix(text, []rune("/msg ")) {
+		return cs
+	}
+	// Check if the first word (target) is already written and complete (in
+	// which case we don't have completions to provide).
+	var word string
+	hasMetALetter := false
+	for i := 5; i < cursorIdx; i += 1 {
+		if hasMetALetter && text[i] == ' ' {
+			return cs
+		}
+		if !hasMetALetter && text[i] != ' ' {
+			word = app.s.Casemap(string(text[i:cursorIdx]))
+			hasMetALetter = true
+		}
+	}
+	if word == "" {
+		return cs
+	}
+	for _, user := range app.s.Users() {
+		if strings.HasPrefix(app.s.Casemap(user), word) {
+			nickComp := append([]rune(user), ' ')
+			c := make([]rune, len(text)+5+len(nickComp)-cursorIdx)
+			copy(c[:5], []rune("/msg "))
+			copy(c[5:], nickComp)
+			if cursorIdx < len(text) {
+				copy(c[5+len(nickComp):], text[cursorIdx:])
+			}
+			cs = append(cs, ui.Completion{
+				Text:      c,
+				CursorIdx: 5 + len(nickComp),
+			})
+		}
+	}
+	return cs
+}
+
 func hasPrefix(s, prefix []rune) bool {
 	return len(prefix) <= len(s) && equal(prefix, s[:len(prefix)])
 }
