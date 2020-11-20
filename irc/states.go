@@ -117,6 +117,8 @@ type Channel struct {
 	TopicWho  *Prefix
 	TopicTime time.Time
 	Secret    bool
+
+	complete bool
 }
 
 type SessionParams struct {
@@ -701,7 +703,6 @@ func (s *Session) handle(msg Message) (err error) {
 				Name:    msg.Params[0],
 				Members: map[*User]string{},
 			}
-			s.evts <- SelfJoinEvent{Channel: msg.Params[0]}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if _, ok := s.users[nickCf]; !ok {
 				s.users[nickCf] = &User{Name: msg.Prefix.Copy()}
@@ -802,6 +803,13 @@ func (s *Session) handle(msg Message) (err error) {
 			}
 
 			s.channels[channelCf] = c
+		}
+	case rplEndofnames:
+		channelCf := s.Casemap(msg.Params[1])
+		if c, ok := s.channels[channelCf]; ok && !c.complete {
+			c.complete = true
+			s.channels[channelCf] = c
+			s.evts <- SelfJoinEvent{Channel: c.Name}
 		}
 	case rplTopic:
 		channelCf := s.Casemap(msg.Params[1])
