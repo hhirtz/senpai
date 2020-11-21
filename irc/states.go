@@ -42,6 +42,7 @@ func (auth *SASLPlain) Respond(challenge string) (res string, err error) {
 	return
 }
 
+// SupportedCapabilities is the set of capabilities supported by this library.
 var SupportedCapabilities = map[string]struct{}{
 	"account-notify":    {},
 	"account-tag":       {},
@@ -61,6 +62,8 @@ var SupportedCapabilities = map[string]struct{}{
 	"userhost-in-names": {},
 }
 
+// Values taken by the "@+typing=" client tag.  TypingUnspec means the value or
+// tag is absent.
 const (
 	TypingUnspec = iota
 	TypingActive
@@ -68,6 +71,13 @@ const (
 	TypingDone
 )
 
+// action contains the arguments of a user action.
+//
+// To keep connection reads and writes in a single coroutine, the library
+// interface functions like Join("#channel") or PrivMsg("target", "message")
+// don't interact with the IRC session directly.  Instead, they push an action
+// in the action channel.  This action is then processed by the correct
+// coroutine.
 type action interface{}
 
 type (
@@ -105,22 +115,25 @@ type (
 	}
 )
 
+// User is a known IRC user (we share a channel with it).
 type User struct {
-	Name    *Prefix
-	AwayMsg string
+	Name    *Prefix // the nick, user and hostname of the user if known.
+	AwayMsg string  // the away message if the user is away, "" otherwise.
 }
 
+// Channel is a joined channel.
 type Channel struct {
-	Name      string
-	Members   map[*User]string
-	Topic     string
-	TopicWho  *Prefix
-	TopicTime time.Time
-	Secret    bool
+	Name      string           // the name of the channel.
+	Members   map[*User]string // the set of members associated with their membership.
+	Topic     string           // the topic of the channel, or "" if absent.
+	TopicWho  *Prefix          // the name of the last user who set the topic.
+	TopicTime time.Time        // the last time the topic has been changed.
+	Secret    bool             // whether the channel is on the server channel list.
 
-	complete bool
+	complete bool // whether this stucture is fully initialized.
 }
 
+// SessionParams defines how to connect to an IRC server.
 type SessionParams struct {
 	Nickname string
 	Username string
@@ -128,24 +141,25 @@ type SessionParams struct {
 
 	Auth SASLClient
 
-	Debug bool
+	Debug bool // whether the Session should report all messages it sends and receive.
 }
 
+// Session is an IRC session/connection/whatever.
 type Session struct {
 	conn io.ReadWriteCloser
-	msgs chan Message
-	acts chan action
-	evts chan Event
+	msgs chan Message // incoming messages.
+	acts chan action  // user actions.
+	evts chan Event   // events sent to the user.
 
 	debug bool
 
 	running      atomic.Value // bool
 	registered   bool
-	typings      *Typings
-	typingStamps map[string]time.Time
+	typings      *Typings             // incoming typing notifications.
+	typingStamps map[string]time.Time // user typing instants.
 
 	nick   string
-	nickCf string
+	nickCf string // casemapped nickname.
 	user   string
 	real   string
 	acct   string
@@ -154,13 +168,18 @@ type Session struct {
 
 	availableCaps map[string]string
 	enabledCaps   map[string]struct{}
-	features      map[string]string
+	features      map[string]string // server ISUPPORT advertized features.
 
-	users     map[string]*User
-	channels  map[string]Channel
-	chBatches map[string]HistoryEvent
+	users     map[string]*User        // known users.
+	channels  map[string]Channel      // joined channels.
+	chBatches map[string]HistoryEvent // channel history batches being processed.
 }
 
+// NewSession starts an IRC session from the given connection and session
+// parameters.
+//
+// It returns an error when the paramaters are invalid, or when it cannot write
+// to the connection.
 func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error) {
 	s := &Session{
 		conn:          conn,
@@ -226,10 +245,12 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 	return s, nil
 }
 
+// Running reports whether we are still connected to the server.
 func (s *Session) Running() bool {
 	return s.running.Load().(bool)
 }
 
+// Stop stops the session and closes the connection.
 func (s *Session) Stop() {
 	if !s.Running() {
 		return
@@ -241,10 +262,13 @@ func (s *Session) Stop() {
 	close(s.msgs)
 }
 
+// Poll returns the event channel where incoming events are reported.
 func (s *Session) Poll() (events <-chan Event) {
 	return s.evts
 }
 
+// HasCapability reports whether the given capability has been negociated
+// successfully.
 func (s *Session) HasCapability(capability string) bool {
 	_, ok := s.enabledCaps[capability]
 	return ok
@@ -254,6 +278,7 @@ func (s *Session) Nick() string {
 	return s.nick
 }
 
+// NickCf is our casemapped nickname.
 func (s *Session) NickCf() string {
 	return s.nickCf
 }
@@ -274,6 +299,7 @@ func (s *Session) Casemap(name string) string {
 	}
 }
 
+// Users returns the list of all known nicknames.
 func (s *Session) Users() []string {
 	users := make([]string, 0, len(s.users))
 	for _, u := range s.users {
@@ -282,6 +308,8 @@ func (s *Session) Users() []string {
 	return users
 }
 
+// Names returns the list of users in the given channel, or nil if this channel
+// is not known by the session.
 func (s *Session) Names(channel string) []Member {
 	var names []Member
 	if c, ok := s.channels[s.Casemap(channel)]; ok {
@@ -296,6 +324,7 @@ func (s *Session) Names(channel string) []Member {
 	return names
 }
 
+// Typings returns the list of nickname who are currently typing.
 func (s *Session) Typings(target string) []string {
 	targetCf := s.Casemap(target)
 	var res []string
@@ -333,6 +362,7 @@ func (s *Session) Topic(channel string) (topic string, who *Prefix, at time.Time
 	return
 }
 
+// SendRaw sends its given argument verbatim to the server.
 func (s *Session) SendRaw(raw string) {
 	s.acts <- actionSendRaw{raw}
 }

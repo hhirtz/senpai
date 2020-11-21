@@ -8,6 +8,8 @@ import (
 	"time"
 )
 
+// CasemapASCII of name is the canonical representation of name according to the
+// ascii casemapping.
 func CasemapASCII(name string) string {
 	var sb strings.Builder
 	sb.Grow(len(name))
@@ -20,6 +22,8 @@ func CasemapASCII(name string) string {
 	return sb.String()
 }
 
+// CasemapASCII of name is the canonical representation of name according to the
+// rfc-1459 casemapping.
 func CasemapRFC1459(name string) string {
 	var sb strings.Builder
 	sb.Grow(len(name))
@@ -40,20 +44,21 @@ func CasemapRFC1459(name string) string {
 	return sb.String()
 }
 
-func word(s string) (w, rest string) {
+// word returns the first word of s and the rest of s.
+func word(s string) (word, rest string) {
 	split := strings.SplitN(s, " ", 2)
-
 	if len(split) < 2 {
-		w = split[0]
+		word = split[0]
 		rest = ""
 	} else {
-		w = split[0]
+		word = split[0]
 		rest = split[1]
 	}
-
 	return
 }
 
+// tagEscape returns the the value of '\c' given c according to the message-tags
+// specification.
 func tagEscape(c rune) (escape rune) {
 	switch c {
 	case ':':
@@ -67,10 +72,11 @@ func tagEscape(c rune) (escape rune) {
 	default:
 		escape = c
 	}
-
 	return
 }
 
+// unescapeTagValue removes escapes from the given string and replaces them with
+// their meaningful values.
 func unescapeTagValue(escaped string) string {
 	var builder strings.Builder
 	builder.Grow(len(escaped))
@@ -96,6 +102,7 @@ func unescapeTagValue(escaped string) string {
 	return builder.String()
 }
 
+// escapeTagValue does the inverse operation of unescapeTagValue.
 func escapeTagValue(unescaped string) string {
 	var sb strings.Builder
 	sb.Grow(len(unescaped) * 2)
@@ -163,6 +170,8 @@ type Prefix struct {
 	Host string
 }
 
+// ParsePrefix parses a "nick!user@host" combination (or a prefix) from the given
+// string.
 func ParsePrefix(s string) (p *Prefix) {
 	if s == "" {
 		return
@@ -185,6 +194,7 @@ func ParsePrefix(s string) (p *Prefix) {
 	return
 }
 
+// Copy makes a copy of the prefix, but doesn't copy the internal strings.
 func (p *Prefix) Copy() *Prefix {
 	if p == nil {
 		return nil
@@ -194,6 +204,7 @@ func (p *Prefix) Copy() *Prefix {
 	return res
 }
 
+// String returns the "nick!user@host" representation of the prefix.
 func (p *Prefix) String() string {
 	if p == nil {
 		return ""
@@ -210,6 +221,7 @@ func (p *Prefix) String() string {
 	}
 }
 
+// Message is the representation of an IRC message.
 type Message struct {
 	Tags    map[string]string
 	Prefix  *Prefix
@@ -217,6 +229,8 @@ type Message struct {
 	Params  []string
 }
 
+// ParseMessage parses the message from the given string, which must be trimmed
+// of "\r\n" beforehand.
 func ParseMessage(line string) (msg Message, err error) {
 	line = strings.TrimLeft(line, " ")
 	if line == "" {
@@ -268,6 +282,7 @@ func ParseMessage(line string) (msg Message, err error) {
 	return
 }
 
+// IsReply reports whether the message command is a server reply.
 func (msg *Message) IsReply() bool {
 	if len(msg.Command) != 3 {
 		return false
@@ -280,6 +295,8 @@ func (msg *Message) IsReply() bool {
 	return true
 }
 
+// String returns the protocol representation of the message, without an ending
+// "\r\n".
 func (msg *Message) String() string {
 	var sb strings.Builder
 
@@ -317,6 +334,7 @@ func (msg *Message) String() string {
 	return sb.String()
 }
 
+// IsValid reports whether the message is correctly formed.
 func (msg *Message) IsValid() bool {
 	switch msg.Command {
 	case "AUTHENTICATE", "PING", "PONG":
@@ -377,6 +395,7 @@ func (msg *Message) IsValid() bool {
 	}
 }
 
+// Time returns the time when the message has been sent, if present.
 func (msg *Message) Time() (t time.Time, ok bool) {
 	var tag string
 	var year, month, day, hour, minute, second, millis int
@@ -398,6 +417,8 @@ func (msg *Message) Time() (t time.Time, ok bool) {
 	return
 }
 
+// TimeOrNow returns the time when the message has been sent, or time.Now() if
+// absent.
 func (msg *Message) TimeOrNow() time.Time {
 	t, ok := msg.Time()
 	if ok {
@@ -406,6 +427,7 @@ func (msg *Message) TimeOrNow() time.Time {
 	return time.Now().UTC()
 }
 
+// Severity is the severity of a server reply.
 type Severity int
 
 const (
@@ -414,6 +436,7 @@ const (
 	SeverityFail
 )
 
+// ReplySeverity returns the severity of a server reply.
 func ReplySeverity(reply string) Severity {
 	switch reply[0] {
 	case '4', '5':
@@ -434,12 +457,15 @@ func ReplySeverity(reply string) Severity {
 	}
 }
 
+// Cap is a capability token in "CAP" server responses.
 type Cap struct {
 	Name   string
 	Value  string
 	Enable bool
 }
 
+// ParseCaps parses the last argument (capability list) of "CAP LS/LIST/NEW/DEL"
+// server responses.
 func ParseCaps(caps string) (diff []Cap) {
 	for _, c := range strings.Split(caps, " ") {
 		if c == "" || c == "-" || c == "=" || c == "-=" {
@@ -467,11 +493,14 @@ func ParseCaps(caps string) (diff []Cap) {
 	return
 }
 
+// Member is a token in RPL_NAMREPLY's last parameter.
 type Member struct {
 	PowerLevel string
 	Name       *Prefix
 }
 
+// ParseNameReply parses the last parameter of RPL_NAMREPLY, according to the
+// membership prefixes of the server.
 func ParseNameReply(trailing string, prefixes string) (names []Member) {
 	for _, word := range strings.Split(trailing, " ") {
 		if word == "" {
