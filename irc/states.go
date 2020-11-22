@@ -260,6 +260,7 @@ func (s *Session) Stop() {
 	close(s.acts)
 	close(s.evts)
 	close(s.msgs)
+	s.typings.Stop()
 }
 
 // Poll returns the event channel where incoming events are reported.
@@ -465,7 +466,10 @@ func (s *Session) run() {
 		var err error
 
 		select {
-		case act := <-s.acts:
+		case act, ok := <-s.acts:
+			if !ok {
+				break
+			}
 			switch act := act.(type) {
 			case actionSendRaw:
 				err = s.sendRaw(act)
@@ -484,13 +488,19 @@ func (s *Session) run() {
 			case actionRequestHistory:
 				err = s.requestHistory(act)
 			}
-		case msg := <-s.msgs:
+		case msg, ok := <-s.msgs:
+			if !ok {
+				break
+			}
 			if s.registered {
 				err = s.handle(msg)
 			} else {
 				err = s.handleStart(msg)
 			}
-		case t := <-s.typings.Stops():
+		case t, ok := <-s.typings.Stops():
+			if !ok {
+				break
+			}
 			s.evts <- TagEvent{
 				User:   s.users[t.Name].Name,
 				Target: s.channels[t.Target].Name,

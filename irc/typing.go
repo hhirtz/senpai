@@ -24,8 +24,7 @@ func NewTypings() *Typings {
 		stops:    make(chan Typing, 16),
 	}
 	go func() {
-		for {
-			t := <-ts.timeouts
+		for t := range ts.timeouts {
 			now := time.Now()
 			ts.l.Lock()
 			oldT, ok := ts.targets[t]
@@ -39,6 +38,11 @@ func NewTypings() *Typings {
 		}
 	}()
 	return ts
+}
+
+func (ts *Typings) Stop() {
+	close(ts.timeouts)
+	close(ts.stops)
 }
 
 func (ts *Typings) Stops() <-chan Typing {
