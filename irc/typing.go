@@ -5,18 +5,21 @@ import (
 	"time"
 )
 
+// Typing is an event of Name actively typing in Target.
 type Typing struct {
 	Target string
 	Name   string
 }
 
+// Typings keeps track of typing notification timeouts.
 type Typings struct {
 	l        sync.Mutex
-	targets  map[Typing]time.Time
-	timeouts chan Typing
-	stops    chan Typing
+	targets  map[Typing]time.Time // @+typing TAGMSG timestamps.
+	timeouts chan Typing          // transmits unfiltered timeout notifications.
+	stops    chan Typing          // transmits filtered timeout notifications.
 }
 
+// NewTypings initializes the Typings structures and filtering coroutine.
 func NewTypings() *Typings {
 	ts := &Typings{
 		targets:  map[Typing]time.Time{},
@@ -40,18 +43,21 @@ func NewTypings() *Typings {
 	return ts
 }
 
+// Stop cleanly closes all channels and stops all coroutines.
 func (ts *Typings) Stop() {
 	close(ts.timeouts)
 	close(ts.stops)
 }
 
+// Stops is a channel that transmits typing timeouts.
 func (ts *Typings) Stops() <-chan Typing {
 	return ts.stops
 }
 
+// Active should be called when a user is typing to some target.
 func (ts *Typings) Active(target, name string) {
-	t := Typing{target, name}
 	ts.l.Lock()
+	t := Typing{target, name}
 	ts.targets[t] = time.Now()
 	ts.l.Unlock()
 
@@ -61,6 +67,7 @@ func (ts *Typings) Active(target, name string) {
 	}()
 }
 
+// Active should be called when a user is done typing to some target.
 func (ts *Typings) Done(target, name string) {
 	ts.l.Lock()
 	delete(ts.targets, Typing{target, name})
