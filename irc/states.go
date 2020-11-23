@@ -501,9 +501,17 @@ func (s *Session) run() {
 			if !ok {
 				break
 			}
+			u, ok := s.users[t.Name]
+			if !ok {
+				break
+			}
+			c, ok := s.channels[t.Target]
+			if !ok {
+				break
+			}
 			s.evts <- TagEvent{
-				User:   s.users[t.Name].Name,
-				Target: s.channels[t.Target].Name,
+				User:   u.Name,
+				Target: c.Name,
 				Typing: TypingDone,
 				Time:   time.Now(),
 			}
