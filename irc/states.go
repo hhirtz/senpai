@@ -202,16 +202,6 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 		chBatches:     map[string]HistoryEvent{},
 	}
 
-	if s.nick == "" {
-		return nil, errors.New("no nickname specified")
-	}
-	if s.user == "" {
-		s.user = s.nick
-	}
-	if s.real == "" {
-		s.real = s.nick
-	}
-
 	s.running.Store(true)
 
 	err := s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)

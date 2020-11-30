@@ -1,6 +1,7 @@
 package senpai
 
 import (
+	"errors"
 	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
@@ -23,6 +24,18 @@ type Config struct {
 
 func ParseConfig(buf []byte) (cfg Config, err error) {
 	err = yaml.Unmarshal(buf, &cfg)
+	if cfg.Addr == "" {
+		return cfg, errors.New("addr is required")
+	}
+	if cfg.Nick == "" {
+		return cfg, errors.New("nick is required")
+	}
+	if cfg.User == "" {
+		cfg.User = cfg.Nick
+	}
+	if cfg.Real == "" {
+		cfg.Real = cfg.Nick
+	}
 	if cfg.NickColWidth <= 0 {
 		cfg.NickColWidth = 16
 	}
