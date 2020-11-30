@@ -434,13 +434,14 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 		"%n", nick,
 		"%m", cleanMessage(content))
 	command := r.Replace(app.cfg.OnHighlight)
-	err = exec.Command(sh, "-c", command).Run()
+	output, err := exec.Command(sh, "-c", command).CombinedOutput()
 	if err != nil {
+		body := fmt.Sprintf("Failed to invoke on-highlight command: %v. Output: %q", err, string(output))
 		app.win.AddLine(Home, false, ui.Line{
 			At:        time.Now(),
-			Head:      "ERROR --",
+			Head:      "!!",
 			HeadColor: ui.ColorRed,
-			Body:      fmt.Sprintf("Failed to invoke on-highlight command: %v", err),
+			Body:      body,
 		})
 	}
 }
