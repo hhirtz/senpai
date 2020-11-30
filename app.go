@@ -59,7 +59,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		app.addLineNow(Home, ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
-			Body:      "Connection failed",
+			Body:      fmt.Sprintf("Connection failed: %v", err),
 		})
 		err = nil
 		return
@@ -80,7 +80,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		app.addLineNow(Home, ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
-			Body:      "Registration failed",
+			Body:      fmt.Sprintf("Connection failed: %v", err),
 		})
 	}
 
