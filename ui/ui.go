@@ -46,14 +46,14 @@ func New(config Config) (ui *UI, err error) {
 	ui.screen.Clear()
 	ui.screen.ShowCursor(0, h-2)
 
+	ui.exit.Store(false)
+
 	ui.Events = make(chan tcell.Event, 128)
 	go func() {
 		for !ui.ShouldExit() {
 			ui.Events <- ui.screen.PollEvent()
 		}
 	}()
-
-	ui.exit.Store(false)
 
 	ui.bs = NewBufferList(w, h, ui.config.NickColWidth)
 	ui.e = NewEditor(w, ui.config.AutoComplete)
