@@ -10,8 +10,9 @@ import (
 )
 
 type command struct {
-	MinArgs   int
 	AllowHome bool
+	MinArgs   int
+	MaxArgs   int
 	Usage     string
 	Desc      string
 	Handle    func(app *App, buffer string, args []string) error
@@ -25,17 +26,20 @@ func init() {
 	commands = commandSet{
 		"": {
 			MinArgs: 1,
+			MaxArgs: 1,
 			Handle:  commandDo,
 		},
 		"HELP": {
 			AllowHome: true,
+			MaxArgs:   1,
 			Usage:     "[command]",
 			Desc:      "show the list of commands, or how to use the given one",
 			Handle:    commandDoHelp,
 		},
 		"JOIN": {
-			MinArgs:   1,
 			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   2,
 			Usage:     "<channels> [keys]",
 			Desc:      "join a channel",
 			Handle:    commandDoJoin,
@@ -43,6 +47,7 @@ func init() {
 		"ME": {
 			AllowHome: true,
 			MinArgs:   1,
+			MaxArgs:   1,
 			Usage:     "<message>",
 			Desc:      "send an action (reply to last query if sent from home)",
 			Handle:    commandDoMe,
@@ -50,6 +55,7 @@ func init() {
 		"MSG": {
 			AllowHome: true,
 			MinArgs:   2,
+			MaxArgs:   2,
 			Usage:     "<target> <message>",
 			Desc:      "send a message to the given target",
 			Handle:    commandDoMsg,
@@ -60,19 +66,22 @@ func init() {
 		},
 		"PART": {
 			AllowHome: true,
+			MaxArgs:   2,
 			Usage:     "[channel] [reason]",
 			Desc:      "part a channel",
 			Handle:    commandDoPart,
 		},
 		"QUIT": {
 			AllowHome: true,
+			MaxArgs:   1,
 			Usage:     "[reason]",
 			Desc:      "quit senpai",
 			Handle:    commandDoQuit,
 		},
 		"QUOTE": {
-			MinArgs:   1,
 			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   1,
 			Usage:     "<raw message>",
 			Desc:      "send raw protocol data",
 			Handle:    commandDoQuote,
@@ -80,14 +89,16 @@ func init() {
 		"REPLY": {
 			AllowHome: true,
 			MinArgs:   1,
+			MaxArgs:   1,
 			Usage:     "<message>",
 			Desc:      "reply to the last query",
 			Handle:    commandDoR,
 		},
 		"TOPIC": {
-			Usage:  "[topic]",
-			Desc:   "show or set the topic of the current channel",
-			Handle: commandDoTopic,
+			MaxArgs: 1,
+			Usage:   "[topic]",
+			Desc:    "show or set the topic of the current channel",
+			Handle:  commandDoTopic,
 		},
 	}
 }
@@ -109,7 +120,6 @@ func commandDo(app *App, buffer string, args []string) (err error) {
 }
 
 func commandDoHelp(app *App, buffer string, args []string) (err error) {
-	// TODO
 	t := time.Now()
 	if len(args) == 0 {
 		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
@@ -352,12 +362,8 @@ func (app *App) handleInput(buffer, content string) error {
 	cmd := commands[chosenCMDName]
 
 	var args []string
-	if rawArgs == "" {
-		args = nil
-	} else if cmd.MinArgs == 0 {
-		args = []string{rawArgs}
-	} else {
-		args = strings.SplitN(rawArgs, " ", cmd.MinArgs)
+	if rawArgs != "" && cmd.MaxArgs != 0 {
+		args = strings.SplitN(rawArgs, " ", cmd.MaxArgs)
 	}
 
 	if len(args) < cmd.MinArgs {
