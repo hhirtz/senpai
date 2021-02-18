@@ -71,7 +71,7 @@ func init() {
 			Desc:      "send raw protocol data",
 			Handle:    commandDoQuote,
 		},
-		"R": {
+		"REPLY": {
 			AllowHome: true,
 			MinArgs:   1,
 			Usage:     "<message>",
@@ -314,10 +314,26 @@ func parseCommand(s string) (command, args string) {
 func (app *App) handleInput(buffer, content string) error {
 	cmdName, rawArgs := parseCommand(content)
 
-	cmd, ok := commands[cmdName]
+	var chosenCMDName string
+	var ok bool
+	for key := range commands {
+		if cmdName == "" && key != "" {
+			continue
+		}
+		if !strings.HasPrefix(key, cmdName) {
+			continue
+		}
+		if ok {
+			return fmt.Errorf("ambiguous command %q (could mean %v or %v)", cmdName, chosenCMDName, key)
+		}
+		chosenCMDName = key
+		ok = true
+	}
 	if !ok {
 		return fmt.Errorf("command %q doesn't exist", cmdName)
 	}
+
+	cmd := commands[chosenCMDName]
 
 	var args []string
 	if rawArgs == "" {
