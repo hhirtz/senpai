@@ -109,11 +109,14 @@ _name_ is matched case-insensitively.  It can be one of the following:
 *HELP* [search]
     Show the list of command (or a commands that match the given search terms).
 
-*J*, *JOIN* <channel>
+*JOIN* <channel>
 	Join the given channel.
 
-*PART* [channel]
+*PART* [channel] [reason]
 	Part the given channel, defaults to the current one if omitted.
+
+*QUIT* [reason]
+	Quits senpai.
 
 *NAMES*
 	Show the member list of the current channel.  Powerlevels (such as _@_ for
@@ -128,7 +131,7 @@ _name_ is matched case-insensitively.  It can be one of the following:
 *MSG* <target> <content>
 	Send _content_ to _target_.
 
-*R* <content>
+*REPLY* <content>
 	Reply to the last person who sent a private message.
 
 *ME* <content>

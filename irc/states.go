@@ -96,6 +96,9 @@ type (
 		Channel string
 		Topic   string
 	}
+	actionQuit struct {
+		Reason string
+	}
 
 	actionPrivMsg struct {
 		Target  string
@@ -390,6 +393,15 @@ func (s *Session) setTopic(act actionSetTopic) (err error) {
 	return
 }
 
+func (s *Session) Quit(reason string) {
+	s.acts <- actionQuit{reason}
+}
+
+func (s *Session) quit(act actionQuit) (err error) {
+	err = s.send("QUIT :%s\r\n", act.Reason)
+	return
+}
+
 func (s *Session) PrivMsg(target, content string) {
 	s.acts <- actionPrivMsg{target, content}
 }
@@ -469,6 +481,8 @@ func (s *Session) run() {
 				err = s.part(act)
 			case actionSetTopic:
 				err = s.setTopic(act)
+			case actionQuit:
+				err = s.quit(act)
 			case actionPrivMsg:
 				err = s.privMsg(act)
 			case actionTyping:

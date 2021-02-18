@@ -64,6 +64,12 @@ func init() {
 			Desc:      "part a channel",
 			Handle:    commandDoPart,
 		},
+		"QUIT": {
+			AllowHome: true,
+			Usage:     "[reason]",
+			Desc:      "quit senpai",
+			Handle:    commandDoQuit,
+		},
 		"QUOTE": {
 			MinArgs:   1,
 			AllowHome: true,
@@ -245,6 +251,16 @@ func commandDoPart(app *App, buffer string, args []string) (err error) {
 	} else {
 		err = fmt.Errorf("cannot part home!")
 	}
+	return
+}
+
+func commandDoQuit(app *App, buffer string, args []string) (err error) {
+	reason := ""
+	if 0 < len(args) {
+		reason = args[0]
+	}
+	app.s.Quit(reason)
+	app.win.Exit()
 	return
 }
 
