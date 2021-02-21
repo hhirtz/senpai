@@ -3,6 +3,7 @@ package senpai
 import (
 	"crypto/tls"
 	"fmt"
+	"net"
 	"os/exec"
 	"strings"
 	"time"
@@ -49,12 +50,16 @@ func NewApp(cfg Config) (app *App, err error) {
 
 	app.initWindow()
 
-	var conn *tls.Conn
+	var conn net.Conn
 	app.addLineNow(Home, ui.Line{
 		Head: "--",
 		Body: fmt.Sprintf("Connecting to %s...", cfg.Addr),
 	})
-	conn, err = tls.Dial("tcp", cfg.Addr, nil)
+	if cfg.NoTLS {
+		conn, err = net.Dial("tcp", cfg.Addr)
+	} else {
+		conn, err = tls.Dial("tcp", cfg.Addr, nil)
+	}
 	if err != nil {
 		app.addLineNow(Home, ui.Line{
 			Head:      "!!",

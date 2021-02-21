@@ -13,6 +13,7 @@ type Config struct {
 	Real     string
 	User     string
 	Password *string
+	NoTLS    bool `yaml:"no-tls"`
 
 	Highlights   []string
 	OnHighlight  string `yaml:"on-highlight"`
