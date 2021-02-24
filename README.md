@@ -15,7 +15,7 @@ addr: irc.freenode.net:6697
 nick: senpai
 password: "my password can't be this cute"
 EOF
-go run ./cmd/irc
+go run ./cmd/senpai
 ```
 
 Then, type `/join #senpai` and have a chat!
