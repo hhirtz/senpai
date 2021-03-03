@@ -13,10 +13,25 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+const eventChanSize = 64
+
+type source int
+
+const (
+	uiEvent source = iota
+	ircEvent
+)
+
+type event struct {
+	src     source
+	content interface{}
+}
+
 type App struct {
 	win     *ui.UI
 	s       *irc.Session
 	pasting bool
+	events  chan event
 
 	cfg        Config
 	highlights []string
@@ -26,7 +41,8 @@ type App struct {
 
 func NewApp(cfg Config) (app *App, err error) {
 	app = &App{
-		cfg: cfg,
+		cfg:    cfg,
+		events: make(chan event, eventChanSize),
 	}
 
 	if cfg.Highlights != nil {
@@ -50,45 +66,6 @@ func NewApp(cfg Config) (app *App, err error) {
 
 	app.initWindow()
 
-	var conn net.Conn
-	app.addLineNow(Home, ui.Line{
-		Head: "--",
-		Body: fmt.Sprintf("Connecting to %s...", cfg.Addr),
-	})
-	if cfg.NoTLS {
-		conn, err = net.Dial("tcp", cfg.Addr)
-	} else {
-		conn, err = tls.Dial("tcp", cfg.Addr, nil)
-	}
-	if err != nil {
-		app.addLineNow(Home, ui.Line{
-			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      fmt.Sprintf("Connection failed: %v", err),
-		})
-		err = nil
-		return
-	}
-
-	var auth irc.SASLClient
-	if cfg.Password != nil {
-		auth = &irc.SASLPlain{Username: cfg.User, Password: *cfg.Password}
-	}
-	app.s, err = irc.NewSession(conn, irc.SessionParams{
-		Nickname: cfg.Nick,
-		Username: cfg.User,
-		RealName: cfg.Real,
-		Auth:     auth,
-		Debug:    cfg.Debug,
-	})
-	if err != nil {
-		app.addLineNow(Home, ui.Line{
-			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      fmt.Sprintf("Connection failed: %v", err),
-		})
-	}
-
 	return
 }
 
@@ -100,37 +77,157 @@ func (app *App) Close() {
 }
 
 func (app *App) Run() {
+	go app.uiLoop()
+	go app.ircLoop()
+	app.eventLoop()
+}
+
+// eventLoop retrieves events (in batches) from the event channel and handle
+// them, then draws the interface after each batch is handled.
+func (app *App) eventLoop() {
+	evs := make([]event, 0, eventChanSize)
 	for !app.win.ShouldExit() {
-		if app.s != nil {
+		ev := <-app.events
+		evs = evs[:0]
+		evs = append(evs, ev)
+	Batch:
+		for i := 0; i < eventChanSize; i++ {
 			select {
-			case ev := <-app.s.Poll():
-				evs := []irc.Event{ev}
-			Batch:
-				for i := 0; i < 64; i++ {
-					select {
-					case ev := <-app.s.Poll():
-						evs = append(evs, ev)
-					default:
-						break Batch
-					}
-				}
-				app.handleIRCEvents(evs)
-			case ev := <-app.win.Events:
-				app.handleUIEvent(ev)
+			case ev := <-app.events:
+				evs = append(evs, ev)
+			default:
+				break Batch
 			}
-		} else {
-			ev := <-app.win.Events
-			app.handleUIEvent(ev)
+		}
+
+		app.handleEvents(evs)
+		if !app.pasting {
+			app.draw()
 		}
 	}
 }
 
-func (app *App) handleIRCEvents(evs []irc.Event) {
+// handleEvents handles a batch of events.
+func (app *App) handleEvents(evs []event) {
 	for _, ev := range evs {
-		app.handleIRCEvent(ev)
+		switch ev.src {
+		case uiEvent:
+			app.handleUIEvent(ev.content.(tcell.Event))
+		case ircEvent:
+			app.handleIRCEvent(ev.content.(irc.Event))
+		default:
+			panic("unreachable")
+		}
 	}
-	if !app.pasting {
-		app.draw()
+}
+
+// ircLoop maintains a connection to the IRC server by connecting and then
+// forwarding IRC events to app.events repeatedly.
+func (app *App) ircLoop() {
+	for !app.win.ShouldExit() {
+		app.connect()
+		for ev := range app.s.Poll() {
+			app.events <- event{
+				src:     ircEvent,
+				content: ev,
+			}
+		}
+		app.addLineNow(Home, ui.Line{
+			Head:      "!!",
+			HeadColor: ui.ColorRed,
+			Body:      "Connection lost",
+		})
+	}
+}
+
+func (app *App) connect() {
+	for {
+		app.addLineNow(Home, ui.Line{
+			Head: "--",
+			Body: fmt.Sprintf("Connecting to %s...", app.cfg.Addr),
+		})
+		err := app.tryConnect()
+		if err == nil {
+			break
+		}
+		app.addLineNow(Home, ui.Line{
+			Head:      "!!",
+			HeadColor: ui.ColorRed,
+			Body:      fmt.Sprintf("Connection failed: %v", err),
+		})
+		time.Sleep(1 * time.Minute)
+	}
+}
+
+func (app *App) tryConnect() (err error) {
+	addr := app.cfg.Addr
+	serverName := app.cfg.Addr
+	if i := strings.IndexByte(app.cfg.Addr, ':'); i >= 0 {
+		serverName = app.cfg.Addr[:i]
+	} else {
+		addr = app.cfg.Addr + ":6697"
+	}
+
+	peerAddr, err := net.ResolveTCPAddr("tcp", addr)
+	if err != nil {
+		return
+	}
+
+	tcpConn, err := net.DialTCP("tcp", nil, peerAddr)
+	if err != nil {
+		tcpConn.Close()
+		return
+	}
+	if err = tcpConn.SetKeepAlivePeriod(1 * time.Minute); err != nil {
+		tcpConn.Close()
+		return
+	}
+	if err = tcpConn.SetKeepAlive(true); err != nil {
+		tcpConn.Close()
+		return
+	}
+
+	var conn net.Conn = tcpConn
+	if !app.cfg.NoTLS {
+		conn = tls.Client(conn, &tls.Config{
+			ServerName: serverName,
+		})
+	}
+
+	var auth irc.SASLClient
+	if app.cfg.Password != nil {
+		auth = &irc.SASLPlain{
+			Username: app.cfg.User,
+			Password: *app.cfg.Password,
+		}
+	}
+	app.s, err = irc.NewSession(conn, irc.SessionParams{
+		Nickname: app.cfg.Nick,
+		Username: app.cfg.User,
+		RealName: app.cfg.Real,
+		Auth:     auth,
+		Debug:    app.cfg.Debug,
+	})
+	if err != nil {
+		conn.Close()
+		return
+	}
+
+	return
+}
+
+// uiLoop retrieves events from the UI and forwards them to app.events for
+// handling in app.eventLoop().
+func (app *App) uiLoop() {
+	for {
+		ev, ok := <-app.win.Events
+		if !ok {
+			break
+		}
+		app.events <- event{
+			src:     uiEvent,
+			content: ev,
+		}
 	}
 }
 

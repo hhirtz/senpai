@@ -6,12 +6,14 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
+	"net"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
 )
+
+const writeDeadline = 10 * time.Second
 
 type SASLClient interface {
 	Handshake() (mech string)
@@ -149,7 +151,7 @@ type SessionParams struct {
 
 // Session is an IRC session/connection/whatever.
 type Session struct {
-	conn io.ReadWriteCloser
+	conn net.Conn
 	msgs chan Message // incoming messages.
 	acts chan action  // user actions.
 	evts chan Event   // events sent to the user.
@@ -183,7 +185,7 @@ type Session struct {
 //
 // It returns an error when the paramaters are invalid, or when it cannot write
 // to the connection.
-func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error) {
+func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
 	s := &Session{
 		conn:          conn,
 		msgs:          make(chan Message, 64),
@@ -207,11 +209,6 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 
 	s.running.Store(true)
 
-	err := s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)
-	if err != nil {
-		return nil, err
-	}
-
 	go func() {
 		r := bufio.NewScanner(conn)
 
@@ -232,6 +229,11 @@ func NewSession(conn io.ReadWriteCloser, params SessionParams) (*Session, error)
 
 		s.Stop()
 	}()
+
+	err := s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)
+	if err != nil {
+		return nil, err
+	}
 
 	go s.run()
 
@@ -1081,6 +1083,8 @@ func (s *Session) updateFeatures(features []string) {
 
 func (s *Session) send(format string, args ...interface{}) (err error) {
 	msg := fmt.Sprintf(format, args...)
+
+	s.conn.SetWriteDeadline(time.Now().Add(writeDeadline))
 	_, err = s.conn.Write([]byte(msg))
 
 	if s.debug {
