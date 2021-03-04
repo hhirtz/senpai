@@ -192,8 +192,8 @@ func (ui *UI) InputDelete() (ok bool) {
 	return ui.e.RemRuneForward()
 }
 
-func (ui *UI) InputAutoComplete() (ok bool) {
-	return ui.e.AutoComplete()
+func (ui *UI) InputAutoComplete(offset int) (ok bool) {
+	return ui.e.AutoComplete(offset)
 }
 
 func (ui *UI) InputEnter() (content string) {

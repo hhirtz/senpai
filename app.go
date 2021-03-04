@@ -444,7 +444,12 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 			app.updatePrompt()
 		}
 	case tcell.KeyTab:
-		ok := app.win.InputAutoComplete()
+		ok := app.win.InputAutoComplete(1)
+		if ok {
+			app.typing()
+		}
+	case tcell.KeyBacktab:
+		ok := app.win.InputAutoComplete(-1)
 		if ok {
 			app.typing()
 		}

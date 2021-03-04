@@ -212,23 +212,21 @@ func (e *Editor) Down() {
 	e.End()
 }
 
-func (e *Editor) AutoComplete() (ok bool) {
+func (e *Editor) AutoComplete(offset int) (ok bool) {
 	if e.autoCache == nil {
 		e.autoCache = e.autoComplete(e.cursorIdx, e.text[e.lineIdx])
-		if e.autoCache == nil {
-			return false
-		}
 		if len(e.autoCache) == 0 {
 			e.autoCache = nil
 			return false
 		}
 		e.autoCacheIdx = 0
+	} else {
+		e.autoCacheIdx = (e.autoCacheIdx + len(e.autoCache) + offset) % len(e.autoCache)
 	}
 
 	e.text[e.lineIdx] = e.autoCache[e.autoCacheIdx].Text
 	e.cursorIdx = e.autoCache[e.autoCacheIdx].CursorIdx
 	e.computeTextWidth()
-	e.autoCacheIdx = (e.autoCacheIdx + 1) % len(e.autoCache)
 	if len(e.textWidth) <= e.offsetIdx {
 		e.offsetIdx = 0
 	}
