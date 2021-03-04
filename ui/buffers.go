@@ -360,7 +360,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		for x := x0; x < x0+width; x++ {
 			screen.SetContent(x, y, ' ', nil, st)
 		}
-		screen.SetContent(x0+width, y, 0x2502, nil, st.Dim(true))
+		screen.SetContent(x0+width, y, 0x2502, nil, st)
 	}
 
 	for i, b := range bs.list {
@@ -373,7 +373,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			st = st.Underline(true)
 		}
 		if i == bs.clicked {
-			st = st.Reverse(true).Dim(true)
+			st = st.Reverse(true)
 		}
 		title := truncate(b.title, width, "\u2026")
 		printString(screen, &x, y, st, title)
@@ -386,7 +386,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			x++
 		}
 		if i == bs.clicked {
-			st = tcell.StyleDefault.Reverse(true).Dim(true)
+			st = tcell.StyleDefault.Reverse(true)
 			for ; x < x0+width; x++ {
 				screen.SetContent(x, y, ' ', nil, st)
 			}
