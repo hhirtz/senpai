@@ -161,21 +161,25 @@ func (app *App) connect() {
 
 func (app *App) tryConnect() (err error) {
 	addr := app.cfg.Addr
-	serverName := app.cfg.Addr
-	if i := strings.IndexByte(app.cfg.Addr, ':'); i >= 0 {
-		serverName = app.cfg.Addr[:i]
-	} else {
-		addr = app.cfg.Addr + ":6697"
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return err
+	}
+	if port == "" {
+		if app.cfg.NoTLS {
+			port = "6667"
+		} else {
+			port = "6697"
+		}
 	}
 
-	peerAddr, err := net.ResolveTCPAddr("tcp", addr)
+	peerAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(host, port))
 	if err != nil {
 		return
 	}
 
 	tcpConn, err := net.DialTCP("tcp", nil, peerAddr)
 	if err != nil {
-		tcpConn.Close()
 		return
 	}
 	if err = tcpConn.SetKeepAlivePeriod(1 * time.Minute); err != nil {
@@ -190,7 +194,8 @@ func (app *App) tryConnect() (err error) {
 	var conn net.Conn = tcpConn
 	if !app.cfg.NoTLS {
 		conn = tls.Client(conn, &tls.Config{
-			ServerName: serverName,
+			ServerName: host,
+			NextProtos: []string{"irc"},
 		})
 	}
 
