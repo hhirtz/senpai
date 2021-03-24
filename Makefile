@@ -31,3 +31,5 @@ uninstall:
 	$(RM) $(DESTDIR)$(PREFIX)/$(BINDIR)/senpai
 	$(RM) $(DESTDIR)$(PREFIX)/$(MANDIR)/man1/senpai.1
 	$(RM) $(DESTDIR)$(PREFIX)/$(MANDIR)/man5/senpai.5
+
+.PHONY: all senpai clean install uninstall
