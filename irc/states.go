@@ -325,7 +325,7 @@ func (s *Session) Typings(target string) []string {
 	targetCf := s.Casemap(target)
 	var res []string
 	for t := range s.typings.targets {
-		if targetCf == t.Target {
+		if targetCf == t.Target && s.Casemap(t.Name) != s.NickCf() {
 			res = append(res, s.users[t.Name].Name.Name)
 		}
 	}
