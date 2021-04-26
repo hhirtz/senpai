@@ -123,6 +123,6 @@ func parseFlags() {
 		if cfg.Password != nil {
 			password = *cfg.Password
 		}
-		useTLS = true
+		useTLS = !cfg.NoTLS
 	}
 }
