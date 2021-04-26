@@ -448,6 +448,12 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 			app.typing()
 			app.updatePrompt()
 		}
+	case tcell.KeyCtrlW:
+		ok := app.win.InputDeleteWord()
+		if ok {
+			app.typing()
+			app.updatePrompt()
+		}
 	case tcell.KeyTab:
 		ok := app.win.InputAutoComplete(1)
 		if ok {

@@ -116,6 +116,36 @@ func (e *Editor) remRuneAt(idx int) {
 	e.text[e.lineIdx] = e.text[e.lineIdx][:len(e.text[e.lineIdx])-1]
 }
 
+func (e *Editor) RemWord() (ok bool) {
+	ok = 0 < e.cursorIdx
+	if !ok {
+		return
+	}
+
+	line := e.text[e.lineIdx]
+
+	// To allow doing something like this (| is the cursor):
+	// Hello world|
+	// Hello |
+	// |
+	for line[e.cursorIdx - 1] == ' ' {
+		e.remRuneAt(e.cursorIdx - 1)
+		e.Left()
+	}
+
+	for i := e.cursorIdx - 1; i >= 0; i -= 1 {
+		if line[i] == ' ' {
+			break
+		}
+		e.remRuneAt(i)
+		e.Left()
+	}
+
+	e.autoCache = nil
+	return
+}
+
+
 func (e *Editor) Flush() (content string) {
 	content = string(e.text[e.lineIdx])
 	if len(e.text[len(e.text)-1]) == 0 {
