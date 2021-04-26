@@ -61,6 +61,13 @@ Some settings are required, the others are optional.
 *chan-column-width*
 	The number of cell that the column for channels occupies.  By default, 16.
 
+*no-tls*
+	Disable TLS encryption. By default, false.
+
+*debug*
+	Dump all sent and received data to the home buffer, useful for debugging.
+	By default, false.
+
 # EXAMPLES
 
 A minimal configuration file to connect to freenode as "Guest123456":
