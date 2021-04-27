@@ -140,6 +140,9 @@ _name_ is matched case-insensitively.  It can be one of the following:
 *QUOTE* <raw message>
 	Send _raw message_ verbatim.
 
+*BUFFER* <name>
+	Switch to the buffer containing _name_.
+
 # SEE ALSO
 
 *senpai*(5)

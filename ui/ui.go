@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -138,6 +139,17 @@ func (ui *UI) AddLine(buffer string, highlight bool, line Line) {
 
 func (ui *UI) AddLines(buffer string, lines []Line) {
 	ui.bs.AddLines(buffer, lines)
+}
+
+func (ui *UI) JumpBuffer(sub string) bool {
+	for i, b := range ui.bs.list {
+		if strings.Contains(b.title, sub) {
+			ui.bs.To(i)
+			return true
+		}
+	}
+
+	return false
 }
 
 func (ui *UI) SetStatus(status string) {

@@ -100,6 +100,14 @@ func init() {
 			Desc:    "show or set the topic of the current channel",
 			Handle:  commandDoTopic,
 		},
+		"BUFFER": {
+			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   1,
+			Usage:     "<name>",
+			Desc:      "switch to the buffer containing a substring",
+			Handle:    commandDoBuffer,
+		},
 	}
 }
 
@@ -374,4 +382,13 @@ func (app *App) handleInput(buffer, content string) error {
 	}
 
 	return cmd.Handle(app, buffer, args)
+}
+
+func commandDoBuffer(app *App, buffer string, args []string) error {
+	name := args[0]
+	if !app.win.JumpBuffer(args[0]) {
+		return fmt.Errorf("none of the buffers match %q", name)
+	}
+
+	return nil
 }
