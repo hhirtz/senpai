@@ -227,7 +227,9 @@ func colorFromCode(code int) (color tcell.Color) {
 }
 
 // see <https://modern.ircdocs.horse/formatting.html>
-var identColorBlacklist = []int{1, 8, 16, 27, 28, 88, 89, 90, 91}
+var identColorBlacklist = []int{
+	1, 8, 16, 17, 24, 27, 28, 36, 48, 60, 88, 89, 90, 91,
+}
 
 func IdentColor(s string) (code int) {
 	h := fnv.New32()
