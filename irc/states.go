@@ -173,7 +173,10 @@ type Session struct {
 
 	availableCaps map[string]string
 	enabledCaps   map[string]struct{}
-	features      map[string]string // server ISUPPORT advertized features.
+
+	// ISUPPORT features
+	casemap   func(string) string
+	chantypes string
 
 	users     map[string]*User        // known users.
 	channels  map[string]Channel      // joined channels.
@@ -201,7 +204,8 @@ func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
 		auth:          params.Auth,
 		availableCaps: map[string]string{},
 		enabledCaps:   map[string]struct{}{},
-		features:      map[string]string{},
+		casemap:       CasemapRFC1459,
+		chantypes:     "#&",
 		users:         map[string]*User{},
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
@@ -280,19 +284,11 @@ func (s *Session) NickCf() string {
 }
 
 func (s *Session) IsChannel(name string) bool {
-	chantypes, ok := s.features["CHANTYPES"]
-	if !ok {
-		chantypes = "#&"
-	}
-	return strings.IndexAny(name, chantypes) == 0
+	return strings.IndexAny(name, s.chantypes) == 0
 }
 
 func (s *Session) Casemap(name string) string {
-	if s.features["CASEMAPPING"] == "ascii" {
-		return CasemapASCII(name)
-	} else {
-		return CasemapRFC1459(name)
-	}
+	return s.casemap(name)
 }
 
 // Users returns the list of all known nicknames.
@@ -1073,10 +1069,21 @@ func (s *Session) updateFeatures(features []string) {
 			value = kv[1]
 		}
 
-		if add {
-			s.features[key] = value
-		} else {
-			delete(s.features, key)
+		if !add {
+			// TODO support ISUPPORT negations
+			continue
+		}
+
+		switch key {
+		case "CASEMAPPING":
+			switch value {
+			case "ascii":
+				s.casemap = CasemapASCII
+			default:
+				s.casemap = CasemapRFC1459
+			}
+		case "CHANTYPES":
+			s.chantypes = value
 		}
 	}
 }
