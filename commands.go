@@ -277,7 +277,9 @@ func commandDoQuit(app *App, buffer string, args []string) (err error) {
 	if 0 < len(args) {
 		reason = args[0]
 	}
-	app.s.Quit(reason)
+	if app.s != nil {
+		app.s.Quit(reason)
+	}
 	app.win.Exit()
 	return
 }
