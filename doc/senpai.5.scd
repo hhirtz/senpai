@@ -65,7 +65,7 @@ Some settings are required, the others are optional.
 	Disable TLS encryption.  Defaults to false.
 
 *no-typings*
-	Prevent senpai from sending typing notifications and let others know when
+	Prevent senpai from sending typing notifications which let others know when
 	you are typing a message.  Defaults to false.
 
 *debug*
