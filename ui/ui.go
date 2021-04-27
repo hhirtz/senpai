@@ -12,6 +12,7 @@ type Config struct {
 	NickColWidth int
 	ChanColWidth int
 	AutoComplete func(cursorIdx int, text []rune) []Completion
+	Mouse bool
 }
 
 type UI struct {
@@ -40,7 +41,9 @@ func New(config Config) (ui *UI, err error) {
 	if err != nil {
 		return
 	}
-	ui.screen.EnableMouse()
+	if ui.screen.HasMouse() && config.Mouse {
+		ui.screen.EnableMouse()
+	}
 	ui.screen.EnablePaste()
 
 	w, h := ui.screen.Size()

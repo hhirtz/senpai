@@ -16,6 +16,7 @@ type Config struct {
 	NoTLS    bool `yaml:"no-tls"`
 
 	NoTypings bool `yaml:"no-typings"`
+	Mouse     *bool
 
 	Highlights   []string
 	OnHighlight  string `yaml:"on-highlight"`

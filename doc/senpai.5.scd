@@ -68,6 +68,9 @@ Some settings are required, the others are optional.
 	Prevent senpai from sending typing notifications which let others know when
 	you are typing a message.  Defaults to false.
 
+*mouse*
+	Enable or disable mouse support.  Defaults to true.
+
 *debug*
 	Dump all sent and received data to the home buffer, useful for debugging.
 	By default, false.
