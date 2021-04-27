@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 )
 
 const writeDeadline = 10 * time.Second
@@ -177,6 +178,7 @@ type Session struct {
 	// ISUPPORT features
 	casemap   func(string) string
 	chantypes string
+	linelen   int
 
 	users     map[string]*User        // known users.
 	channels  map[string]Channel      // joined channels.
@@ -206,6 +208,7 @@ func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
 		enabledCaps:   map[string]struct{}{},
 		casemap:       CasemapRFC1459,
 		chantypes:     "#&",
+		linelen:       512,
 		users:         map[string]*User{},
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
@@ -400,12 +403,47 @@ func (s *Session) quit(act actionQuit) (err error) {
 	return
 }
 
+func splitChunks(s string, chunkLen int) (chunks []string) {
+	if chunkLen <= 0 {
+		return []string{s}
+	}
+	for chunkLen < len(s) {
+		i := chunkLen
+		min := chunkLen - utf8.UTFMax
+		for min <= i && !utf8.RuneStart(s[i]) {
+			i--
+		}
+		chunks = append(chunks, s[:i])
+		s = s[i:]
+	}
+	if len(s) != 0 {
+		chunks = append(chunks, s)
+	}
+	return
+}
+
 func (s *Session) PrivMsg(target, content string) {
 	s.acts <- actionPrivMsg{target, content}
 }
 
 func (s *Session) privMsg(act actionPrivMsg) (err error) {
-	err = s.send("PRIVMSG %s :%s\r\n", act.Target, act.Content)
+	hostLen := len(s.host)
+	if hostLen == 0 {
+		hostLen = len("255.255.255.255")
+	}
+	maxMessageLen := s.linelen -
+		len(":!@ PRIVMSG  :\r\n") -
+		len(s.nick) -
+		len(s.user) -
+		hostLen -
+		len(act.Target)
+	chunks := splitChunks(act.Content, maxMessageLen)
+	for _, chunk := range chunks {
+		err = s.send("PRIVMSG %s :%s\r\n", act.Target, chunk)
+		if err != nil {
+			return
+		}
+	}
 	target := s.Casemap(act.Target)
 	delete(s.typingStamps, target)
 	return
@@ -1084,6 +1122,11 @@ func (s *Session) updateFeatures(features []string) {
 			}
 		case "CHANTYPES":
 			s.chantypes = value
+		case "LINELEN":
+			linelen, err := strconv.Atoi(value)
+			if err == nil && linelen != 0 {
+				s.linelen = linelen
+			}
 		}
 	}
 }
