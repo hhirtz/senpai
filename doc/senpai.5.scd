@@ -62,7 +62,11 @@ Some settings are required, the others are optional.
 	The number of cell that the column for channels occupies.  By default, 16.
 
 *no-tls*
-	Disable TLS encryption. By default, false.
+	Disable TLS encryption.  Defaults to false.
+
+*no-typings*
+	Prevent senpai from sending typing notifications and let others know when
+	you are typing a message.  Defaults to false.
 
 *debug*
 	Dump all sent and received data to the home buffer, useful for debugging.

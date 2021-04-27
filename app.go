@@ -567,7 +567,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 // typing sends typing notifications to the IRC server according to the user
 // input.
 func (app *App) typing() {
-	if app.s == nil {
+	if app.s == nil || app.cfg.NoTypings {
 		return
 	}
 	buffer := app.win.CurrentBuffer()

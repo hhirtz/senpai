@@ -15,6 +15,8 @@ type Config struct {
 	Password *string
 	NoTLS    bool `yaml:"no-tls"`
 
+	NoTypings bool `yaml:"no-typings"`
+
 	Highlights   []string
 	OnHighlight  string `yaml:"on-highlight"`
 	NickColWidth int    `yaml:"nick-column-width"`
