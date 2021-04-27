@@ -279,6 +279,7 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 	}
 }
 
+// "lines" needs to be sorted by their "At" field.
 func (bs *BufferList) AddLines(title string, lines []Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
@@ -289,9 +290,28 @@ func (bs *BufferList) AddLines(title string, lines []Line) {
 	limit := len(lines)
 
 	if 0 < len(b.lines) {
+		// Compute "limit", the index first line of "lines" that should
+		// not be added to the buffer.
 		firstLineTime := b.lines[0].At.Unix()
+		firstLineBody := b.lines[0].Body
 		for i, l := range lines {
-			if firstLineTime < l.At.Unix() {
+			historyLineTime := l.At.Unix()
+			if historyLineTime < firstLineTime {
+				// This line is behind the first line of the
+				// buffer.
+				continue
+			}
+			if historyLineTime > firstLineTime {
+				// This line happened after the first line of
+				// the buffer.
+				limit = i
+				break
+			}
+			if l.Body == firstLineBody {
+				// This line happened at the same millisecond
+				// as the first line of the buffer, and has the
+				// same contents. Heuristic: it's the same
+				// message.
 				limit = i
 				break
 			}

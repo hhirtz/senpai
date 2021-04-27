@@ -183,6 +183,7 @@ type Session struct {
 	users     map[string]*User        // known users.
 	channels  map[string]Channel      // joined channels.
 	chBatches map[string]HistoryEvent // channel history batches being processed.
+	chReqs    map[string]struct{}     // set of targets for which history is currently requested.
 }
 
 // NewSession starts an IRC session from the given connection and session
@@ -212,6 +213,7 @@ func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
 		users:         map[string]*User{},
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
+		chReqs:        map[string]struct{}{},
 	}
 
 	s.running.Store(true)
@@ -492,6 +494,12 @@ func (s *Session) requestHistory(act actionRequestHistory) (err error) {
 	if _, ok := s.enabledCaps["draft/chathistory"]; !ok {
 		return
 	}
+
+	target := s.Casemap(act.Target)
+	if _, ok := s.chReqs[target]; ok {
+		return
+	}
+	s.chReqs[target] = struct{}{}
 
 	t := act.Before.UTC().Add(1 * time.Second)
 	err = s.send("CHATHISTORY BEFORE %s timestamp=%04d-%02d-%02dT%02d:%02d:%02d.%03dZ 100\r\n", act.Target, t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1e6)
@@ -980,6 +988,7 @@ func (s *Session) handle(msg Message) (err error) {
 		} else if b, ok := s.chBatches[id]; ok {
 			s.evts <- b
 			delete(s.chBatches, id)
+			delete(s.chReqs, s.Casemap(b.Target))
 		}
 	case "NICK":
 		nickCf := s.Casemap(msg.Prefix.Name)
