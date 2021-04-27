@@ -180,6 +180,21 @@ func (e *Editor) right() {
 	}
 }
 
+func (e *Editor) RightWord() {
+	line := e.text[e.lineIdx]
+
+	if e.cursorIdx == len(line) {
+		return
+	}
+
+	for line[e.cursorIdx] == ' ' {
+		e.Right()
+	}
+	for i := e.cursorIdx; i < len(line) && line[i] != ' '; i += 1 {
+		e.Right()
+	}
+}
+
 func (e *Editor) Left() {
 	if e.cursorIdx == 0 {
 		return
@@ -191,6 +206,22 @@ func (e *Editor) Left() {
 			e.offsetIdx = 0
 		}
 	}
+}
+
+func (e *Editor) LeftWord() {
+	if e.cursorIdx == 0 {
+		return
+	}
+
+	line := e.text[e.lineIdx]
+
+	for line[e.cursorIdx - 1] == ' ' {
+		e.Left()
+	}
+	for i := e.cursorIdx - 1; i >= 0 && line[i] != ' '; i -= 1 {
+		e.Left()
+	}
+
 	e.autoCache = nil
 }
 

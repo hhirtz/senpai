@@ -176,8 +176,16 @@ func (ui *UI) InputRight() {
 	ui.e.Right()
 }
 
+func (ui *UI) InputRightWord() {
+	ui.e.RightWord()
+}
+
 func (ui *UI) InputLeft() {
 	ui.e.Left()
+}
+
+func (ui *UI) InputLeftWord() {
+	ui.e.LeftWord()
 }
 
 func (ui *UI) InputHome() {

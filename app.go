@@ -399,6 +399,8 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.NextBuffer()
 			app.updatePrompt()
+		} else if ev.Modifiers() == tcell.ModCtrl {
+			app.win.InputRightWord()
 		} else {
 			app.win.InputRight()
 		}
@@ -406,6 +408,8 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.PreviousBuffer()
 			app.updatePrompt()
+		} else if ev.Modifiers() == tcell.ModCtrl {
+			app.win.InputLeftWord()
 		} else {
 			app.win.InputLeft()
 		}
