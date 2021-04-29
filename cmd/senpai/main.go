@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"os"
+	"path"
 	"time"
 
 	"git.sr.ht/~taiite/senpai"
@@ -29,7 +30,7 @@ func main() {
 		if err != nil {
 			log.Panicln(err)
 		}
-		configPath = configDir + "/senpai/senpai.yaml"
+		configPath = path.Join(configDir, "senpai", "senpai.yaml")
 	}
 
 	cfg, err := senpai.LoadConfigFile(configPath)

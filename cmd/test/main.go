@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path"
 
 	"git.sr.ht/~taiite/senpai"
 	"git.sr.ht/~taiite/senpai/irc"
@@ -110,7 +111,7 @@ func parseFlags() {
 			if err != nil {
 				panic(err)
 			}
-			configPath = configDir + "/senpai/senpai.yaml"
+			configPath = path.Join(configDir, "senpai", "senpai.yaml")
 		}
 
 		cfg, err := senpai.LoadConfigFile(configPath)
