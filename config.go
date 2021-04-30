@@ -2,6 +2,7 @@ package senpai
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 
 	"gopkg.in/yaml.v2"
@@ -28,6 +29,9 @@ type Config struct {
 
 func ParseConfig(buf []byte) (cfg Config, err error) {
 	err = yaml.Unmarshal(buf, &cfg)
+	if err != nil {
+		return cfg, err
+	}
 	if cfg.Addr == "" {
 		return cfg, errors.New("addr is required")
 	}
@@ -54,10 +58,12 @@ func LoadConfigFile(filename string) (cfg Config, err error) {
 
 	buf, err = ioutil.ReadFile(filename)
 	if err != nil {
-		return
+		return cfg, fmt.Errorf("failed to read the file: %s", err)
 	}
 
 	cfg, err = ParseConfig(buf)
-
+	if err != nil {
+		return cfg, fmt.Errorf("invalid content found in the file: %s", err)
+	}
 	return
 }

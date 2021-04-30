@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"fmt"
 	"math/rand"
 	"os"
 	"path"
@@ -28,21 +28,22 @@ func main() {
 	if configPath == "" {
 		configDir, err := os.UserConfigDir()
 		if err != nil {
-			log.Panicln(err)
+			panic(err)
 		}
 		configPath = path.Join(configDir, "senpai", "senpai.yaml")
 	}
 
 	cfg, err := senpai.LoadConfigFile(configPath)
 	if err != nil {
-		log.Panicln(err)
+		fmt.Printf("failed to load the required configuraiton file at %q: %s\n", configPath, err)
+		os.Exit(1)
 	}
 
 	cfg.Debug = cfg.Debug || debug
 
 	app, err := senpai.NewApp(cfg)
 	if err != nil {
-		log.Panicln(err)
+		panic(err)
 	}
 	defer app.Close()
 
