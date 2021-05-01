@@ -548,6 +548,9 @@ func (app *App) isHighlight(content string) bool {
 // notifyHighlight executes the "on-highlight" command according to the given
 // message context.
 func (app *App) notifyHighlight(buffer, nick, content string) {
+	if app.cfg.OnHighlight == "" {
+		return
+	}
 	sh, err := exec.LookPath("sh")
 	if err != nil {
 		return
