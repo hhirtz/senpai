@@ -39,7 +39,8 @@ Some settings are required, the others are optional.
 
 *on-highlight*
 	A command to be executed via _sh_ when you are highlighted.  The following
-	environment variables are set with repect to the highlight:
+	environment variables are set with repect to the highlight, THEY MUST APPEAR
+	QUOTED IN THE SETTING, OR YOU WILL BE OPEN TO ATTACKS.
 
 [[ *Environment variable*
 :< *Description*
@@ -98,8 +99,8 @@ highlights:
 	- senpai
 on-highlight: |
     FOCUS=$(swaymsg -t get_tree | jq '..|objects|select(.focused==true)|.name' | grep senpai | wc -l)
-    if [ %h -eq 0 ] || [ $FOCUS -eq 0 ]; then
-        notify-send "[%b] %n" "%m"
+    if [ "$HERE" -eq 0 ] || [ $FOCUS -eq 0 ]; then
+        notify-send "[$BUFFER] $SENDER" "$MESSAGE"
     fi
 nick-column-width: 12
 ```
