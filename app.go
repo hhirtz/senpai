@@ -4,6 +4,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"os"
 	"os/exec"
 	"strings"
 	"time"
@@ -555,14 +556,14 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	if buffer == app.win.CurrentBuffer() {
 		here = "1"
 	}
-	r := strings.NewReplacer(
-		"%%", "%",
-		"%b", buffer,
-		"%h", here,
-		"%n", nick,
-		"%m", cleanMessage(content))
-	command := r.Replace(app.cfg.OnHighlight)
-	output, err := exec.Command(sh, "-c", command).CombinedOutput()
+	cmd := exec.Command(sh, "-c", app.cfg.OnHighlight)
+	cmd.Env = append(os.Environ(),
+		fmt.Sprintf("BUFFER=%s", buffer),
+		fmt.Sprintf("HERE=%s", here),
+		fmt.Sprintf("SENDER=%s", nick),
+		fmt.Sprintf("MESSAGE=%s", cleanMessage(content)),
+	)
+	output, err := cmd.CombinedOutput()
 	if err != nil {
 		body := fmt.Sprintf("Failed to invoke on-highlight command: %v. Output: %q", err, string(output))
 		app.win.AddLine(Home, false, ui.Line{

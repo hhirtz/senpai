@@ -39,19 +39,17 @@ Some settings are required, the others are optional.
 
 *on-highlight*
 	A command to be executed via _sh_ when you are highlighted.  The following
-	format specifiers are expanded with respect to the highlight:
+	environment variables are set with repect to the highlight:
 
-[[ *Format specifier*
+[[ *Environment variable*
 :< *Description*
-|  %%
-:  literal %
-|  %b
+|  BUFFER
 :  buffer where the message appeared
-|  %h
-:  equals 1 if _%b_ is the current buffer, 0 otherwise
-|  %m
+|  HERE
+:  equals 1 if _BUFFER_ is the current buffer, 0 otherwise
+|  MESSAGE
 :  content of the message
-|  %n
+|  SENDER
 :  nickname of the sender
 
 *nick-column-width*
