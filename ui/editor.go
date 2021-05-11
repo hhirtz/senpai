@@ -324,12 +324,6 @@ func (e *Editor) Draw(screen tcell.Screen, x0, y int) {
 		x++
 	}
 
-	curStart := e.textWidth[e.cursorIdx] - e.textWidth[e.offsetIdx]
-	curEnd := curStart + 1
-	if e.cursorIdx+1 < len(e.textWidth) {
-		curEnd = e.textWidth[e.cursorIdx+1] - e.textWidth[e.offsetIdx]
-	}
-	for x := x0 + curStart; x < x0+curEnd; x++ {
-		screen.ShowCursor(x, y)
-	}
+	cursorX := x0 + e.textWidth[e.cursorIdx] - e.textWidth[e.offsetIdx]
+	screen.ShowCursor(cursorX, y)
 }
