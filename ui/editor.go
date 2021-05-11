@@ -128,7 +128,7 @@ func (e *Editor) RemWord() (ok bool) {
 	// Hello world|
 	// Hello |
 	// |
-	for line[e.cursorIdx - 1] == ' ' {
+	for line[e.cursorIdx-1] == ' ' {
 		e.remRuneAt(e.cursorIdx - 1)
 		e.Left()
 	}
@@ -144,7 +144,6 @@ func (e *Editor) RemWord() (ok bool) {
 	e.autoCache = nil
 	return
 }
-
 
 func (e *Editor) Flush() (content string) {
 	content = string(e.text[e.lineIdx])
@@ -215,7 +214,7 @@ func (e *Editor) LeftWord() {
 
 	line := e.text[e.lineIdx]
 
-	for line[e.cursorIdx - 1] == ' ' {
+	for line[e.cursorIdx-1] == ' ' {
 		e.Left()
 	}
 	for i := e.cursorIdx - 1; i >= 0 && line[i] != ' '; i -= 1 {
