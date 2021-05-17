@@ -168,38 +168,25 @@ func (app *App) connect() {
 
 func (app *App) tryConnect() (err error) {
 	addr := app.cfg.Addr
-	host, port, err := net.SplitHostPort(addr)
-	if err != nil {
-		return err
-	}
-	if port == "" {
+	colonIdx := strings.LastIndexByte(addr, ':')
+	bracketIdx := strings.LastIndexByte(addr, ']')
+	if colonIdx <= bracketIdx {
+		// either colonIdx < 0, or the last colon is before a ']' (end
+		// of IPv6 address. -> missing port
 		if app.cfg.NoTLS {
-			port = "6667"
+			addr += ":6667"
 		} else {
-			port = "6697"
+			addr += ":6697"
 		}
 	}
 
-	peerAddr, err := net.ResolveTCPAddr("tcp", net.JoinHostPort(host, port))
+	conn, err := net.Dial("tcp", addr)
 	if err != nil {
 		return
 	}
 
-	tcpConn, err := net.DialTCP("tcp", nil, peerAddr)
-	if err != nil {
-		return
-	}
-	if err = tcpConn.SetKeepAlivePeriod(1 * time.Minute); err != nil {
-		tcpConn.Close()
-		return
-	}
-	if err = tcpConn.SetKeepAlive(true); err != nil {
-		tcpConn.Close()
-		return
-	}
-
-	var conn net.Conn = tcpConn
 	if !app.cfg.NoTLS {
+		host, _, _ := net.SplitHostPort(addr) // should succeed since net.Dial did.
 		conn = tls.Client(conn, &tls.Config{
 			ServerName: host,
 			NextProtos: []string{"irc"},
