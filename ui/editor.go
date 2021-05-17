@@ -128,7 +128,7 @@ func (e *Editor) RemWord() (ok bool) {
 	// Hello world|
 	// Hello |
 	// |
-	for line[e.cursorIdx-1] == ' ' {
+	for e.cursorIdx > 0 && line[e.cursorIdx-1] == ' ' {
 		e.remRuneAt(e.cursorIdx - 1)
 		e.Left()
 	}
@@ -186,7 +186,7 @@ func (e *Editor) RightWord() {
 		return
 	}
 
-	for line[e.cursorIdx] == ' ' {
+	for e.cursorIdx < len(line) && line[e.cursorIdx] == ' ' {
 		e.Right()
 	}
 	for i := e.cursorIdx; i < len(line) && line[i] != ' '; i += 1 {
@@ -214,7 +214,7 @@ func (e *Editor) LeftWord() {
 
 	line := e.text[e.lineIdx]
 
-	for line[e.cursorIdx-1] == ' ' {
+	for e.cursorIdx > 0 && line[e.cursorIdx-1] == ' ' {
 		e.Left()
 	}
 	for i := e.cursorIdx - 1; i >= 0 && line[i] != ' '; i -= 1 {
