@@ -350,6 +350,10 @@ func parseCommand(s string) (command, args string) {
 func (app *App) handleInput(buffer, content string) error {
 	cmdName, rawArgs := parseCommand(content)
 
+	if content == "" {
+		return nil
+	}
+
 	var chosenCMDName string
 	var ok bool
 	for key := range commands {
