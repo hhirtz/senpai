@@ -143,6 +143,9 @@ _name_ is matched case-insensitively.  It can be one of the following:
 *BUFFER* <name>
 	Switch to the buffer containing _name_.
 
+*NICK* <nickname>
+	Change your nickname.
+
 # SEE ALSO
 
 *senpai*(5)

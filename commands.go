@@ -64,6 +64,14 @@ func init() {
 			Desc:   "show the member list of the current channel",
 			Handle: commandDoNames,
 		},
+		"NICK": {
+			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   1,
+			Usage:     "<nickname>",
+			Desc:      "change your nickname",
+			Handle:    commandDoNick,
+		},
 		"PART": {
 			AllowHome: true,
 			MaxArgs:   2,
@@ -247,6 +255,15 @@ func commandDoNames(app *App, buffer string, args []string) (err error) {
 		Head: "--",
 		Body: body[:len(body)-1],
 	})
+	return
+}
+
+func commandDoNick(app *App, buffer string, args []string) (err error) {
+	nick := args[0]
+	if i := strings.IndexAny(nick, " :@!*?"); i >= 0 {
+		return fmt.Errorf("illegal char %q in nickname", nick[i])
+	}
+	app.s.ChangeNick(nick)
 	return
 }
 

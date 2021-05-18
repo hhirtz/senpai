@@ -88,6 +88,10 @@ type (
 		raw string
 	}
 
+	actionChangeNick struct {
+		Nick string
+	}
+
 	actionJoin struct {
 		Channel string
 	}
@@ -424,6 +428,15 @@ func splitChunks(s string, chunkLen int) (chunks []string) {
 	return
 }
 
+func (s *Session) ChangeNick(nick string) {
+	s.acts <- actionChangeNick{nick}
+}
+
+func (s *Session) changeNick(act actionChangeNick) (err error) {
+	err = s.send("NICK %s\r\n", act.Nick)
+	return
+}
+
 func (s *Session) PrivMsg(target, content string) {
 	s.acts <- actionPrivMsg{target, content}
 }
@@ -519,6 +532,8 @@ func (s *Session) run() {
 			switch act := act.(type) {
 			case actionSendRaw:
 				err = s.sendRaw(act)
+			case actionChangeNick:
+				err = s.changeNick(act)
 			case actionJoin:
 				err = s.join(act)
 			case actionPart:
