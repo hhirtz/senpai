@@ -131,7 +131,7 @@ func commandDo(app *App, buffer string, args []string) (err error) {
 	app.s.PrivMsg(buffer, args[0])
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            &irc.Prefix{Name: app.s.Nick()},
+			User:            app.s.Nick(),
 			Target:          buffer,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
@@ -215,7 +215,7 @@ func commandDoMe(app *App, buffer string, args []string) (err error) {
 	app.s.PrivMsg(buffer, content)
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            &irc.Prefix{Name: app.s.Nick()},
+			User:            app.s.Nick(),
 			Target:          buffer,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
@@ -233,7 +233,7 @@ func commandDoMsg(app *App, buffer string, args []string) (err error) {
 	app.s.PrivMsg(target, content)
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            &irc.Prefix{Name: app.s.Nick()},
+			User:            app.s.Nick(),
 			Target:          target,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
@@ -327,7 +327,7 @@ func commandDoR(app *App, buffer string, args []string) (err error) {
 	app.s.PrivMsg(app.lastQuery, args[0])
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            &irc.Prefix{Name: app.s.Nick()},
+			User:            app.s.Nick(),
 			Target:          app.lastQuery,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
@@ -355,7 +355,7 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 			Body: body,
 		})
 	} else {
-		app.s.SetTopic(buffer, args[0])
+		app.s.ChangeTopic(buffer, args[0])
 	}
 	return
 }

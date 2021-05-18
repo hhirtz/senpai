@@ -1,20 +1,16 @@
 package irc
 
 import (
-	"bufio"
 	"bytes"
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
+	"unicode"
 	"unicode/utf8"
 )
-
-const writeDeadline = 10 * time.Second
 
 type SASLClient interface {
 	Handshake() (mech string)
@@ -74,62 +70,6 @@ const (
 	TypingDone
 )
 
-// action contains the arguments of a user action.
-//
-// To keep connection reads and writes in a single coroutine, the library
-// interface functions like Join("#channel") or PrivMsg("target", "message")
-// don't interact with the IRC session directly.  Instead, they push an action
-// in the action channel.  This action is then processed by the correct
-// coroutine.
-type action interface{}
-
-type (
-	actionSendRaw struct {
-		raw string
-	}
-
-	actionChangeNick struct {
-		Nick string
-	}
-	actionChangeMode struct {
-		Channel string
-		Flags   string
-		Args    []string
-	}
-
-	actionJoin struct {
-		Channel string
-	}
-	actionPart struct {
-		Channel string
-		Reason  string
-	}
-	actionSetTopic struct {
-		Channel string
-		Topic   string
-	}
-	actionQuit struct {
-		Reason string
-	}
-
-	actionPrivMsg struct {
-		Target  string
-		Content string
-	}
-
-	actionTyping struct {
-		Channel string
-	}
-	actionTypingStop struct {
-		Channel string
-	}
-
-	actionRequestHistory struct {
-		Target string
-		Before time.Time
-	}
-)
-
 // User is a known IRC user (we share a channel with it).
 type User struct {
 	Name    *Prefix // the nick, user and hostname of the user if known.
@@ -155,20 +95,11 @@ type SessionParams struct {
 	RealName string
 
 	Auth SASLClient
-
-	Debug bool // whether the Session should report all messages it sends and receive.
 }
 
-// Session is an IRC session/connection/whatever.
 type Session struct {
-	conn net.Conn
-	msgs chan Message // incoming messages.
-	acts chan action  // user actions.
-	evts chan Event   // events sent to the user.
-
-	debug bool
-
-	running      atomic.Value // bool
+	out          chan<- Message
+	closed       bool
 	registered   bool
 	typings      *Typings             // incoming typing notifications.
 	typingStamps map[string]time.Time // user typing instants.
@@ -185,9 +116,12 @@ type Session struct {
 	enabledCaps   map[string]struct{}
 
 	// ISUPPORT features
-	casemap   func(string) string
-	chantypes string
-	linelen   int
+	casemap       func(string) string
+	chantypes     string
+	linelen       int
+	historyLimit  int
+	prefixSymbols string
+	prefixModes   string
 
 	users     map[string]*User        // known users.
 	channels  map[string]Channel      // joined channels.
@@ -195,18 +129,9 @@ type Session struct {
 	chReqs    map[string]struct{}     // set of targets for which history is currently requested.
 }
 
-// NewSession starts an IRC session from the given connection and session
-// parameters.
-//
-// It returns an error when the paramaters are invalid, or when it cannot write
-// to the connection.
-func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
+func NewSession(out chan<- Message, params SessionParams) *Session {
 	s := &Session{
-		conn:          conn,
-		msgs:          make(chan Message, 64),
-		acts:          make(chan action, 64),
-		evts:          make(chan Event, 64),
-		debug:         params.Debug,
+		out:           out,
 		typings:       NewTypings(),
 		typingStamps:  map[string]time.Time{},
 		nick:          params.Nickname,
@@ -219,66 +144,28 @@ func NewSession(conn net.Conn, params SessionParams) (*Session, error) {
 		casemap:       CasemapRFC1459,
 		chantypes:     "#&",
 		linelen:       512,
+		historyLimit:  100,
+		prefixSymbols: "@+",
+		prefixModes:   "ov",
 		users:         map[string]*User{},
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
 		chReqs:        map[string]struct{}{},
 	}
 
-	s.running.Store(true)
+	s.out <- NewMessage("CAP", "LS", "302")
+	s.out <- NewMessage("NICK", s.nick)
+	s.out <- NewMessage("USER", s.user, "0", "*", s.real)
 
-	go func() {
-		r := bufio.NewScanner(conn)
-
-		for r.Scan() {
-			line := r.Text()
-			msg, err := ParseMessage(line)
-			if err != nil {
-				continue
-			}
-			valid := msg.IsValid()
-			if s.debug {
-				s.evts <- RawMessageEvent{Message: line, IsValid: valid}
-			}
-			if valid {
-				s.msgs <- msg
-			}
-		}
-
-		s.Stop()
-	}()
-
-	err := s.send("CAP LS 302\r\nNICK %s\r\nUSER %s 0 * :%s\r\n", s.nick, s.user, s.real)
-	if err != nil {
-		return nil, err
-	}
-
-	go s.run()
-
-	return s, nil
+	return s
 }
 
-// Running reports whether we are still connected to the server.
-func (s *Session) Running() bool {
-	return s.running.Load().(bool)
-}
-
-// Stop stops the session and closes the connection.
-func (s *Session) Stop() {
-	if !s.Running() {
+func (s *Session) Close() {
+	if s.closed {
 		return
 	}
-	s.running.Store(false)
-	_ = s.conn.Close()
-	close(s.acts)
-	close(s.evts)
-	close(s.msgs)
-	s.typings.Stop()
-}
-
-// Poll returns the event channel where incoming events are reported.
-func (s *Session) Poll() (events <-chan Event) {
-	return s.evts
+	s.closed = true
+	close(s.out)
 }
 
 // HasCapability reports whether the given capability has been negociated
@@ -295,6 +182,10 @@ func (s *Session) Nick() string {
 // NickCf is our casemapped nickname.
 func (s *Session) NickCf() string {
 	return s.nickCf
+}
+
+func (s *Session) IsMe(nick string) bool {
+	return s.nickCf == s.casemap(nick)
 }
 
 func (s *Session) IsChannel(name string) bool {
@@ -332,11 +223,14 @@ func (s *Session) Names(channel string) []Member {
 
 // Typings returns the list of nickname who are currently typing.
 func (s *Session) Typings(target string) []string {
-	targetCf := s.Casemap(target)
-	var res []string
-	for t := range s.typings.targets {
-		if targetCf == t.Target && s.Casemap(t.Name) != s.NickCf() {
-			res = append(res, s.users[t.Name].Name.Name)
+	targetCf := s.casemap(target)
+	res := s.typings.List(targetCf)
+	for i := 0; i < len(res); i++ {
+		if s.IsMe(res[i]) {
+			res = append(res[:i], res[i+1:]...)
+			i--
+		} else if u, ok := s.users[res[i]]; ok {
+			res[i] = u.Name.Name
 		}
 	}
 	return res
@@ -368,50 +262,34 @@ func (s *Session) Topic(channel string) (topic string, who *Prefix, at time.Time
 	return
 }
 
-// SendRaw sends its given argument verbatim to the server.
 func (s *Session) SendRaw(raw string) {
-	s.acts <- actionSendRaw{raw}
-}
-
-func (s *Session) sendRaw(act actionSendRaw) (err error) {
-	err = s.send("%s\r\n", act.raw)
-	return
+	s.out <- NewMessage(raw)
 }
 
 func (s *Session) Join(channel string) {
-	s.acts <- actionJoin{channel}
-}
-
-func (s *Session) join(act actionJoin) (err error) {
-	err = s.send("JOIN %s\r\n", act.Channel)
-	return
+	// TODO support keys
+	s.out <- NewMessage("JOIN", channel)
 }
 
 func (s *Session) Part(channel, reason string) {
-	s.acts <- actionPart{channel, reason}
+	s.out <- NewMessage("PART", channel, reason)
 }
 
-func (s *Session) part(act actionPart) (err error) {
-	err = s.send("PART %s :%s\r\n", act.Channel, act.Reason)
-	return
-}
-
-func (s *Session) SetTopic(channel, topic string) {
-	s.acts <- actionSetTopic{channel, topic}
-}
-
-func (s *Session) setTopic(act actionSetTopic) (err error) {
-	err = s.send("TOPIC %s :%s\r\n", act.Channel, act.Topic)
-	return
+func (s *Session) ChangeTopic(channel, topic string) {
+	s.out <- NewMessage("TOPIC", channel, topic)
 }
 
 func (s *Session) Quit(reason string) {
-	s.acts <- actionQuit{reason}
+	s.out <- NewMessage("QUIT", reason)
 }
 
-func (s *Session) quit(act actionQuit) (err error) {
-	err = s.send("QUIT :%s\r\n", act.Reason)
-	return
+func (s *Session) ChangeNick(nick string) {
+	s.out <- NewMessage("NICK", nick)
+}
+
+func (s *Session) ChangeMode(channel, flags string, args []string) {
+	args = append([]string{channel, flags}, args...)
+	s.out <- NewMessage("MODE", args...)
 }
 
 func splitChunks(s string, chunkLen int) (chunks []string) {
@@ -433,34 +311,7 @@ func splitChunks(s string, chunkLen int) (chunks []string) {
 	return
 }
 
-func (s *Session) ChangeNick(nick string) {
-	s.acts <- actionChangeNick{nick}
-}
-
-func (s *Session) changeNick(act actionChangeNick) (err error) {
-	err = s.send("NICK %s\r\n", act.Nick)
-	return
-}
-
-func (s *Session) ChangeMode(channel string, flags string, args []string) {
-	s.acts <- actionChangeMode{channel, flags, args}
-}
-
-func (s *Session) changeMode(act actionChangeMode) (err error) {
-	if strings.IndexAny(act.Channel, s.chantypes) == 0 {
-		err = s.send("MODE %s %s %s\r\n",
-			act.Channel, act.Flags, strings.Join(act.Args, " "))
-	} else {
-		err = s.send("MODE %s %s\r\n", act.Channel, act.Flags)
-	}
-	return
-}
-
 func (s *Session) PrivMsg(target, content string) {
-	s.acts <- actionPrivMsg{target, content}
-}
-
-func (s *Session) privMsg(act actionPrivMsg) (err error) {
 	hostLen := len(s.host)
 	if hostLen == 0 {
 		hostLen = len("255.255.255.255")
@@ -470,173 +321,115 @@ func (s *Session) privMsg(act actionPrivMsg) (err error) {
 		len(s.nick) -
 		len(s.user) -
 		hostLen -
-		len(act.Target)
-	chunks := splitChunks(act.Content, maxMessageLen)
+		len(target)
+	chunks := splitChunks(content, maxMessageLen)
 	for _, chunk := range chunks {
-		err = s.send("PRIVMSG %s :%s\r\n", act.Target, chunk)
-		if err != nil {
-			return
-		}
+		s.out <- NewMessage("PRIVMSG", target, chunk)
 	}
-	target := s.Casemap(act.Target)
-	delete(s.typingStamps, target)
-	return
+	targetCf := s.Casemap(target)
+	delete(s.typingStamps, targetCf)
 }
 
-func (s *Session) Typing(channel string) {
-	s.acts <- actionTyping{channel}
-}
-
-func (s *Session) typing(act actionTyping) (err error) {
-	if _, ok := s.enabledCaps["message-tags"]; !ok {
+func (s *Session) Typing(target string) {
+	if !s.HasCapability("message-tags") {
 		return
 	}
-
-	to := s.Casemap(act.Channel)
+	targetCf := s.casemap(target)
 	now := time.Now()
+	if t, ok := s.typingStamps[targetCf]; ok && now.Sub(t).Seconds() < 3.0 {
+		return
+	}
+	s.typingStamps[targetCf] = now
+	s.out <- NewMessage("TAGMSG", target).WithTag("+typing", "active")
+}
 
-	if t, ok := s.typingStamps[to]; ok && now.Sub(t).Seconds() < 3.0 {
+func (s *Session) TypingStop(target string) {
+	if !s.HasCapability("message-tags") {
+		return
+	}
+	s.out <- NewMessage("TAGMSG", target).WithTag("+typing", "done")
+}
+
+type HistoryRequest struct {
+	s       *Session
+	target  string
+	command string
+	bounds  []string
+	limit   int
+}
+
+func formatTimestamp(t time.Time) string {
+	return fmt.Sprintf("timestamp=%04d-%02d-%02dT%02d:%02d:%02d.%03dZ",
+		t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1e6)
+}
+
+func (r *HistoryRequest) WithLimit(limit int) *HistoryRequest {
+	if limit < r.s.historyLimit {
+		r.limit = limit
+	} else {
+		r.limit = r.s.historyLimit
+	}
+	return r
+}
+
+func (r *HistoryRequest) doRequest() {
+	if !r.s.HasCapability("draft/chathistory") {
 		return
 	}
 
-	s.typingStamps[to] = now
-
-	err = s.send("@+typing=active TAGMSG %s\r\n", act.Channel)
-	return
-}
-
-func (s *Session) TypingStop(channel string) {
-	s.acts <- actionTypingStop{channel}
-}
-
-func (s *Session) typingStop(act actionTypingStop) (err error) {
-	if _, ok := s.enabledCaps["message-tags"]; !ok {
+	targetCf := r.s.casemap(r.target)
+	if _, ok := r.s.chReqs[targetCf]; ok {
 		return
 	}
+	r.s.chReqs[targetCf] = struct{}{}
 
-	err = s.send("@+typing=done TAGMSG %s\r\n", act.Channel)
-	return
+	args := make([]string, 0, len(r.bounds)+3)
+	args = append(args, r.command)
+	args = append(args, r.target)
+	args = append(args, r.bounds...)
+	args = append(args, strconv.Itoa(r.limit))
+	r.s.out <- NewMessage("CHATHISTORY", args...)
 }
 
-func (s *Session) RequestHistory(target string, before time.Time) {
-	s.acts <- actionRequestHistory{target, before}
+func (r *HistoryRequest) Before(t time.Time) {
+	r.command = "BEFORE"
+	r.bounds = []string{formatTimestamp(t)}
+	r.doRequest()
 }
 
-func (s *Session) requestHistory(act actionRequestHistory) (err error) {
-	if _, ok := s.enabledCaps["draft/chathistory"]; !ok {
-		return
-	}
-
-	target := s.Casemap(act.Target)
-	if _, ok := s.chReqs[target]; ok {
-		return
-	}
-	s.chReqs[target] = struct{}{}
-
-	t := act.Before.UTC().Add(1 * time.Second)
-	err = s.send("CHATHISTORY BEFORE %s timestamp=%04d-%02d-%02dT%02d:%02d:%02d.%03dZ 100\r\n", act.Target, t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute(), t.Second(), t.Nanosecond()/1e6)
-
-	return
-}
-
-func (s *Session) run() {
-	for s.Running() {
-		var err error
-
-		select {
-		case act, ok := <-s.acts:
-			if !ok {
-				break
-			}
-			switch act := act.(type) {
-			case actionSendRaw:
-				err = s.sendRaw(act)
-			case actionChangeNick:
-				err = s.changeNick(act)
-			case actionChangeMode:
-				err = s.changeMode(act)
-			case actionJoin:
-				err = s.join(act)
-			case actionPart:
-				err = s.part(act)
-			case actionSetTopic:
-				err = s.setTopic(act)
-			case actionQuit:
-				err = s.quit(act)
-			case actionPrivMsg:
-				err = s.privMsg(act)
-			case actionTyping:
-				err = s.typing(act)
-			case actionTypingStop:
-				err = s.typingStop(act)
-			case actionRequestHistory:
-				err = s.requestHistory(act)
-			}
-		case msg, ok := <-s.msgs:
-			if !ok {
-				break
-			}
-			if s.registered {
-				err = s.handle(msg)
-			} else {
-				err = s.handleStart(msg)
-			}
-		case t, ok := <-s.typings.Stops():
-			if !ok {
-				break
-			}
-			u, ok := s.users[t.Name]
-			if !ok {
-				break
-			}
-			c, ok := s.channels[t.Target]
-			if !ok {
-				break
-			}
-			s.evts <- TagEvent{
-				User:   u.Name,
-				Target: c.Name,
-				Typing: TypingDone,
-				Time:   time.Now(),
-			}
-		}
-
-		if err != nil {
-			s.evts <- err
-		}
+func (s *Session) NewHistoryRequest(target string) *HistoryRequest {
+	return &HistoryRequest{
+		s:      s,
+		target: target,
+		limit:  s.historyLimit,
 	}
 }
 
-func (s *Session) handleStart(msg Message) (err error) {
+func (s *Session) HandleMessage(msg Message) Event {
+	if s.registered {
+		return s.handleRegistered(msg)
+	} else {
+		return s.handleUnregistered(msg)
+	}
+}
+
+func (s *Session) handleUnregistered(msg Message) Event {
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth != nil {
-			var res string
-
-			res, err = s.auth.Respond(msg.Params[0])
+			res, err := s.auth.Respond(msg.Params[0])
 			if err != nil {
-				err = s.send("AUTHENTICATE *\r\n")
-				return
-			}
-
-			err = s.send("AUTHENTICATE %s\r\n", res)
-			if err != nil {
-				return
+				s.out <- NewMessage("AUTHENTICATE", "*")
+			} else {
+				s.out <- NewMessage("AUTHENTICATE", res)
 			}
 		}
 	case rplLoggedin:
-		err = s.send("CAP END\r\n")
-		if err != nil {
-			return
-		}
-
+		s.out <- NewMessage("CAP", "END")
 		s.acct = msg.Params[2]
 		s.host = ParsePrefix(msg.Params[1]).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
-		err = s.send("CAP END\r\n")
-		if err != nil {
-			return
-		}
+		s.out <- NewMessage("CAP", "END")
 	case "CAP":
 		switch msg.Params[1] {
 		case "LS":
@@ -652,57 +445,44 @@ func (s *Session) handleStart(msg Message) (err error) {
 			}
 
 			for _, c := range ParseCaps(ls) {
-				if c.Enable {
-					s.availableCaps[c.Name] = c.Value
-				} else {
-					delete(s.availableCaps, c.Name)
-				}
+				s.availableCaps[c.Name] = c.Value
 			}
 
 			if !willContinue {
-				var req strings.Builder
-
 				for c := range s.availableCaps {
 					if _, ok := SupportedCapabilities[c]; !ok {
 						continue
 					}
-
-					_, _ = fmt.Fprintf(&req, "CAP REQ %s\r\n", c)
+					s.out <- NewMessage("CAP", "REQ", c)
 				}
 
 				_, ok := s.availableCaps["sasl"]
 				if s.auth == nil || !ok {
-					_, _ = fmt.Fprintf(&req, "CAP END\r\n")
-				}
-
-				err = s.send(req.String())
-				if err != nil {
-					return
+					s.out <- NewMessage("CAP", "END")
 				}
 			}
 		default:
-			s.handle(msg)
+			return s.handleRegistered(msg)
 		}
 	case errNicknameinuse:
-		err = s.send("NICK %s_\r\n", msg.Params[1])
-		if err != nil {
-			return
-		}
+		s.out <- NewMessage("NICK", msg.Params[1]+"_")
+	case rplSaslsuccess:
+		// do nothing
 	default:
-		err = s.handle(msg)
+		return s.handleRegistered(msg)
 	}
-
-	return
+	return nil
 }
 
-func (s *Session) handle(msg Message) (err error) {
+func (s *Session) handleRegistered(msg Message) Event {
 	if id, ok := msg.Tags["batch"]; ok {
 		if b, ok := s.chBatches[id]; ok {
+			ev := s.newMessageEvent(msg)
 			s.chBatches[id] = HistoryEvent{
 				Target:   b.Target,
-				Messages: append(b.Messages, s.privmsgToEvent(msg)),
+				Messages: append(b.Messages, ev),
 			}
-			return
+			return nil
 		}
 	}
 
@@ -714,14 +494,10 @@ func (s *Session) handle(msg Message) (err error) {
 		s.users[s.nickCf] = &User{Name: &Prefix{
 			Name: s.nick, User: s.user, Host: s.host,
 		}}
-		s.evts <- RegisteredEvent{}
-
 		if s.host == "" {
-			err = s.send("WHO %s\r\n", s.nick)
-			if err != nil {
-				return
-			}
+			s.out <- NewMessage("WHO", s.nick)
 		}
+		return RegisteredEvent{}
 	case rplIsupport:
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
 	case rplWhoreply:
@@ -731,106 +507,49 @@ func (s *Session) handle(msg Message) (err error) {
 	case "CAP":
 		switch msg.Params[1] {
 		case "ACK":
-			for _, c := range strings.Split(msg.Params[2], " ") {
-				s.enabledCaps[c] = struct{}{}
+			for _, c := range ParseCaps(msg.Params[2]) {
+				if c.Enable {
+					s.enabledCaps[c.Name] = struct{}{}
+				} else {
+					delete(s.enabledCaps, c.Name)
+				}
 
-				if s.auth != nil && c == "sasl" {
+				if s.auth != nil && c.Name == "sasl" {
 					h := s.auth.Handshake()
-					err = s.send("AUTHENTICATE %s\r\n", h)
-					if err != nil {
-						return
-					}
-				} else if len(s.channels) != 0 && c == "multi-prefix" {
+					s.out <- NewMessage("AUTHENTICATE", h)
+				} else if len(s.channels) != 0 && c.Name == "multi-prefix" {
 					// TODO merge NAMES commands
-					var sb strings.Builder
-					sb.Grow(512)
-					for _, c := range s.channels {
-						sb.WriteString("NAMES ")
-						sb.WriteString(c.Name)
-						sb.WriteString("\r\n")
-					}
-					err = s.send(sb.String())
-					if err != nil {
-						return
+					for channel := range s.channels {
+						s.out <- NewMessage("NAMES", channel)
 					}
 				}
 			}
 		case "NAK":
-			for _, c := range strings.Split(msg.Params[2], " ") {
-				delete(s.enabledCaps, c)
-			}
+			// do nothing
 		case "NEW":
-			diff := ParseCaps(msg.Params[2])
-
-			for _, c := range diff {
-				if c.Enable {
-					s.availableCaps[c.Name] = c.Value
-				} else {
-					delete(s.availableCaps, c.Name)
-				}
-			}
-
-			var req strings.Builder
-
-			for _, c := range diff {
+			for _, c := range ParseCaps(msg.Params[2]) {
+				s.availableCaps[c.Name] = c.Value
 				_, ok := SupportedCapabilities[c.Name]
-				if !c.Enable || !ok {
+				if !ok {
 					continue
 				}
-
-				_, _ = fmt.Fprintf(&req, "CAP REQ %s\r\n", c.Name)
+				s.out <- NewMessage("CAP", "REQ", c.Name)
 			}
 
 			_, ok := s.availableCaps["sasl"]
 			if s.acct == "" && ok {
 				// TODO authenticate
-			}
-
-			err = s.send(req.String())
-			if err != nil {
-				return
 			}
 		case "DEL":
-			diff := ParseCaps(msg.Params[2])
-
-			for i := range diff {
-				diff[i].Enable = !diff[i].Enable
-			}
-
-			for _, c := range diff {
-				if c.Enable {
-					s.availableCaps[c.Name] = c.Value
-				} else {
-					delete(s.availableCaps, c.Name)
-				}
-			}
-
-			var req strings.Builder
-
-			for _, c := range diff {
-				_, ok := SupportedCapabilities[c.Name]
-				if !c.Enable || !ok {
-					continue
-				}
-
-				_, _ = fmt.Fprintf(&req, "CAP REQ %s\r\n", c.Name)
-			}
-
-			_, ok := s.availableCaps["sasl"]
-			if s.acct == "" && ok {
-				// TODO authenticate
-			}
-
-			err = s.send(req.String())
-			if err != nil {
-				return
+			for _, c := range ParseCaps(msg.Params[2]) {
+				delete(s.availableCaps, c.Name)
+				delete(s.enabledCaps, c.Name)
 			}
 		}
 	case "JOIN":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		channelCf := s.Casemap(msg.Params[0])
-
-		if nickCf == s.nickCf {
+		if s.IsMe(msg.Prefix.Name) {
 			s.channels[channelCf] = Channel{
 				Name:    msg.Params[0],
 				Members: map[*User]string{},
@@ -840,61 +559,56 @@ func (s *Session) handle(msg Message) (err error) {
 				s.users[nickCf] = &User{Name: msg.Prefix.Copy()}
 			}
 			c.Members[s.users[nickCf]] = ""
-			t := msg.TimeOrNow()
-
-			s.evts <- UserJoinEvent{
-				User:    msg.Prefix.Copy(),
+			return UserJoinEvent{
+				User:    msg.Prefix.Name,
 				Channel: c.Name,
-				Time:    t,
 			}
 		}
 	case "PART":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		channelCf := s.Casemap(msg.Params[0])
-
-		if nickCf == s.nickCf {
+		if s.IsMe(msg.Prefix.Name) {
 			if c, ok := s.channels[channelCf]; ok {
 				delete(s.channels, channelCf)
 				for u := range c.Members {
 					s.cleanUser(u)
 				}
-				s.evts <- SelfPartEvent{Channel: c.Name}
+				return SelfPartEvent{
+					Channel: c.Name,
+				}
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if u, ok := s.users[nickCf]; ok {
 				delete(c.Members, u)
 				s.cleanUser(u)
 				s.typings.Done(channelCf, nickCf)
-
-				s.evts <- UserPartEvent{
-					User:    msg.Prefix.Copy(),
+				return UserPartEvent{
+					User:    u.Name.Name,
 					Channel: c.Name,
-					Time:    msg.TimeOrNow(),
 				}
 			}
 		}
 	case "KICK":
-		channelCf := s.Casemap(msg.Params[0])
 		nickCf := s.Casemap(msg.Params[1])
-
-		if nickCf == s.nickCf {
+		channelCf := s.Casemap(msg.Params[0])
+		if s.IsMe(msg.Prefix.Name) {
 			if c, ok := s.channels[channelCf]; ok {
 				delete(s.channels, channelCf)
 				for u := range c.Members {
 					s.cleanUser(u)
 				}
-				s.evts <- SelfPartEvent{Channel: c.Name}
+				return SelfPartEvent{
+					Channel: c.Name,
+				}
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if u, ok := s.users[nickCf]; ok {
 				delete(c.Members, u)
 				s.cleanUser(u)
 				s.typings.Done(channelCf, nickCf)
-
-				s.evts <- UserPartEvent{
-					User:    u.Name.Copy(),
+				return UserPartEvent{
+					User:    u.Name.Name,
 					Channel: c.Name,
-					Time:    msg.TimeOrNow(),
 				}
 			}
 		}
@@ -911,11 +625,9 @@ func (s *Session) handle(msg Message) (err error) {
 					s.typings.Done(channelCf, nickCf)
 				}
 			}
-
-			s.evts <- UserQuitEvent{
-				User:     msg.Prefix.Copy(),
+			return UserQuitEvent{
+				User:     u.Name.Name,
 				Channels: channels,
-				Time:     msg.TimeOrNow(),
 			}
 		}
 	case rplNamreply:
@@ -924,8 +636,7 @@ func (s *Session) handle(msg Message) (err error) {
 		if c, ok := s.channels[channelCf]; ok {
 			c.Secret = msg.Params[1] == "@"
 
-			// TODO compute CHANTYPES
-			for _, name := range ParseNameReply(msg.Params[3], "~&@%+") {
+			for _, name := range ParseNameReply(msg.Params[3], s.prefixSymbols) {
 				nickCf := s.Casemap(name.Name.Name)
 
 				if _, ok := s.users[nickCf]; !ok {
@@ -941,7 +652,9 @@ func (s *Session) handle(msg Message) (err error) {
 		if c, ok := s.channels[channelCf]; ok && !c.complete {
 			c.complete = true
 			s.channels[channelCf] = c
-			s.evts <- SelfJoinEvent{Channel: c.Name}
+			return SelfJoinEvent{
+				Channel: c.Name,
+			}
 		}
 	case rplTopic:
 		channelCf := s.Casemap(msg.Params[1])
@@ -970,51 +683,34 @@ func (s *Session) handle(msg Message) (err error) {
 			c.TopicWho = msg.Prefix.Copy()
 			c.TopicTime = msg.TimeOrNow()
 			s.channels[channelCf] = c
-			s.evts <- TopicChangeEvent{
-				User:    msg.Prefix.Copy(),
+			return TopicChangeEvent{
 				Channel: c.Name,
 				Topic:   c.Topic,
-				Time:    c.TopicTime,
 			}
 		}
 	case "PRIVMSG", "NOTICE":
-		s.evts <- s.privmsgToEvent(msg)
+		targetCf := s.casemap(msg.Params[0])
+		nickCf := s.casemap(msg.Prefix.Name)
+		s.typings.Done(targetCf, nickCf)
+		return s.newMessageEvent(msg)
 	case "TAGMSG":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		targetCf := s.Casemap(msg.Params[0])
 
-		if nickCf == s.nickCf {
+		if s.IsMe(msg.Prefix.Name) {
 			// TAGMSG from self
 			break
 		}
 
-		typing := TypingUnspec
 		if t, ok := msg.Tags["+typing"]; ok {
 			if t == "active" {
-				typing = TypingActive
 				s.typings.Active(targetCf, nickCf)
 			} else if t == "paused" {
-				typing = TypingPaused
-				s.typings.Active(targetCf, nickCf)
+				s.typings.Done(targetCf, nickCf)
 			} else if t == "done" {
-				typing = TypingDone
 				s.typings.Done(targetCf, nickCf)
 			}
-		} else {
-			break
 		}
-
-		ev := TagEvent{
-			User:   msg.Prefix.Copy(), // TODO correctly casemap
-			Target: msg.Params[0],     // TODO correctly casemap
-			Typing: typing,
-			Time:   msg.TimeOrNow(),
-		}
-		if c, ok := s.channels[targetCf]; ok {
-			ev.Target = c.Name
-			ev.TargetIsChannel = true
-		}
-		s.evts <- ev
 	case "BATCH":
 		batchStart := msg.Params[0][0] == '+'
 		id := msg.Params[0][1:]
@@ -1022,90 +718,74 @@ func (s *Session) handle(msg Message) (err error) {
 		if batchStart && msg.Params[1] == "chathistory" {
 			s.chBatches[id] = HistoryEvent{Target: msg.Params[2]}
 		} else if b, ok := s.chBatches[id]; ok {
-			s.evts <- b
 			delete(s.chBatches, id)
 			delete(s.chReqs, s.Casemap(b.Target))
+			return b
 		}
 	case "NICK":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		newNick := msg.Params[0]
 		newNickCf := s.Casemap(newNick)
-		t := msg.TimeOrNow()
 
-		var u *Prefix
 		if formerUser, ok := s.users[nickCf]; ok {
 			formerUser.Name.Name = newNick
 			delete(s.users, nickCf)
 			s.users[newNickCf] = formerUser
-			u = formerUser.Name.Copy()
 		} else {
 			break
 		}
 
-		if nickCf == s.nickCf {
-			s.evts <- SelfNickEvent{
-				FormerNick: s.nick,
-				Time:       t,
-			}
+		if s.IsMe(msg.Prefix.Name) {
 			s.nick = newNick
 			s.nickCf = newNickCf
-		} else {
-			s.evts <- UserNickEvent{
-				User:       u,
+			return SelfNickEvent{
 				FormerNick: msg.Prefix.Name,
-				Time:       t,
+			}
+		} else {
+			return UserNickEvent{
+				User:       msg.Params[0],
+				FormerNick: msg.Prefix.Name,
 			}
 		}
+	case "PING":
+		s.out <- NewMessage("PONG", msg.Params[0])
+	case "ERROR":
+		s.Close()
 	case "FAIL":
-		s.evts <- ErrorEvent{
+		return ErrorEvent{
 			Severity: SeverityFail,
 			Code:     msg.Params[1],
-			Message:  msg.Params[len(msg.Params)-1],
+			Message:  strings.Join(msg.Params[2:], " "),
 		}
 	case "WARN":
-		s.evts <- ErrorEvent{
+		return ErrorEvent{
 			Severity: SeverityWarn,
 			Code:     msg.Params[1],
-			Message:  msg.Params[len(msg.Params)-1],
+			Message:  strings.Join(msg.Params[2:], " "),
 		}
 	case "NOTE":
-		s.evts <- ErrorEvent{
+		return ErrorEvent{
 			Severity: SeverityNote,
 			Code:     msg.Params[1],
-			Message:  msg.Params[len(msg.Params)-1],
+			Message:  strings.Join(msg.Params[2:], " "),
 		}
-	case "PING":
-		err = s.send("PONG :%s\r\n", msg.Params[0])
-		if err != nil {
-			return
-		}
-	case "ERROR":
-		err = errors.New("connection terminated")
-		if len(msg.Params) > 0 {
-			err = fmt.Errorf("connection terminated: %s", msg.Params[0])
-		}
-		_ = s.conn.Close()
 	default:
-		// reply handling
-		if ReplySeverity(msg.Command) == SeverityFail {
-			s.evts <- ErrorEvent{
-				Severity: SeverityFail,
+		if msg.IsReply() {
+			return ErrorEvent{
+				Severity: ReplySeverity(msg.Command),
 				Code:     msg.Command,
-				Message:  msg.Params[len(msg.Params)-1],
+				Message:  strings.Join(msg.Params[1:], " "),
 			}
 		}
 	}
-
-	return
+	return nil
 }
 
-func (s *Session) privmsgToEvent(msg Message) (ev MessageEvent) {
+func (s *Session) newMessageEvent(msg Message) MessageEvent {
 	targetCf := s.Casemap(msg.Params[0])
-
-	s.typings.Done(targetCf, s.Casemap(msg.Prefix.Name))
-	ev = MessageEvent{
-		User:    msg.Prefix.Copy(), // TODO correctly casemap
-		Target:  msg.Params[0],     // TODO correctly casemap
+	ev := MessageEvent{
+		User:    msg.Prefix.Name, // TODO correctly casemap
+		Target:  msg.Params[0],   // TODO correctly casemap
 		Command: msg.Command,
 		Content: msg.Params[1],
 		Time:    msg.TimeOrNow(),
@@ -1114,8 +794,7 @@ func (s *Session) privmsgToEvent(msg Message) (ev MessageEvent) {
 		ev.Target = c.Name
 		ev.TargetIsChannel = true
 	}
-
-	return
+	return ev
 }
 
 func (s *Session) cleanUser(parted *User) {
@@ -1157,6 +836,7 @@ func (s *Session) updateFeatures(features []string) {
 			continue
 		}
 
+	Switch:
 		switch key {
 		case "CASEMAPPING":
 			switch value {
@@ -1167,31 +847,32 @@ func (s *Session) updateFeatures(features []string) {
 			}
 		case "CHANTYPES":
 			s.chantypes = value
+		case "CHATHISTORY":
+			historyLimit, err := strconv.Atoi(value)
+			if err == nil {
+				s.historyLimit = historyLimit
+			}
 		case "LINELEN":
 			linelen, err := strconv.Atoi(value)
 			if err == nil && linelen != 0 {
 				s.linelen = linelen
 			}
-		}
-	}
-}
-
-func (s *Session) send(format string, args ...interface{}) (err error) {
-	msg := fmt.Sprintf(format, args...)
-
-	s.conn.SetWriteDeadline(time.Now().Add(writeDeadline))
-	_, err = s.conn.Write([]byte(msg))
-
-	if s.debug {
-		for _, line := range strings.Split(msg, "\r\n") {
-			if line != "" {
-				s.evts <- RawMessageEvent{
-					Message:  line,
-					Outgoing: true,
+		case "PREFIX":
+			if value == "" {
+				s.prefixModes = ""
+				s.prefixSymbols = ""
+			}
+			if len(value)%2 != 0 {
+				break Switch
+			}
+			for i := 0; i < len(value); i++ {
+				if unicode.MaxASCII < value[i] {
+					break Switch
 				}
 			}
+			numPrefixes := len(value)/2 - 1
+			s.prefixModes = value[1 : numPrefixes+1]
+			s.prefixSymbols = value[numPrefixes+2:]
 		}
 	}
-
-	return
 }

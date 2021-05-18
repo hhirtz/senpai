@@ -73,3 +73,16 @@ func (ts *Typings) Done(target, name string) {
 	delete(ts.targets, Typing{target, name})
 	ts.l.Unlock()
 }
+
+func (ts *Typings) List(target string) []string {
+	ts.l.Lock()
+	defer ts.l.Unlock()
+
+	var res []string
+	for t := range ts.targets {
+		if target == t.Target {
+			res = append(res, t.Name)
+		}
+	}
+	return res
+}

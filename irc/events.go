@@ -1,16 +1,8 @@
 package irc
 
-import (
-	"time"
-)
+import "time"
 
 type Event interface{}
-
-type RawMessageEvent struct {
-	Message  string
-	Outgoing bool
-	IsValid  bool
-}
 
 type ErrorEvent struct {
 	Severity Severity
@@ -22,13 +14,11 @@ type RegisteredEvent struct{}
 
 type SelfNickEvent struct {
 	FormerNick string
-	Time       time.Time
 }
 
 type UserNickEvent struct {
-	User       *Prefix
+	User       string
 	FormerNick string
-	Time       time.Time
 }
 
 type SelfJoinEvent struct {
@@ -36,9 +26,8 @@ type SelfJoinEvent struct {
 }
 
 type UserJoinEvent struct {
-	User    *Prefix
+	User    string
 	Channel string
-	Time    time.Time
 }
 
 type SelfPartEvent struct {
@@ -46,38 +35,26 @@ type SelfPartEvent struct {
 }
 
 type UserPartEvent struct {
-	User    *Prefix
+	User    string
 	Channel string
-	Time    time.Time
 }
 
 type UserQuitEvent struct {
-	User     *Prefix
+	User     string
 	Channels []string
-	Time     time.Time
 }
 
 type TopicChangeEvent struct {
-	User    *Prefix
 	Channel string
 	Topic   string
-	Time    time.Time
 }
 
 type MessageEvent struct {
-	User            *Prefix
+	User            string
 	Target          string
 	TargetIsChannel bool
 	Command         string
 	Content         string
-	Time            time.Time
-}
-
-type TagEvent struct {
-	User            *Prefix
-	Target          string
-	TargetIsChannel bool
-	Typing          int
 	Time            time.Time
 }
 

@@ -229,6 +229,10 @@ type Message struct {
 	Params  []string
 }
 
+func NewMessage(command string, params ...string) Message {
+	return Message{Command: command, Params: params}
+}
+
 // ParseMessage parses the message from the given string, which must be trimmed
 // of "\r\n" beforehand.
 func ParseMessage(line string) (msg Message, err error) {
@@ -282,6 +286,14 @@ func ParseMessage(line string) (msg Message, err error) {
 	return
 }
 
+func (msg Message) WithTag(key, value string) Message {
+	if msg.Tags == nil {
+		msg.Tags = map[string]string{}
+	}
+	msg.Tags[key] = escapeTagValue(value)
+	return msg
+}
+
 // IsReply reports whether the message command is a server reply.
 func (msg *Message) IsReply() bool {
 	if len(msg.Command) != 3 {
@@ -326,9 +338,15 @@ func (msg *Message) String() string {
 			sb.WriteRune(' ')
 			sb.WriteString(p)
 		}
-		sb.WriteRune(' ')
-		sb.WriteRune(':')
-		sb.WriteString(msg.Params[len(msg.Params)-1])
+		lastParam := msg.Params[len(msg.Params)-1]
+		if !strings.ContainsRune(lastParam, ' ') && !strings.HasPrefix(lastParam, ":") {
+			sb.WriteRune(' ')
+			sb.WriteString(lastParam)
+		} else {
+			sb.WriteRune(' ')
+			sb.WriteRune(':')
+			sb.WriteString(lastParam)
+		}
 	}
 
 	return sb.String()

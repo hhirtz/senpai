@@ -22,28 +22,35 @@ var homeMessages = []string{
 func (app *App) initWindow() {
 	hmIdx := rand.Intn(len(homeMessages))
 	app.win.AddBuffer(Home)
-	app.addLineNow("", ui.Line{
+	app.win.AddLine(Home, false, ui.Line{
 		Head: "--",
 		Body: homeMessages[hmIdx],
+		At:   time.Now(),
 	})
 }
 
-func (app *App) addLineNow(buffer string, line ui.Line) {
+func (app *App) queueStatusLine(line ui.Line) {
 	if line.At.IsZero() {
 		line.At = time.Now()
 	}
-	app.win.AddLine(buffer, false, line)
-	app.draw()
+	app.events <- event{
+		src:     uiEvent,
+		content: line,
+	}
 }
 
-func (app *App) draw() {
-	if app.s != nil {
-		app.setStatus()
+func (app *App) addStatusLine(line ui.Line) {
+	buffer := app.win.CurrentBuffer()
+	if buffer != Home {
+		app.win.AddLine(Home, false, line)
 	}
-	app.win.Draw()
+	app.win.AddLine(buffer, false, line)
 }
 
 func (app *App) setStatus() {
+	if app.s == nil {
+		return
+	}
 	ts := app.s.Typings(app.win.CurrentBuffer())
 	status := ""
 	if 3 < len(ts) {

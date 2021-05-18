@@ -79,7 +79,7 @@ func NewApp(cfg Config) (app *App, err error) {
 func (app *App) Close() {
 	app.win.Close()
 	if app.s != nil {
-		app.s.Stop()
+		app.s.Close()
 	}
 }
 
@@ -109,21 +109,8 @@ func (app *App) eventLoop() {
 
 		app.handleEvents(evs)
 		if !app.pasting {
-			app.draw()
-		}
-	}
-}
-
-// handleEvents handles a batch of events.
-func (app *App) handleEvents(evs []event) {
-	for _, ev := range evs {
-		switch ev.src {
-		case uiEvent:
-			app.handleUIEvent(ev.content.(tcell.Event))
-		case ircEvent:
-			app.handleIRCEvent(ev.content.(irc.Event))
-		default:
-			panic("unreachable")
+			app.setStatus()
+			app.win.Draw()
 		}
 	}
 }
@@ -131,15 +118,48 @@ func (app *App) handleEvents(evs []event) {
 // ircLoop maintains a connection to the IRC server by connecting and then
 // forwarding IRC events to app.events repeatedly.
 func (app *App) ircLoop() {
+	var auth irc.SASLClient
+	if app.cfg.Password != nil {
+		auth = &irc.SASLPlain{
+			Username: app.cfg.User,
+			Password: *app.cfg.Password,
+		}
+	}
+	params := irc.SessionParams{
+		Nickname: app.cfg.Nick,
+		Username: app.cfg.User,
+		RealName: app.cfg.Real,
+		Auth:     auth,
+	}
 	for !app.win.ShouldExit() {
-		app.connect()
-		for ev := range app.s.Poll() {
+		conn := app.connect()
+		in, out := irc.ChanInOut(conn)
+		if app.cfg.Debug {
+			out = app.debugOutputMessages(out)
+		}
+		session := irc.NewSession(out, params)
+		app.events <- event{
+			src:     ircEvent,
+			content: session,
+		}
+		for msg := range in {
+			if app.cfg.Debug {
+				app.queueStatusLine(ui.Line{
+					At:   time.Now(),
+					Head: "IN --",
+					Body: msg.String(),
+				})
+			}
 			app.events <- event{
 				src:     ircEvent,
-				content: ev,
+				content: msg,
 			}
 		}
-		app.addLineNow(Home, ui.Line{
+		app.events <- event{
+			src:     ircEvent,
+			content: nil,
+		}
+		app.queueStatusLine(ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
 			Body:      "Connection lost",
@@ -147,17 +167,17 @@ func (app *App) ircLoop() {
 	}
 }
 
-func (app *App) connect() {
+func (app *App) connect() net.Conn {
 	for {
-		app.addLineNow(Home, ui.Line{
+		app.queueStatusLine(ui.Line{
 			Head: "--",
 			Body: fmt.Sprintf("Connecting to %s...", app.cfg.Addr),
 		})
-		err := app.tryConnect()
+		conn, err := app.tryConnect()
 		if err == nil {
-			break
+			return conn
 		}
-		app.addLineNow(Home, ui.Line{
+		app.queueStatusLine(ui.Line{
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
 			Body:      fmt.Sprintf("Connection failed: %v", err),
@@ -166,7 +186,7 @@ func (app *App) connect() {
 	}
 }
 
-func (app *App) tryConnect() (err error) {
+func (app *App) tryConnect() (conn net.Conn, err error) {
 	addr := app.cfg.Addr
 	colonIdx := strings.LastIndexByte(addr, ':')
 	bracketIdx := strings.LastIndexByte(addr, ']')
@@ -180,7 +200,7 @@ func (app *App) tryConnect() (err error) {
 		}
 	}
 
-	conn, err := net.Dial("tcp", addr)
+	conn, err = net.Dial("tcp", addr)
 	if err != nil {
 		return
 	}
@@ -193,26 +213,22 @@ func (app *App) tryConnect() (err error) {
 		})
 	}
 
-	var auth irc.SASLClient
-	if app.cfg.Password != nil {
-		auth = &irc.SASLPlain{
-			Username: app.cfg.User,
-			Password: *app.cfg.Password,
-		}
-	}
-	app.s, err = irc.NewSession(conn, irc.SessionParams{
-		Nickname: app.cfg.Nick,
-		Username: app.cfg.User,
-		RealName: app.cfg.Real,
-		Auth:     auth,
-		Debug:    app.cfg.Debug,
-	})
-	if err != nil {
-		conn.Close()
-		return
-	}
-
 	return
+}
+
+func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
+	debugOut := make(chan irc.Message, cap(out))
+	go func() {
+		for msg := range debugOut {
+			app.queueStatusLine(ui.Line{
+				At:   time.Now(),
+				Head: "OUT --",
+				Body: msg.String(),
+			})
+			out <- msg
+		}
+	}()
+	return debugOut
 }
 
 // uiLoop retrieves events from the UI and forwards them to app.events for
@@ -230,118 +246,34 @@ func (app *App) uiLoop() {
 	}
 }
 
-func (app *App) handleIRCEvent(ev irc.Event) {
+// handleEvents handles a batch of events.
+func (app *App) handleEvents(evs []event) {
+	for _, ev := range evs {
+		switch ev.src {
+		case uiEvent:
+			app.handleUIEvent(ev.content)
+		case ircEvent:
+			app.handleIRCEvent(ev.content)
+		default:
+			panic("unreachable")
+		}
+	}
+}
+
+func (app *App) handleUIEvent(ev interface{}) {
 	switch ev := ev.(type) {
-	case irc.RawMessageEvent:
-		head := "IN --"
-		if ev.Outgoing {
-			head = "OUT --"
-		} else if !ev.IsValid {
-			head = "IN ??"
-		}
-		app.win.AddLine(Home, false, ui.Line{
-			At:   time.Now(),
-			Head: head,
-			Body: ev.Message,
-		})
-	case irc.ErrorEvent:
-		var severity string
-		switch ev.Severity {
-		case irc.SeverityNote:
-			severity = "Note"
-		case irc.SeverityWarn:
-			severity = "Warning"
-		case irc.SeverityFail:
-			severity = "Error"
-		}
-		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
-			At:        time.Now(),
-			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      fmt.Sprintf("%s (code %s): %s", severity, ev.Code, ev.Message),
-		})
-	case irc.RegisteredEvent:
-		body := "Connected to the server"
-		if app.s.Nick() != app.cfg.Nick {
-			body += " as " + app.s.Nick()
-		}
-		app.win.AddLine(Home, false, ui.Line{
-			At:   time.Now(),
-			Head: "--",
-			Body: body,
-		})
-	case irc.SelfNickEvent:
-		app.win.AddLine(app.win.CurrentBuffer(), true, ui.Line{
-			At:        ev.Time,
-			Head:      "--",
-			Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, app.s.Nick()),
-			Highlight: true,
-		})
-	case irc.UserNickEvent:
-		for _, c := range app.s.ChannelsSharedWith(ev.User.Name) {
-			app.win.AddLine(c, false, ui.Line{
-				At:        ev.Time,
-				Head:      "--",
-				Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.User.Name),
-				Mergeable: true,
-			})
-		}
-	case irc.SelfJoinEvent:
-		app.win.AddBuffer(ev.Channel)
-		app.s.RequestHistory(ev.Channel, time.Now())
-	case irc.UserJoinEvent:
-		app.win.AddLine(ev.Channel, false, ui.Line{
-			At:        time.Now(),
-			Head:      "--",
-			Body:      fmt.Sprintf("\x033+\x0314%s\x03", ev.User.Name),
-			Mergeable: true,
-		})
-	case irc.SelfPartEvent:
-		app.win.RemoveBuffer(ev.Channel)
-	case irc.UserPartEvent:
-		app.win.AddLine(ev.Channel, false, ui.Line{
-			At:        ev.Time,
-			Head:      "--",
-			Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User.Name),
-			Mergeable: true,
-		})
-	case irc.UserQuitEvent:
-		for _, c := range ev.Channels {
-			app.win.AddLine(c, false, ui.Line{
-				At:        ev.Time,
-				Head:      "--",
-				Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User.Name),
-				Mergeable: true,
-			})
-		}
-	case irc.TopicChangeEvent:
-		app.win.AddLine(ev.Channel, false, ui.Line{
-			At:   ev.Time,
-			Head: "--",
-			Body: fmt.Sprintf("\x0314Topic changed to: %s\x03", ev.Topic),
-		})
-	case irc.MessageEvent:
-		buffer, line, hlNotification := app.formatMessage(ev)
-		app.win.AddLine(buffer, hlNotification, line)
-		if hlNotification {
-			app.notifyHighlight(buffer, ev.User.Name, ev.Content)
-		}
-		if !ev.TargetIsChannel && app.s.NickCf() != app.s.Casemap(ev.User.Name) {
-			app.lastQuery = ev.User.Name
-		}
-	case irc.HistoryEvent:
-		var lines []ui.Line
-		for _, m := range ev.Messages {
-			switch m := m.(type) {
-			case irc.MessageEvent:
-				_, line, _ := app.formatMessage(m)
-				lines = append(lines, line)
-			default:
-			}
-		}
-		app.win.AddLines(ev.Target, lines)
-	case error:
-		panic(ev)
+	case *tcell.EventResize:
+		app.win.Resize()
+	case *tcell.EventPaste:
+		app.pasting = ev.Start()
+	case *tcell.EventMouse:
+		app.handleMouseEvent(ev)
+	case *tcell.EventKey:
+		app.handleKeyEvent(ev)
+	case ui.Line:
+		app.addStatusLine(ev)
+	default:
+		return
 	}
 }
 
@@ -484,24 +416,6 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 	}
 }
 
-func (app *App) handleUIEvent(ev tcell.Event) {
-	switch ev := ev.(type) {
-	case *tcell.EventResize:
-		app.win.Resize()
-	case *tcell.EventPaste:
-		app.pasting = ev.Start()
-	case *tcell.EventMouse:
-		app.handleMouseEvent(ev)
-	case *tcell.EventKey:
-		app.handleKeyEvent(ev)
-	default:
-		return
-	}
-	if !app.pasting {
-		app.draw()
-	}
-}
-
 // requestHistory is a wrapper around irc.Session.RequestHistory to only request
 // history when needed.
 func (app *App) requestHistory() {
@@ -510,22 +424,159 @@ func (app *App) requestHistory() {
 	}
 	buffer := app.win.CurrentBuffer()
 	if app.win.IsAtTop() && buffer != Home {
-		at := time.Now()
-		if t := app.win.CurrentBufferOldestTime(); t != nil {
-			at = *t
+		t := time.Now()
+		if oldest := app.win.CurrentBufferOldestTime(); oldest != nil {
+			t = *oldest
 		}
-		app.s.RequestHistory(buffer, at)
+		app.s.NewHistoryRequest(buffer).
+			WithLimit(100).
+			Before(t)
 	}
+}
+
+func (app *App) handleIRCEvent(ev interface{}) {
+	if ev == nil {
+		app.s.Close()
+		app.s = nil
+		return
+	}
+	if s, ok := ev.(*irc.Session); ok {
+		app.s = s
+		return
+	}
+
+	msg := ev.(irc.Message)
+
+	// Mutate IRC state
+	ev = app.s.HandleMessage(msg)
+
+	// Mutate UI state
+	switch ev := ev.(type) {
+	case irc.RegisteredEvent:
+		body := "Connected to the server"
+		if app.s.Nick() != app.cfg.Nick {
+			body += " as " + app.s.Nick()
+		}
+		app.win.AddLine(Home, false, ui.Line{
+			At:   msg.TimeOrNow(),
+			Head: "--",
+			Body: body,
+		})
+	case irc.SelfNickEvent:
+		app.win.AddLine(app.win.CurrentBuffer(), true, ui.Line{
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, app.s.Nick()),
+			Highlight: true,
+		})
+	case irc.UserNickEvent:
+		for _, c := range app.s.ChannelsSharedWith(ev.User) {
+			app.win.AddLine(c, false, ui.Line{
+				At:        msg.TimeOrNow(),
+				Head:      "--",
+				Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.User),
+				Mergeable: true,
+			})
+		}
+	case irc.SelfJoinEvent:
+		app.win.AddBuffer(ev.Channel)
+		app.s.NewHistoryRequest(ev.Channel).
+			WithLimit(200).
+			Before(msg.TimeOrNow())
+	case irc.UserJoinEvent:
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			Body:      fmt.Sprintf("\x033+\x0314%s\x03", ev.User),
+			Mergeable: true,
+		})
+	case irc.SelfPartEvent:
+		app.win.RemoveBuffer(ev.Channel)
+	case irc.UserPartEvent:
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User),
+			Mergeable: true,
+		})
+	case irc.UserQuitEvent:
+		for _, c := range ev.Channels {
+			app.win.AddLine(c, false, ui.Line{
+				At:        msg.TimeOrNow(),
+				Head:      "--",
+				Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User),
+				Mergeable: true,
+			})
+		}
+	case irc.TopicChangeEvent:
+		app.win.AddLine(ev.Channel, false, ui.Line{
+			At:   msg.TimeOrNow(),
+			Head: "--",
+			Body: fmt.Sprintf("\x0314Topic changed to: %s\x03", ev.Topic),
+		})
+	case irc.MessageEvent:
+		buffer, line, hlNotification := app.formatMessage(ev)
+		app.win.AddLine(buffer, hlNotification, line)
+		if hlNotification {
+			app.notifyHighlight(buffer, ev.User, ev.Content)
+		}
+		if !app.s.IsChannel(msg.Params[0]) && !app.s.IsMe(ev.User) {
+			app.lastQuery = msg.Prefix.Name
+		}
+	case irc.HistoryEvent:
+		var lines []ui.Line
+		for _, m := range ev.Messages {
+			switch ev := m.(type) {
+			case irc.MessageEvent:
+				_, line, _ := app.formatMessage(ev)
+				lines = append(lines, line)
+			}
+		}
+		app.win.AddLines(ev.Target, lines)
+	case irc.ErrorEvent:
+		if isBlackListed(msg.Command) {
+			break
+		}
+		var head string
+		var body string
+		switch ev.Severity {
+		case irc.SeverityFail:
+			head = "--"
+			body = fmt.Sprintf("Error (code %s): %s", ev.Code, ev.Message)
+		case irc.SeverityWarn:
+			head = "--"
+			body = fmt.Sprintf("Warning (code %s): %s", ev.Code, ev.Message)
+		case irc.SeverityNote:
+			head = ev.Code + " --"
+			body = ev.Message
+		default:
+			panic("unreachable")
+		}
+		app.addStatusLine(ui.Line{
+			At:   msg.TimeOrNow(),
+			Head: head,
+			Body: body,
+		})
+	}
+}
+
+func isBlackListed(command string) bool {
+	switch command {
+	case "002", "003", "004", "422":
+		// useless connection messages
+		return true
+	}
+	return false
 }
 
 // isHighlight reports whether the given message content is a highlight.
 func (app *App) isHighlight(content string) bool {
-	contentCf := strings.ToLower(content)
+	contentCf := app.s.Casemap(content)
 	if app.highlights == nil {
 		return strings.Contains(contentCf, app.s.NickCf())
 	}
 	for _, h := range app.highlights {
-		if strings.Contains(contentCf, h) {
+		if strings.Contains(contentCf, app.s.Casemap(h)) {
 			return true
 		}
 	}
@@ -556,7 +607,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		body := fmt.Sprintf("Failed to invoke on-highlight command: %v. Output: %q", err, string(output))
-		app.win.AddLine(Home, false, ui.Line{
+		app.addStatusLine(ui.Line{
 			At:        time.Now(),
 			Head:      "!!",
 			HeadColor: ui.ColorRed,
@@ -615,7 +666,7 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 // - the UI line,
 // - whether senpai must trigger the "on-highlight" command.
 func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
-	isFromSelf := app.s.NickCf() == app.s.Casemap(ev.User.Name)
+	isFromSelf := app.s.IsMe(ev.User)
 	isHighlight := app.isHighlight(ev.Content)
 	isAction := strings.HasPrefix(ev.Content, "\x01ACTION")
 	isQuery := !ev.TargetIsChannel && ev.Command == "PRIVMSG"
@@ -632,7 +683,7 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	hlLine := ev.TargetIsChannel && isHighlight && !isFromSelf
 	hlNotification = (isHighlight || isQuery) && !isFromSelf
 
-	head := ev.User.Name
+	head := ev.User
 	headColor := ui.ColorWhite
 	if isFromSelf && isQuery {
 		head = "\u2192 " + ev.Target
@@ -645,14 +696,14 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 
 	body := strings.TrimSuffix(ev.Content, "\x01")
 	if isNotice && isAction {
-		c := ircColorSequence(ui.IdentColor(ev.User.Name))
-		body = fmt.Sprintf("(%s%s\x0F:%s)", c, ev.User.Name, body[7:])
+		c := ircColorSequence(ui.IdentColor(ev.User))
+		body = fmt.Sprintf("(%s%s\x0F:%s)", c, ev.User, body[7:])
 	} else if isAction {
-		c := ircColorSequence(ui.IdentColor(ev.User.Name))
-		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User.Name, body[7:])
+		c := ircColorSequence(ui.IdentColor(ev.User))
+		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User, body[7:])
 	} else if isNotice {
-		c := ircColorSequence(ui.IdentColor(ev.User.Name))
-		body = fmt.Sprintf("(%s%s\x0F: %s)", c, ev.User.Name, body)
+		c := ircColorSequence(ui.IdentColor(ev.User))
+		body = fmt.Sprintf("(%s%s\x0F: %s)", c, ev.User, body)
 	}
 
 	line = ui.Line{

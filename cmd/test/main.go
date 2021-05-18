@@ -56,17 +56,24 @@ func main() {
 	if password != "" {
 		auth = &irc.SASLPlain{Username: nick, Password: password}
 	}
-	cli, err := irc.NewSession(conn, irc.SessionParams{
+
+	in, out := irc.ChanInOut(conn)
+	debugOut := make(chan irc.Message, 64)
+	go func() {
+		for msg := range debugOut {
+			fmt.Fprintf(t, "C  > S: %s\n", msg.String())
+			out <- msg
+		}
+		close(out)
+	}()
+
+	cli := irc.NewSession(debugOut, irc.SessionParams{
 		Nickname: nick,
 		Username: nick,
 		RealName: nick,
 		Auth:     auth,
-		Debug:    true,
 	})
-	if err != nil {
-		panic(fmt.Sprintf("Failed to connect to %s: %v", address, err))
-	}
-	defer cli.Stop()
+	defer cli.Close()
 
 	go func() {
 		for {
@@ -76,22 +83,12 @@ func main() {
 			}
 			cli.SendRaw(line)
 		}
-		cli.Stop()
+		cli.Close()
 	}()
 
-	for ev := range cli.Poll() {
-		switch ev := ev.(type) {
-		case irc.RawMessageEvent:
-			if ev.Outgoing {
-				fmt.Fprintf(t, "C  > S: %s\n", ev.Message)
-			} else {
-				fmt.Fprintf(t, "C <  S: %s\n", ev.Message)
-			}
-		case error:
-			panic(ev)
-		default:
-			fmt.Fprintf(t, "=EVENT: %T%+v\n", ev, ev)
-		}
+	for msg := range in {
+		cli.HandleMessage(msg)
+		fmt.Fprintf(t, "C <  S: %s\n", msg.String())
 	}
 	t.SetPrompt("")
 	fmt.Fprintln(t, "Disconnected")
