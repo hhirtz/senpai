@@ -72,6 +72,14 @@ func init() {
 			Desc:      "change your nickname",
 			Handle:    commandDoNick,
 		},
+		"MODE": {
+			AllowHome: true,
+			MinArgs:   2,
+			MaxArgs:   5, // <channel> <flags> <limit> <user> <ban mask>
+			Usage:     "<nick/channel> <flags> [args]",
+			Desc:      "change channel or user modes",
+			Handle:    commandDoMode,
+		},
 		"PART": {
 			AllowHome: true,
 			MaxArgs:   2,
@@ -264,6 +272,15 @@ func commandDoNick(app *App, buffer string, args []string) (err error) {
 		return fmt.Errorf("illegal char %q in nickname", nick[i])
 	}
 	app.s.ChangeNick(nick)
+	return
+}
+
+func commandDoMode(app *App, buffer string, args []string) (err error) {
+	channel := args[0]
+	flags := args[1]
+	mode_args := args[2:]
+
+	app.s.ChangeMode(channel, flags, mode_args)
 	return
 }
 

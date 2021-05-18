@@ -91,6 +91,11 @@ type (
 	actionChangeNick struct {
 		Nick string
 	}
+	actionChangeMode struct {
+		Channel string
+		Flags   string
+		Args    []string
+	}
 
 	actionJoin struct {
 		Channel string
@@ -437,6 +442,20 @@ func (s *Session) changeNick(act actionChangeNick) (err error) {
 	return
 }
 
+func (s *Session) ChangeMode(channel string, flags string, args []string) {
+	s.acts <- actionChangeMode{channel, flags, args}
+}
+
+func (s *Session) changeMode(act actionChangeMode) (err error) {
+	if strings.IndexAny(act.Channel, s.chantypes) == 0 {
+		err = s.send("MODE %s %s %s\r\n",
+			act.Channel, act.Flags, strings.Join(act.Args, " "))
+	} else {
+		err = s.send("MODE %s %s\r\n", act.Channel, act.Flags)
+	}
+	return
+}
+
 func (s *Session) PrivMsg(target, content string) {
 	s.acts <- actionPrivMsg{target, content}
 }
@@ -534,6 +553,8 @@ func (s *Session) run() {
 				err = s.sendRaw(act)
 			case actionChangeNick:
 				err = s.changeNick(act)
+			case actionChangeMode:
+				err = s.changeMode(act)
 			case actionJoin:
 				err = s.join(act)
 			case actionPart:

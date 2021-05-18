@@ -146,6 +146,9 @@ _name_ is matched case-insensitively.  It can be one of the following:
 *NICK* <nickname>
 	Change your nickname.
 
+*MODE* <nick/channel> <flags> [args]
+	Change channel or user modes.
+
 # SEE ALSO
 
 *senpai*(5)
