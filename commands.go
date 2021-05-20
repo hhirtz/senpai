@@ -197,7 +197,11 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 }
 
 func commandDoJoin(app *App, buffer string, args []string) (err error) {
-	app.s.Join(args[0])
+	key := ""
+	if len(args) == 2 {
+		key = args[1]
+	}
+	app.s.Join(args[0], key)
 	return
 }
 

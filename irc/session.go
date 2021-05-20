@@ -266,9 +266,12 @@ func (s *Session) SendRaw(raw string) {
 	s.out <- NewMessage(raw)
 }
 
-func (s *Session) Join(channel string) {
-	// TODO support keys
-	s.out <- NewMessage("JOIN", channel)
+func (s *Session) Join(channel, key string) {
+	if key == "" {
+		s.out <- NewMessage("JOIN", channel)
+	} else {
+		s.out <- NewMessage("JOIN", channel, key)
+	}
 }
 
 func (s *Session) Part(channel, reason string) {
