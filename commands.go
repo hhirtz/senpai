@@ -358,6 +358,51 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 	return
 }
 
+// implemented from https://golang.org/src/strings/strings.go?s=8055:8085#L310
+func fieldsN(s string, n int) []string {
+	s = strings.TrimSpace(s)
+	if s == "" || n == 0 {
+		return nil
+	}
+	if n == 1 {
+		return []string{s}
+	}
+	n--
+	// Start of the ASCII fast path.
+	var a []string
+	na := 0
+	fieldStart := 0
+	i := 0
+	// Skip spaces in front of the input.
+	for i < len(s) && s[i] == ' ' {
+		i++
+	}
+	fieldStart = i
+	for i < len(s) {
+		if s[i] != ' ' {
+			i++
+			continue
+		}
+		a = append(a, s[fieldStart:i])
+		na++
+		i++
+		// Skip spaces in between fields.
+		for i < len(s) && s[i] == ' ' {
+			i++
+		}
+		fieldStart = i
+		if n <= na {
+			a = append(a, s[fieldStart:])
+			return a
+		}
+	}
+	if fieldStart < len(s) {
+		// Last field ends at EOF.
+		a = append(a, s[fieldStart:])
+	}
+	return a
+}
+
 func parseCommand(s string) (command, args string, isCommand bool) {
 	if s == "" {
 		return "", "", false
@@ -416,7 +461,7 @@ func (app *App) handleInput(buffer, content string) error {
 
 	var args []string
 	if rawArgs != "" && cmd.MaxArgs != 0 {
-		args = strings.SplitN(rawArgs, " ", cmd.MaxArgs)
+		args = fieldsN(rawArgs, cmd.MaxArgs)
 	}
 
 	if len(args) < cmd.MinArgs {
