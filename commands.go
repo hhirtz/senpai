@@ -24,11 +24,6 @@ var commands commandSet
 
 func init() {
 	commands = commandSet{
-		"": {
-			MinArgs: 1,
-			MaxArgs: 1,
-			Handle:  commandDo,
-		},
 		"HELP": {
 			AllowHome: true,
 			MaxArgs:   1,
@@ -127,20 +122,19 @@ func init() {
 	}
 }
 
-func commandDo(app *App, buffer string, args []string) (err error) {
-	app.s.PrivMsg(buffer, args[0])
+func noCommand(app *App, buffer, content string) {
+	app.s.PrivMsg(buffer, content)
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
 			User:            app.s.Nick(),
 			Target:          buffer,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
-			Content:         args[0],
+			Content:         content,
 			Time:            time.Now(),
 		})
 		app.win.AddLine(buffer, false, line)
 	}
-	return
 }
 
 func commandDoHelp(app *App, buffer string, args []string) (err error) {
@@ -360,14 +354,17 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func parseCommand(s string) (command, args string) {
+func parseCommand(s string) (command, args string, isCommand bool) {
 	if s == "" {
-		return
+		return "", "", false
 	}
 
 	if s[0] != '/' {
-		args = s
-		return
+		return "", s, false
+	}
+	if s[1] == '/' {
+		// Input starts with two slashes.
+		return "", s[1:], false
 	}
 
 	i := strings.IndexByte(s, ' ')
@@ -375,35 +372,39 @@ func parseCommand(s string) (command, args string) {
 		i = len(s)
 	}
 
+	isCommand = true
 	command = strings.ToUpper(s[1:i])
 	args = strings.TrimLeft(s[i:], " ")
-
 	return
 }
 
 func (app *App) handleInput(buffer, content string) error {
-	cmdName, rawArgs := parseCommand(content)
-
 	if content == "" {
 		return nil
 	}
 
+	cmdName, rawArgs, isCommand := parseCommand(content)
+	if !isCommand {
+		noCommand(app, buffer, content)
+		return nil
+	}
+	if cmdName == "" {
+		return fmt.Errorf("lone slash at the begining")
+	}
+
 	var chosenCMDName string
-	var ok bool
+	var found bool
 	for key := range commands {
-		if cmdName == "" && key != "" {
-			continue
-		}
 		if !strings.HasPrefix(key, cmdName) {
 			continue
 		}
-		if ok {
+		if found {
 			return fmt.Errorf("ambiguous command %q (could mean %v or %v)", cmdName, chosenCMDName, key)
 		}
 		chosenCMDName = key
-		ok = true
+		found = true
 	}
-	if !ok {
+	if !found {
 		return fmt.Errorf("command %q doesn't exist", cmdName)
 	}
 
