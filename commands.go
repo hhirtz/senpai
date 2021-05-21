@@ -122,7 +122,13 @@ func init() {
 	}
 }
 
-func noCommand(app *App, buffer, content string) {
+func noCommand(app *App, buffer, content string) error {
+	// You can't send messages to home buffer, and it might get
+	// delivered to a user "home" without a bouncer, which will be bad.
+	if buffer == "home" {
+		return fmt.Errorf("Can't send message to home")
+	}
+
 	app.s.PrivMsg(buffer, content)
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
@@ -135,6 +141,8 @@ func noCommand(app *App, buffer, content string) {
 		})
 		app.win.AddLine(buffer, false, line)
 	}
+
+	return nil
 }
 
 func commandDoHelp(app *App, buffer string, args []string) (err error) {
@@ -434,8 +442,7 @@ func (app *App) handleInput(buffer, content string) error {
 
 	cmdName, rawArgs, isCommand := parseCommand(content)
 	if !isCommand {
-		noCommand(app, buffer, content)
-		return nil
+		return noCommand(app, buffer, content)
 	}
 	if cmdName == "" {
 		return fmt.Errorf("lone slash at the begining")
