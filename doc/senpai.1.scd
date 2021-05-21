@@ -58,8 +58,8 @@ of messages are in the timeline:
   nickname,
 - Status messages, such as joins, parts, topics and name lists, are shown with
   two dashes (*--*),
-- Notices are shown with an asterisk (*\**) followed by the message in
-  parenthesis.
+- Notices are shown with an asterisk (*\**) followed by the user nickname and a
+  colon
 
 # KEYBOARD SHORTCUTS
 

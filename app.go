@@ -697,13 +697,13 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	body := strings.TrimSuffix(ev.Content, "\x01")
 	if isNotice && isAction {
 		c := ircColorSequence(ui.IdentColor(ev.User))
-		body = fmt.Sprintf("(%s%s\x0F:%s)", c, ev.User, body[7:])
+		body = fmt.Sprintf("%s%s\x0F:%s", c, ev.User, body[7:])
 	} else if isAction {
 		c := ircColorSequence(ui.IdentColor(ev.User))
 		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User, body[7:])
 	} else if isNotice {
 		c := ircColorSequence(ui.IdentColor(ev.User))
-		body = fmt.Sprintf("(%s%s\x0F: %s)", c, ev.User, body)
+		body = fmt.Sprintf("%s%s\x0F: %s", c, ev.User, body)
 	}
 
 	line = ui.Line{
