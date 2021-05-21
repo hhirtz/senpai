@@ -438,7 +438,7 @@ func (app *App) handleInput(buffer, content string) error {
 
 	cmdName, rawArgs, isCommand := parseCommand(content)
 	if !isCommand {
-		return noCommand(app, buffer, content)
+		return noCommand(app, buffer, rawArgs)
 	}
 	if cmdName == "" {
 		return fmt.Errorf("lone slash at the begining")
