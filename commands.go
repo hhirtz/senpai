@@ -125,7 +125,7 @@ func init() {
 func noCommand(app *App, buffer, content string) error {
 	// You can't send messages to home buffer, and it might get
 	// delivered to a user "home" without a bouncer, which will be bad.
-	if buffer == "home" {
+	if buffer == Home {
 		return fmt.Errorf("Can't send message to home")
 	}
 
