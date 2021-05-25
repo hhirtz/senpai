@@ -2,21 +2,21 @@ package ui
 
 import "testing"
 
-var hell editor = editor{
-	text:      []rune{'h', 'e', 'l', 'l'},
+var hell Editor = Editor{
+	text:      [][]rune{[]rune{'h', 'e', 'l', 'l'}},
 	textWidth: []int{0, 1, 2, 3, 4},
 	cursorIdx: 4,
 	offsetIdx: 0,
 	width:     5,
 }
 
-func assertEditorEq(t *testing.T, actual, expected editor) {
+func assertEditorEq(t *testing.T, actual, expected Editor) {
 	if len(actual.text) != len(expected.text) {
 		t.Errorf("expected text len to be %d, got %d\n", len(expected.text), len(actual.text))
 	} else {
 		for i := 0; i < len(actual.text); i++ {
-			a := actual.text[i]
-			e := expected.text[i]
+			a := actual.text[0][i]
+			e := expected.text[0][i]
 
 			if a != e {
 				t.Errorf("expected rune #%d to be '%c', got '%c'\n", i, e, a)
@@ -51,10 +51,10 @@ func assertEditorEq(t *testing.T, actual, expected editor) {
 }
 
 func TestOneLetter(t *testing.T) {
-	e := newEditor(5)
+	e := NewEditor(5, nil)
 	e.PutRune('h')
-	assertEditorEq(t, e, editor{
-		text:      []rune{'h'},
+	assertEditorEq(t, e, Editor{
+		text:      [][]rune{[]rune{'h'}},
 		textWidth: []int{0, 1},
 		cursorIdx: 1,
 		offsetIdx: 0,
@@ -63,7 +63,7 @@ func TestOneLetter(t *testing.T) {
 }
 
 func TestFourLetters(t *testing.T) {
-	e := newEditor(5)
+	e := NewEditor(5, nil)
 	e.PutRune('h')
 	e.PutRune('e')
 	e.PutRune('l')
@@ -72,7 +72,7 @@ func TestFourLetters(t *testing.T) {
 }
 
 func TestOneLeft(t *testing.T) {
-	e := newEditor(5)
+	e := NewEditor(5, nil)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.Left()
@@ -83,7 +83,7 @@ func TestOneLeft(t *testing.T) {
 }
 
 func TestOneRem(t *testing.T) {
-	e := newEditor(5)
+	e := NewEditor(5, nil)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.RemRune()
@@ -94,7 +94,7 @@ func TestOneRem(t *testing.T) {
 }
 
 func TestLeftAndRem(t *testing.T) {
-	e := newEditor(5)
+	e := NewEditor(5, nil)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.PutRune('e')
