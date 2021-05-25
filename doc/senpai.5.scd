@@ -13,9 +13,9 @@ Some settings are required, the others are optional.
 # SETTINGS
 
 *addr* (required)
-	The address (_host:port_) of the IRC server.  senpai only supports TLS
-	connections and thus you must specify the TLS port of the server (in most
-	cases, 6697 or 7000).
+	The address (_host[:port]_) of the IRC server. senpai uses TLS connections
+	by default unless you specify *no-tls* option. TLS connections default to
+	port 6697, plain-text use port 6667.
 
 *nick* (required)
 	Your nickname, sent with a _NICK_ IRC message. It mustn't contain spaces or
