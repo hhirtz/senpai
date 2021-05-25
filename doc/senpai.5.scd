@@ -76,10 +76,10 @@ Some settings are required, the others are optional.
 
 # EXAMPLES
 
-A minimal configuration file to connect to freenode as "Guest123456":
+A minimal configuration file to connect to Libera.Chat as "Guest123456":
 
 ```
-addr: chat.freenode.net:6697
+addr: irc.libera.chat
 nick: Guest123456
 ```
 
@@ -89,7 +89,7 @@ notifications on highlight and decreases the width of the nick column to 12
 need to know if the terminal emulator that runs senpai has focus):
 
 ```
-addr: chat.freenode.net:6697
+addr: irc.libera.chat
 nick: Guest123456
 user: senpai
 real: Guest von Lenon

@@ -11,7 +11,7 @@ Works best with soju!
 ```shell
 mkdir -p ~/.config/senpai
 cat <<EOF >~/.config/senpai/senpai.yaml
-addr: irc.freenode.net:6697
+addr: irc.libera.chat
 nick: senpai
 password: "my password can't be this cute"
 EOF
