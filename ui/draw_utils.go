@@ -7,24 +7,39 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-func printIdent(screen tcell.Screen, x, y, width int, st tcell.Style, s string) {
-	s = truncate(s, width, "\u2026")
-	x += width - StringWidth(s)
-	screen.SetContent(x-1, y, ' ', nil, st)
-	printString(screen, &x, y, st, s)
-	screen.SetContent(x, y, ' ', nil, st)
-}
-
-func printString(screen tcell.Screen, x *int, y int, st tcell.Style, s string) {
-	for _, r := range s {
-		screen.SetContent(*x, y, r, nil, st)
+func printString(screen tcell.Screen, x *int, y int, s StyledString) {
+	style := tcell.StyleDefault
+	nextStyles := s.styles
+	for i, r := range s.string {
+		if 0 < len(nextStyles) && nextStyles[0].Start == i {
+			style = nextStyles[0].Style
+			nextStyles = nextStyles[1:]
+		}
+		screen.SetContent(*x, y, r, nil, style)
 		*x += runeWidth(r)
 	}
 }
 
+func printIdent(screen tcell.Screen, x, y, width int, s StyledString) {
+	s.string = truncate(s.string, width, "\u2026")
+	x += width - stringWidth(s.string)
+	st := tcell.StyleDefault
+	if len(s.styles) != 0 && s.styles[0].Start == 0 {
+		st = s.styles[0].Style
+	}
+	screen.SetContent(x-1, y, ' ', nil, st)
+	printString(screen, &x, y, s)
+	if len(s.styles) != 0 {
+		// TODO check if it's not a style that is from the truncated
+		// part of s.
+		st = s.styles[len(s.styles)-1].Style
+	}
+	screen.SetContent(x, y, ' ', nil, st)
+}
+
 func printNumber(screen tcell.Screen, x *int, y int, st tcell.Style, n int) {
-	s := fmt.Sprintf("%d", n)
-	printString(screen, x, y, st, s)
+	s := Styled(fmt.Sprintf("%d", n), st)
+	printString(screen, x, y, s)
 }
 
 func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {

@@ -1,30 +1,23 @@
 package senpai
 
 import (
-	"math/rand"
+	"hash/fnv"
 	"strings"
 	"time"
 
 	"git.sr.ht/~taiite/senpai/ui"
+	"github.com/gdamore/tcell/v2"
 )
 
 var Home = "home"
 
-var homeMessages = []string{
-	"\x1dYou open an IRC client.",
-	"Welcome to the Internet Relay Network!",
-	"DMs & cie go here.",
-	"May the IRC be with you.",
-	"Hey! I'm senpai, you everyday IRC student!",
-	"Student? No, I'm an IRC \x02client\x02!",
-}
+const welcomeMessage = "senpai dev build. See senpai(1) for a list of keybindings and commands. Private messages and status notices go here."
 
 func (app *App) initWindow() {
-	hmIdx := rand.Intn(len(homeMessages))
 	app.win.AddBuffer(Home)
 	app.win.AddLine(Home, false, ui.Line{
 		Head: "--",
-		Body: homeMessages[hmIdx],
+		Body: ui.PlainString(welcomeMessage),
 		At:   time.Now(),
 	})
 }
@@ -66,4 +59,16 @@ func (app *App) setStatus() {
 		}
 	}
 	app.win.SetStatus(status)
+}
+
+func identColor(ident string) tcell.Color {
+	h := fnv.New32()
+	_, _ = h.Write([]byte(ident))
+	return tcell.Color((h.Sum32()%15)+1) + tcell.ColorValid
+}
+
+func identString(ident string) ui.StyledString {
+	color := identColor(ident)
+	style := tcell.StyleDefault.Foreground(color)
+	return ui.Styled(ident, style)
 }

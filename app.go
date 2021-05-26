@@ -8,6 +8,7 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+	"unicode"
 
 	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
@@ -69,7 +70,7 @@ func NewApp(cfg Config) (app *App, err error) {
 	if err != nil {
 		return
 	}
-	app.win.SetPrompt(">")
+	app.win.SetPrompt(ui.PlainString(">"))
 
 	app.initWindow()
 
@@ -147,7 +148,7 @@ func (app *App) ircLoop() {
 				app.queueStatusLine(ui.Line{
 					At:   time.Now(),
 					Head: "IN --",
-					Body: msg.String(),
+					Body: ui.PlainString(msg.String()),
 				})
 			}
 			app.events <- event{
@@ -161,8 +162,8 @@ func (app *App) ircLoop() {
 		}
 		app.queueStatusLine(ui.Line{
 			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      "Connection lost",
+			HeadColor: tcell.ColorRed,
+			Body:      ui.PlainString("Connection lost"),
 		})
 		time.Sleep(10 * time.Second)
 	}
@@ -172,7 +173,7 @@ func (app *App) connect() net.Conn {
 	for {
 		app.queueStatusLine(ui.Line{
 			Head: "--",
-			Body: fmt.Sprintf("Connecting to %s...", app.cfg.Addr),
+			Body: ui.PlainSprintf("Connecting to %s...", app.cfg.Addr),
 		})
 		conn, err := app.tryConnect()
 		if err == nil {
@@ -180,8 +181,8 @@ func (app *App) connect() net.Conn {
 		}
 		app.queueStatusLine(ui.Line{
 			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      fmt.Sprintf("Connection failed: %v", err),
+			HeadColor: tcell.ColorRed,
+			Body:      ui.PlainSprintf("Connection failed: %v", err),
 		})
 		time.Sleep(1 * time.Minute)
 	}
@@ -229,7 +230,7 @@ func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
 			app.queueStatusLine(ui.Line{
 				At:   time.Now(),
 				Head: "OUT --",
-				Body: msg.String(),
+				Body: ui.PlainString(msg.String()),
 			})
 			out <- msg
 		}
@@ -408,8 +409,8 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:        time.Now(),
 				Head:      "!!",
-				HeadColor: ui.ColorRed,
-				Body:      fmt.Sprintf("%q: %s", input, err),
+				HeadColor: tcell.ColorRed,
+				Body:      ui.PlainSprintf("%q: %s", input, err),
 			})
 		}
 		app.updatePrompt()
@@ -459,28 +460,48 @@ func (app *App) handleIRCEvent(ev interface{}) {
 	// Mutate UI state
 	switch ev := ev.(type) {
 	case irc.RegisteredEvent:
-		body := "Connected to the server"
+		body := new(ui.StyledStringBuilder)
+		body.WriteString("Connected to the server")
 		if app.s.Nick() != app.cfg.Nick {
-			body += " as " + app.s.Nick()
+			body.WriteString(" as ")
+			body.WriteString(app.s.Nick())
 		}
 		app.win.AddLine(Home, false, ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: "--",
-			Body: body,
+			Body: body.StyledString(),
 		})
 	case irc.SelfNickEvent:
-		app.win.AddLine(app.win.CurrentBuffer(), true, ui.Line{
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.FormerNick) + 4 + len(app.s.Nick()))
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.FormerNick)
+		body.SetStyle(tcell.StyleDefault)
+		body.WriteRune('\u2192') // right arrow
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(app.s.Nick())
+		app.addStatusLine(ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
-			Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, app.s.Nick()),
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
 			Highlight: true,
 		})
 	case irc.UserNickEvent:
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.FormerNick) + 4 + len(ev.User))
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.FormerNick)
+		body.SetStyle(tcell.StyleDefault)
+		body.WriteRune('\u2192') // right arrow
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
 		for _, c := range app.s.ChannelsSharedWith(ev.User) {
 			app.win.AddLine(c, false, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
-				Body:      fmt.Sprintf("\x0314%s\x03\u2192\x0314%s\x03", ev.FormerNick, ev.User),
+				HeadColor: tcell.ColorGray,
+				Body:      body.StyledString(),
 				Mergeable: true,
 			})
 		}
@@ -490,41 +511,68 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			WithLimit(200).
 			Before(msg.TimeOrNow())
 	case irc.UserJoinEvent:
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
+		body.WriteByte('+')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
 		app.win.AddLine(ev.Channel, false, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
-			Body:      fmt.Sprintf("\x033+\x0314%s\x03", ev.User),
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
 			Mergeable: true,
 		})
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
+		body.WriteByte('-')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
 		app.win.AddLine(ev.Channel, false, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
-			Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User),
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
 			Mergeable: true,
 		})
 	case irc.UserQuitEvent:
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
+		body.WriteByte('-')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
 		for _, c := range ev.Channels {
 			app.win.AddLine(c, false, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
-				Body:      fmt.Sprintf("\x034-\x0314%s\x03", ev.User),
+				HeadColor: tcell.ColorGray,
+				Body:      body.StyledString(),
 				Mergeable: true,
 			})
 		}
 	case irc.TopicChangeEvent:
+		body := new(ui.StyledStringBuilder)
+		body.Grow(len(ev.Topic) + 18)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString("Topic changed to: ")
+		body.WriteString(ev.Topic)
 		app.win.AddLine(ev.Channel, false, ui.Line{
-			At:   msg.TimeOrNow(),
-			Head: "--",
-			Body: fmt.Sprintf("\x0314Topic changed to: %s\x03", ev.Topic),
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
 		})
 	case irc.MessageEvent:
 		buffer, line, hlNotification := app.formatMessage(ev)
 		app.win.AddLine(buffer, hlNotification, line)
 		if hlNotification {
-			app.notifyHighlight(buffer, ev.User, ev.Content)
+			app.notifyHighlight(buffer, ev.User, line.Body.String())
 		}
 		if !app.s.IsChannel(msg.Params[0]) && !app.s.IsMe(ev.User) {
 			app.lastQuery = msg.Prefix.Name
@@ -561,7 +609,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		app.addStatusLine(ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: head,
-			Body: body,
+			Body: ui.PlainString(body),
 		})
 	}
 }
@@ -608,7 +656,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 		fmt.Sprintf("BUFFER=%s", buffer),
 		fmt.Sprintf("HERE=%s", here),
 		fmt.Sprintf("SENDER=%s", nick),
-		fmt.Sprintf("MESSAGE=%s", cleanMessage(content)),
+		fmt.Sprintf("MESSAGE=%s", content),
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
@@ -616,8 +664,8 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 		app.addStatusLine(ui.Line{
 			At:        time.Now(),
 			Head:      "!!",
-			HeadColor: ui.ColorRed,
-			Body:      body,
+			HeadColor: tcell.ColorRed,
+			Body:      ui.PlainString(body),
 		})
 	}
 }
@@ -690,33 +738,44 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	hlNotification = (isHighlight || isQuery) && !isFromSelf
 
 	head := ev.User
-	headColor := ui.ColorWhite
+	headColor := tcell.ColorWhite
 	if isFromSelf && isQuery {
 		head = "\u2192 " + ev.Target
-		headColor = ui.IdentColor(ev.Target)
+		headColor = identColor(ev.Target)
 	} else if isAction || isNotice {
 		head = "*"
 	} else {
-		headColor = ui.IdentColor(head)
+		headColor = identColor(head)
 	}
 
-	body := strings.TrimSuffix(ev.Content, "\x01")
-	if isNotice && isAction {
-		c := ircColorSequence(ui.IdentColor(ev.User))
-		body = fmt.Sprintf("%s%s\x0F:%s", c, ev.User, body[7:])
+	content := strings.TrimSuffix(ev.Content, "\x01")
+	content = strings.TrimRightFunc(ev.Content, unicode.IsSpace)
+	if isAction {
+		content = content[7:]
+	}
+	body := new(ui.StyledStringBuilder)
+	if isNotice {
+		color := identColor(ev.User)
+		body.SetStyle(tcell.StyleDefault.Foreground(color))
+		body.WriteString(ev.User)
+		body.SetStyle(tcell.StyleDefault)
+		body.WriteString(": ")
+		body.WriteStyledString(ui.IRCString(content))
 	} else if isAction {
-		c := ircColorSequence(ui.IdentColor(ev.User))
-		body = fmt.Sprintf("%s%s\x0F%s", c, ev.User, body[7:])
-	} else if isNotice {
-		c := ircColorSequence(ui.IdentColor(ev.User))
-		body = fmt.Sprintf("%s%s\x0F: %s", c, ev.User, body)
+		color := identColor(ev.User)
+		body.SetStyle(tcell.StyleDefault.Foreground(color))
+		body.WriteString(ev.User)
+		body.SetStyle(tcell.StyleDefault)
+		body.WriteStyledString(ui.IRCString(content))
+	} else {
+		body.WriteStyledString(ui.IRCString(content))
 	}
 
 	line = ui.Line{
 		At:        ev.Time,
 		Head:      head,
-		Body:      body,
 		HeadColor: headColor,
+		Body:      body.StyledString(),
 		Highlight: hlLine,
 	}
 	return
@@ -726,34 +785,11 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 func (app *App) updatePrompt() {
 	buffer := app.win.CurrentBuffer()
 	command := app.win.InputIsCommand()
+	var prompt ui.StyledString
 	if buffer == Home || command {
-		app.win.SetPrompt(">")
+		prompt = ui.PlainString(">")
 	} else {
-		app.win.SetPrompt(app.s.Nick())
+		prompt = identString(app.s.Nick())
 	}
-}
-
-// ircColorSequence returns the color formatting sequence of a color code.
-func ircColorSequence(code int) string {
-	var c [3]rune
-	c[0] = 0x03
-	c[1] = rune(code/10) + '0'
-	c[2] = rune(code%10) + '0'
-	return string(c[:])
-}
-
-// cleanMessage removes IRC formatting from a string.
-func cleanMessage(s string) string {
-	var res strings.Builder
-	var sb ui.StyleBuffer
-	res.Grow(len(s))
-	for _, r := range s {
-		if _, ok := sb.WriteRune(r); ok != 0 {
-			if 1 < ok {
-				res.WriteRune(',')
-			}
-			res.WriteRune(r)
-		}
-	}
-	return res.String()
+	app.win.SetPrompt(prompt)
 }

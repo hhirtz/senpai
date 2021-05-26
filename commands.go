@@ -7,6 +7,7 @@ import (
 
 	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
+	"github.com/gdamore/tcell/v2"
 )
 
 type command struct {
@@ -151,7 +152,7 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 			At:   t,
 			Head: "--",
-			Body: "Available commands:",
+			Body: ui.PlainString("Available commands:"),
 		})
 		for cmdName, cmd := range commands {
 			if cmd.Desc == "" {
@@ -159,11 +160,11 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 			}
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:   t,
-				Body: fmt.Sprintf("  \x02%s\x02 %s", cmdName, cmd.Usage),
+				Body: ui.PlainSprintf("  \x02%s\x02 %s", cmdName, cmd.Usage),
 			})
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:   t,
-				Body: fmt.Sprintf("    %s", cmd.Desc),
+				Body: ui.PlainSprintf("    %s", cmd.Desc),
 			})
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At: t,
@@ -175,19 +176,26 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 			At:   t,
 			Head: "--",
-			Body: fmt.Sprintf("Commands that match \"%s\":", search),
+			Body: ui.PlainSprintf("Commands that match \"%s\":", search),
 		})
 		for cmdName, cmd := range commands {
 			if !strings.Contains(cmdName, search) {
 				continue
 			}
+			usage := new(ui.StyledStringBuilder)
+			usage.Grow(len(cmdName) + 1 + len(cmd.Usage))
+			usage.SetStyle(tcell.StyleDefault.Bold(true))
+			usage.WriteString(cmdName)
+			usage.SetStyle(tcell.StyleDefault)
+			usage.WriteByte(' ')
+			usage.WriteString(cmd.Usage)
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:   t,
-				Body: fmt.Sprintf("\x02%s\x02 %s", cmdName, cmd.Usage),
+				Body: usage.StyledString(),
 			})
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:   t,
-				Body: fmt.Sprintf("  %s", cmd.Desc),
+				Body: ui.PlainSprintf("  %s", cmd.Desc),
 			})
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At: t,
@@ -197,7 +205,7 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 		if !found {
 			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
 				At:   t,
-				Body: fmt.Sprintf("  no command matches %q", args[0]),
+				Body: ui.PlainSprintf("  no command matches %q", args[0]),
 			})
 		}
 	}
@@ -252,22 +260,24 @@ func commandDoMsg(app *App, buffer string, args []string) (err error) {
 }
 
 func commandDoNames(app *App, buffer string, args []string) (err error) {
-	var sb strings.Builder
-	sb.WriteString("\x0314Names: ")
+	sb := new(ui.StyledStringBuilder)
+	sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
+	sb.WriteString("Names: ")
 	for _, name := range app.s.Names(buffer) {
 		if name.PowerLevel != "" {
-			sb.WriteString("\x033")
+			sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
 			sb.WriteString(name.PowerLevel)
-			sb.WriteString("\x0314")
+			sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
 		}
 		sb.WriteString(name.Name.Name)
-		sb.WriteRune(' ')
+		sb.WriteByte(' ')
 	}
-	body := sb.String()
+	body := sb.StyledString()
+	// TODO remove last space
 	app.win.AddLine(buffer, false, ui.Line{
 		At:   time.Now(),
 		Head: "--",
-		Body: body[:len(body)-1],
+		Body: body,
 	})
 	return
 }
@@ -351,14 +361,14 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 
 		topic, who, at := app.s.Topic(buffer)
 		if who == nil {
-			body = fmt.Sprintf("\x0314Topic: %s", topic)
+			body = fmt.Sprintf("Topic: %s", topic)
 		} else {
-			body = fmt.Sprintf("\x0314Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
+			body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
 		}
 		app.win.AddLine(buffer, false, ui.Line{
 			At:   time.Now(),
 			Head: "--",
-			Body: body,
+			Body: ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 		})
 	} else {
 		app.s.ChangeTopic(buffer, args[0])

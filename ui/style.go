@@ -1,7 +1,10 @@
 package ui
 
 import (
-	"hash/fnv"
+	"fmt"
+	"strconv"
+	"strings"
+	"unicode/utf8"
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
@@ -13,178 +16,13 @@ func runeWidth(r rune) int {
 	return condition.RuneWidth(r)
 }
 
+func stringWidth(s string) int {
+	return condition.StringWidth(s)
+}
+
 func truncate(s string, w int, tail string) string {
 	return condition.Truncate(s, w, tail)
 }
-
-type widthBuffer struct {
-	width int
-	color colorBuffer
-}
-
-func (wb *widthBuffer) Width() int {
-	return wb.width
-}
-
-func (wb *widthBuffer) WriteString(s string) {
-	for _, r := range s {
-		wb.WriteRune(r)
-	}
-}
-
-func (wb *widthBuffer) WriteRune(r rune) {
-	if ok := wb.color.WriteRune(r); ok != 0 {
-		if 1 < ok {
-			wb.width++
-		}
-		wb.width += runeWidth(r)
-	}
-}
-
-func StringWidth(s string) int {
-	var wb widthBuffer
-	wb.WriteString(s)
-	return wb.Width()
-}
-
-type StyleBuffer struct {
-	st            tcell.Style
-	color         colorBuffer
-	bold          bool
-	reverse       bool
-	italic        bool
-	strikethrough bool
-	underline     bool
-}
-
-func (sb *StyleBuffer) Reset() {
-	sb.color.Reset()
-	sb.st = tcell.StyleDefault
-	sb.bold = false
-	sb.reverse = false
-	sb.italic = false
-	sb.strikethrough = false
-	sb.underline = false
-}
-
-func (sb *StyleBuffer) WriteRune(r rune) (st tcell.Style, ok int) {
-	if r == 0x00 || r == 0x0F {
-		sb.Reset()
-		return sb.st, 0
-	}
-	if r == 0x02 {
-		sb.bold = !sb.bold
-		sb.st = sb.st.Bold(sb.bold)
-		return sb.st, 0
-	}
-	if r == 0x16 {
-		sb.reverse = !sb.reverse
-		sb.st = st.Reverse(sb.reverse)
-		return sb.st, 0
-	}
-	if r == 0x1D {
-		sb.italic = !sb.italic
-		sb.st = st.Italic(sb.italic)
-		return sb.st, 0
-	}
-	if r == 0x1E {
-		sb.strikethrough = !sb.strikethrough
-		sb.st = st.StrikeThrough(sb.strikethrough)
-		return sb.st, 0
-	}
-	if r == 0x1F {
-		sb.underline = !sb.underline
-		sb.st = st.Underline(sb.underline)
-		return sb.st, 0
-	}
-	if ok = sb.color.WriteRune(r); ok != 0 {
-		sb.st = sb.color.Style(sb.st)
-	}
-
-	return sb.st, ok
-}
-
-type colorBuffer struct {
-	state  int
-	fg, bg int
-}
-
-func (cb *colorBuffer) Reset() {
-	cb.state = 0
-	cb.fg = -1
-	cb.bg = -1
-}
-
-func (cb *colorBuffer) Style(st tcell.Style) tcell.Style {
-	if 0 <= cb.fg {
-		st = st.Foreground(colorFromCode(cb.fg))
-	} else {
-		st = st.Foreground(tcell.ColorDefault)
-	}
-	if 0 <= cb.bg {
-		st = st.Background(colorFromCode(cb.bg))
-	} else {
-		st = st.Background(tcell.ColorDefault)
-	}
-	return st
-}
-
-func (cb *colorBuffer) WriteRune(r rune) (ok int) {
-	if cb.state == 1 {
-		if '0' <= r && r <= '9' {
-			cb.fg = int(r - '0')
-			cb.state = 2
-			return
-		}
-	} else if cb.state == 2 {
-		if '0' <= r && r <= '9' {
-			cb.fg = 10*cb.fg + int(r-'0')
-			cb.state = 3
-			return
-		}
-		if r == ',' {
-			cb.state = 4
-			return
-		}
-	} else if cb.state == 3 {
-		if r == ',' {
-			cb.state = 4
-			return
-		}
-	} else if cb.state == 4 {
-		if '0' <= r && r <= '9' {
-			cb.bg = int(r - '0')
-			cb.state = 5
-			return
-		}
-		ok++
-	} else if cb.state == 5 {
-		cb.state = 0
-		if '0' <= r && r <= '9' {
-			cb.bg = 10*cb.bg + int(r-'0')
-			return
-		}
-	}
-
-	if r == 0x03 {
-		cb.state = 1
-		cb.fg = -1
-		cb.bg = -1
-		return
-	}
-
-	cb.state = 0
-	ok++
-	return
-}
-
-const (
-	ColorWhite = iota
-	ColorBlack
-	ColorBlue
-	ColorGreen
-	ColorRed
-)
 
 // Taken from <https://modern.ircdocs.horse/formatting.html>
 
@@ -195,6 +33,7 @@ var baseCodes = []tcell.Color{
 	tcell.ColorLightBlue, tcell.ColorPink, tcell.ColorGrey, tcell.ColorLightGrey,
 }
 
+// unused
 var ansiCodes = []uint64{
 	/* 16-27 */ 52, 94, 100, 58, 22, 29, 23, 24, 17, 54, 53, 89,
 	/* 28-39 */ 88, 130, 142, 64, 28, 35, 30, 25, 18, 91, 90, 125,
@@ -226,21 +65,197 @@ func colorFromCode(code int) (color tcell.Color) {
 	return
 }
 
-// see <https://modern.ircdocs.horse/formatting.html>
-var identColorBlacklist = []int{
-	1, 8, 16, 17, 24, 27, 28, 36, 48, 60, 88, 89, 90, 91,
+type rangedStyle struct {
+	Start int // byte index at which Style is effective
+	Style tcell.Style
 }
 
-func IdentColor(s string) (code int) {
-	h := fnv.New32()
-	_, _ = h.Write([]byte(s))
+type StyledString struct {
+	string
+	styles []rangedStyle // sorted, elements cannot have the same Start value
+}
 
-	code = int(h.Sum32()) % (99 - len(identColorBlacklist))
-	for _, c := range identColorBlacklist {
-		if c <= code {
-			code++
-		}
+func PlainString(s string) StyledString {
+	return StyledString{string: s}
+}
+
+func PlainSprintf(format string, a ...interface{}) StyledString {
+	return PlainString(fmt.Sprintf(format, a...))
+}
+
+func Styled(s string, style tcell.Style) StyledString {
+	rStyle := rangedStyle{
+		Start: 0,
+		Style: style,
+	}
+	return StyledString{
+		string: s,
+		styles: []rangedStyle{rStyle},
+	}
+}
+
+func (s StyledString) String() string {
+	return s.string
+}
+
+func isDigit(c byte) bool {
+	return '0' <= c && c <= '9'
+}
+
+func parseColorNumber(raw string) (color tcell.Color, n int) {
+	if len(raw) == 0 || !isDigit(raw[0]) {
+		return
 	}
 
-	return
+	// len(raw) >= 1 and its first character is a digit.
+
+	if len(raw) == 1 || !isDigit(raw[1]) {
+		code, _ := strconv.Atoi(raw[:1])
+		return colorFromCode(code), 1
+	}
+
+	// len(raw) >= 2 and the two first characters are digits.
+
+	code, _ := strconv.Atoi(raw[:2])
+	return colorFromCode(code), 2
+}
+
+func parseColor(raw string) (fg, bg tcell.Color, n int) {
+	fg, n = parseColorNumber(raw)
+	raw = raw[n:]
+
+	if len(raw) == 0 || raw[0] != ',' {
+		return fg, tcell.ColorDefault, n
+	}
+
+	n++
+	bg, p := parseColorNumber(raw[1:])
+	n += p
+
+	if bg == tcell.ColorDefault {
+		// Lone comma, do not parse as part of a color code.
+		return fg, tcell.ColorDefault, n - 1
+	}
+
+	return fg, bg, n
+}
+
+func IRCString(raw string) StyledString {
+	var formatted strings.Builder
+	var styles []rangedStyle
+	var last tcell.Style
+
+	for len(raw) != 0 {
+		r, runeSize := utf8.DecodeRuneInString(raw)
+		if r == utf8.RuneError {
+			break
+		}
+		_, _, lastAttrs := last.Decompose()
+		current := last
+		if r == 0x0F {
+			current = tcell.StyleDefault
+		} else if r == 0x02 {
+			lastWasBold := lastAttrs&tcell.AttrBold != 0
+			current = last.Bold(!lastWasBold)
+		} else if r == 0x03 {
+			fg, bg, n := parseColor(raw[1:])
+			raw = raw[n:]
+			if n == 0 {
+				// Both `fg` and `bg` are equal to
+				// tcell.ColorDefault.
+				current = last.Foreground(tcell.ColorDefault).
+					Background(tcell.ColorDefault)
+			} else if bg == tcell.ColorDefault {
+				current = last.Foreground(fg)
+			} else {
+				current = last.Foreground(fg).Background(bg)
+			}
+		} else if r == 0x16 {
+			lastWasReverse := lastAttrs&tcell.AttrReverse != 0
+			current = last.Reverse(!lastWasReverse)
+		} else if r == 0x1D {
+			lastWasItalic := lastAttrs&tcell.AttrItalic != 0
+			current = last.Italic(!lastWasItalic)
+		} else if r == 0x1E {
+			lastWasStrikeThrough := lastAttrs&tcell.AttrStrikeThrough != 0
+			current = last.StrikeThrough(!lastWasStrikeThrough)
+		} else if r == 0x1F {
+			lastWasUnderline := lastAttrs&tcell.AttrUnderline != 0
+			current = last.Underline(!lastWasUnderline)
+		} else {
+			formatted.WriteRune(r)
+		}
+		if last != current {
+			if len(styles) != 0 && styles[len(styles)-1].Start == formatted.Len() {
+				styles[len(styles)-1] = rangedStyle{
+					Start: formatted.Len(),
+					Style: current,
+				}
+			} else {
+				styles = append(styles, rangedStyle{
+					Start: formatted.Len(),
+					Style: current,
+				})
+			}
+		}
+		last = current
+		raw = raw[runeSize:]
+	}
+
+	return StyledString{
+		string: formatted.String(),
+		styles: styles,
+	}
+}
+
+type StyledStringBuilder struct {
+	strings.Builder
+	styles []rangedStyle
+}
+
+func (sb *StyledStringBuilder) WriteStyledString(s StyledString) {
+	start := len(sb.styles)
+	sb.styles = append(sb.styles, s.styles...)
+	for i := start; i < len(sb.styles); i++ {
+		sb.styles[i].Start += sb.Len()
+	}
+	sb.WriteString(s.string)
+}
+
+func (sb *StyledStringBuilder) AddStyle(start int, style tcell.Style) {
+	for i := 0; i < len(sb.styles); i++ {
+		if sb.styles[i].Start == i {
+			sb.styles[i].Style = style
+			break
+		} else if sb.styles[i].Start < i {
+			sb.styles = append(sb.styles[:i+1], sb.styles[i:]...)
+			sb.styles[i+1] = rangedStyle{
+				Start: start,
+				Style: style,
+			}
+			break
+		}
+	}
+	sb.styles = append(sb.styles, rangedStyle{
+		Start: start,
+		Style: style,
+	})
+}
+
+func (sb *StyledStringBuilder) SetStyle(style tcell.Style) {
+	sb.styles = append(sb.styles, rangedStyle{
+		Start: sb.Len(),
+		Style: style,
+	})
+}
+
+func (sb *StyledStringBuilder) StyledString() StyledString {
+	styles := sb.styles
+	if len(sb.styles) != 0 && sb.styles[len(sb.styles)-1].Start == sb.Len() {
+		styles = sb.styles[:len(sb.styles)-1]
+	}
+	return StyledString{
+		string: sb.String(),
+		styles: styles,
+	}
 }

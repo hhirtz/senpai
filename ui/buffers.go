@@ -19,8 +19,8 @@ type point struct {
 type Line struct {
 	At        time.Time
 	Head      string
-	Body      string
-	HeadColor int
+	Body      StyledString
+	HeadColor tcell.Color
 	Highlight bool
 	Mergeable bool
 
@@ -34,29 +34,29 @@ func (l *Line) computeSplitPoints() {
 		l.splitPoints = []point{}
 	}
 
-	var wb widthBuffer
+	width := 0
 	lastWasSplit := false
 	l.splitPoints = l.splitPoints[:0]
 
-	for i, r := range l.Body {
+	for i, r := range l.Body.string {
 		curIsSplit := IsSplitRune(r)
 
 		if i == 0 || lastWasSplit != curIsSplit {
 			l.splitPoints = append(l.splitPoints, point{
-				X:     wb.Width(),
+				X:     width,
 				I:     i,
 				Split: curIsSplit,
 			})
 		}
 
 		lastWasSplit = curIsSplit
-		wb.WriteRune(r)
+		width += runeWidth(r)
 	}
 
 	if !lastWasSplit {
 		l.splitPoints = append(l.splitPoints, point{
-			X:     wb.Width(),
-			I:     len(l.Body),
+			X:     width,
+			I:     len(l.Body.string),
 			Split: true,
 		})
 	}
@@ -118,16 +118,17 @@ func (l *Line) NewLines(width int) []int {
 			// terminal.  In this case, no newline is placed before (like in the
 			// 2nd if-else branch).  The for loop is used to place newlines in
 			// the word.
-			var wb widthBuffer
+			// TODO handle multi-codepoint graphemes?? :(
+			wordWidth := 0
 			h := 1
-			for j, r := range l.Body[sp1.I:sp2.I] {
-				wb.WriteRune(r)
-				if h*width < x+wb.Width() {
+			for j, r := range l.Body.string[sp1.I:sp2.I] {
+				wordWidth += runeWidth(r)
+				if h*width < x+wordWidth {
 					l.newLines = append(l.newLines, sp1.I+j)
 					h++
 				}
 			}
-			x = (x + wb.Width()) % width
+			x = (x + wordWidth) % width
 			if x == 0 {
 				// The placement of the word is such that it ends right at the
 				// end of the row.
@@ -147,7 +148,7 @@ func (l *Line) NewLines(width int) []int {
 		}
 	}
 
-	if 0 < len(l.newLines) && l.newLines[len(l.newLines)-1] == len(l.Body) {
+	if 0 < len(l.newLines) && l.newLines[len(l.newLines)-1] == len(l.Body.string) {
 		// DROP any newline that is placed at the end of the string because we
 		// don't care about those.
 		l.newLines = l.newLines[:len(l.newLines)-1]
@@ -255,14 +256,19 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 
 	b := &bs.list[idx]
 	n := len(b.lines)
-	line.Body = strings.TrimRight(line.Body, "\t ")
 	line.At = line.At.UTC()
 
 	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
-		l.Body += "  " + line.Body
+		newBody := new(StyledStringBuilder)
+		newBody.Grow(len(l.Body.string) + 2 + len(line.Body.string))
+		newBody.WriteStyledString(l.Body)
+		newBody.WriteString("  ")
+		newBody.WriteStyledString(line.Body)
+		l.Body = newBody.StyledString()
 		l.computeSplitPoints()
 		l.width = 0
+		// TODO change b.scrollAmt if it's not 0 and bs.current is idx.
 	} else {
 		line.computeSplitPoints()
 		b.lines = append(b.lines, line)
@@ -307,7 +313,7 @@ func (bs *BufferList) AddLines(title string, lines []Line) {
 				limit = i
 				break
 			}
-			if l.Body == firstLineBody {
+			if l.Body.string == firstLineBody.string {
 				// This line happened at the same millisecond
 				// as the first line of the buffer, and has the
 				// same contents. Heuristic: it's the same
@@ -396,7 +402,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			st = st.Reverse(true)
 		}
 		title := truncate(b.title, width, "\u2026")
-		printString(screen, &x, y, st, title)
+		printString(screen, &x, y, Styled(title, st))
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
 			screen.SetContent(x, y, ' ', nil, st)
@@ -417,10 +423,9 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 }
 
 func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int) {
-	st := tcell.StyleDefault
 	for x := x0; x < x0+bs.tlWidth; x++ {
 		for y := y0; y < y0+bs.tlHeight; y++ {
-			screen.SetContent(x, y, ' ', nil, st)
+			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
 		}
 	}
 
@@ -441,18 +446,25 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 		}
 
 		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
-			printTime(screen, x0, yi, st.Bold(true), line.At.Local())
+			st := tcell.StyleDefault.Bold(true)
+			printTime(screen, x0, yi, st, line.At.Local())
 		}
 
-		identSt := st.Foreground(colorFromCode(line.HeadColor)).Reverse(line.Highlight)
-		printIdent(screen, x0+7, yi, nickColWidth, identSt, line.Head)
+		identSt := tcell.StyleDefault.
+			Foreground(line.HeadColor).
+			Reverse(line.Highlight)
+		printIdent(screen, x0+7, yi, nickColWidth, Styled(line.Head, identSt))
 
 		x := x1
 		y := yi
+		style := tcell.StyleDefault
+		nextStyles := line.Body.styles
 
-		var sb StyleBuffer
-		sb.Reset()
-		for i, r := range line.Body {
+		for i, r := range line.Body.string {
+			if 0 < len(nextStyles) && nextStyles[0].Start == i {
+				style = nextStyles[0].Style
+				nextStyles = nextStyles[1:]
+			}
 			if 0 < len(nls) && i == nls[0] {
 				x = x1
 				y++
@@ -466,26 +478,10 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 				continue
 			}
 
-			if st, ok := sb.WriteRune(r); ok != 0 {
-				if 1 < ok {
-					screen.SetContent(x, y, ',', nil, st)
-					x++
-				}
-				screen.SetContent(x, y, r, nil, st)
-				x += runeWidth(r)
-			}
+			screen.SetContent(x, y, r, nil, style)
+			x += runeWidth(r)
 		}
-
-		sb.Reset()
 	}
 
 	b.isAtTop = y0 <= yi
-}
-
-func IrcColorCode(code int) string {
-	var c [3]rune
-	c[0] = 0x03
-	c[1] = rune(code/10) + '0'
-	c[2] = rune(code%10) + '0'
-	return string(c[:])
 }

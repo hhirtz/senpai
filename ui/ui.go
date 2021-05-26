@@ -12,7 +12,7 @@ type Config struct {
 	NickColWidth int
 	ChanColWidth int
 	AutoComplete func(cursorIdx int, text []rune) []Completion
-	Mouse bool
+	Mouse        bool
 }
 
 type UI struct {
@@ -23,7 +23,7 @@ type UI struct {
 
 	bs     BufferList
 	e      Editor
-	prompt string
+	prompt StyledString
 	status string
 }
 
@@ -159,7 +159,7 @@ func (ui *UI) SetStatus(status string) {
 	ui.status = status
 }
 
-func (ui *UI) SetPrompt(prompt string) {
+func (ui *UI) SetPrompt(prompt StyledString) {
 	ui.prompt = prompt
 }
 
@@ -245,8 +245,7 @@ func (ui *UI) Draw() {
 	for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {
 		ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
 	}
-	st := tcell.StyleDefault.Foreground(colorFromCode(IdentColor(ui.prompt)))
-	printIdent(ui.screen, ui.config.ChanColWidth+7, h-1, ui.config.NickColWidth, st, ui.prompt)
+	printIdent(ui.screen, ui.config.ChanColWidth+7, h-1, ui.config.NickColWidth, ui.prompt)
 
 	ui.screen.Show()
 }
@@ -262,8 +261,16 @@ func (ui *UI) drawStatusBar(x0, y, width int) {
 		return
 	}
 
+	s := new(StyledStringBuilder)
+	s.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+	s.WriteString("--")
+
 	x := x0 + 5 + ui.config.NickColWidth
-	printString(ui.screen, &x, y, st, "--")
+	printString(ui.screen, &x, y, s.StyledString())
 	x += 2
-	printString(ui.screen, &x, y, st, ui.status)
+
+	s.Reset()
+	s.WriteString(ui.status)
+
+	printString(ui.screen, &x, y, s.StyledString())
 }
