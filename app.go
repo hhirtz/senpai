@@ -164,6 +164,7 @@ func (app *App) ircLoop() {
 			HeadColor: ui.ColorRed,
 			Body:      "Connection lost",
 		})
+		time.Sleep(10 * time.Second)
 	}
 }
 
@@ -211,6 +212,11 @@ func (app *App) tryConnect() (conn net.Conn, err error) {
 			ServerName: host,
 			NextProtos: []string{"irc"},
 		})
+		err = conn.(*tls.Conn).Handshake()
+		if err != nil {
+			conn.Close()
+			return nil, err
+		}
 	}
 
 	return
