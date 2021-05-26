@@ -3,10 +3,11 @@ package senpai
 import (
 	"strings"
 
+	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
 )
 
-func (app *App) completionsChannelMembers(cs []ui.Completion, cursorIdx int, text []rune) []ui.Completion {
+func (app *App) completionsChannelMembers(cs []ui.Completion, cursorIdx int, text []rune, s *irc.Session) []ui.Completion {
 	var start int
 	for start = cursorIdx - 1; 0 <= start; start-- {
 		if text[start] == ' ' {
@@ -18,9 +19,10 @@ func (app *App) completionsChannelMembers(cs []ui.Completion, cursorIdx int, tex
 	if len(word) == 0 {
 		return cs
 	}
-	wordCf := app.s.Casemap(string(word))
-	for _, name := range app.s.Names(app.win.CurrentBuffer()) {
-		if strings.HasPrefix(app.s.Casemap(name.Name.Name), wordCf) {
+	wordCf := s.Casemap(string(word))
+	_, buffer := app.win.CurrentBuffer()
+	for _, name := range s.Names(buffer) {
+		if strings.HasPrefix(s.Casemap(name.Name.Name), wordCf) {
 			nickComp := []rune(name.Name.Name)
 			if start == 0 {
 				nickComp = append(nickComp, ':')
@@ -41,11 +43,12 @@ func (app *App) completionsChannelMembers(cs []ui.Completion, cursorIdx int, tex
 	return cs
 }
 
-func (app *App) completionsChannelTopic(cs []ui.Completion, cursorIdx int, text []rune) []ui.Completion {
+func (app *App) completionsChannelTopic(cs []ui.Completion, cursorIdx int, text []rune, s *irc.Session) []ui.Completion {
 	if !hasPrefix(text, []rune("/topic ")) {
 		return cs
 	}
-	topic, _, _ := app.s.Topic(app.win.CurrentBuffer())
+	_, buffer := app.win.CurrentBuffer()
+	topic, _, _ := s.Topic(buffer)
 	if cursorIdx == len(text) {
 		compText := append(text, []rune(topic)...)
 		cs = append(cs, ui.Completion{
@@ -56,7 +59,7 @@ func (app *App) completionsChannelTopic(cs []ui.Completion, cursorIdx int, text 
 	return cs
 }
 
-func (app *App) completionsMsg(cs []ui.Completion, cursorIdx int, text []rune) []ui.Completion {
+func (app *App) completionsMsg(cs []ui.Completion, cursorIdx int, text []rune, s *irc.Session) []ui.Completion {
 	if !hasPrefix(text, []rune("/msg ")) {
 		return cs
 	}
@@ -69,15 +72,15 @@ func (app *App) completionsMsg(cs []ui.Completion, cursorIdx int, text []rune) [
 			return cs
 		}
 		if !hasMetALetter && text[i] != ' ' {
-			word = app.s.Casemap(string(text[i:cursorIdx]))
+			word = s.Casemap(string(text[i:cursorIdx]))
 			hasMetALetter = true
 		}
 	}
 	if word == "" {
 		return cs
 	}
-	for _, user := range app.s.Users() {
-		if strings.HasPrefix(app.s.Casemap(user), word) {
+	for _, user := range s.Users() {
+		if strings.HasPrefix(s.Casemap(user), word) {
 			nickComp := append([]rune(user), ' ')
 			c := make([]rune, len(text)+5+len(nickComp)-cursorIdx)
 			copy(c[:5], []rune("/msg "))

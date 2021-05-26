@@ -5,21 +5,27 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~taiite/senpai/irc"
 	"git.sr.ht/~taiite/senpai/ui"
 	"github.com/gdamore/tcell/v2"
 )
 
-var Home = "home"
+var Home = "*"
 
 const welcomeMessage = "senpai dev build. See senpai(1) for a list of keybindings and commands. Private messages and status notices go here."
 
 func (app *App) initWindow() {
-	app.win.AddBuffer(Home)
-	app.win.AddLine(Home, false, ui.Line{
+	app.win.AddBuffer(Home, "")
+	app.win.AddLine(Home, "", false, ui.Line{
 		Head: "--",
 		Body: ui.PlainString(welcomeMessage),
 		At:   time.Now(),
 	})
+}
+
+func (app *App) currentSession() *irc.Session {
+	network, _ := app.win.CurrentBuffer()
+	return app.sessions[network]
 }
 
 func (app *App) queueStatusLine(line ui.Line) {
@@ -27,24 +33,26 @@ func (app *App) queueStatusLine(line ui.Line) {
 		line.At = time.Now()
 	}
 	app.events <- event{
-		src:     uiEvent,
+		src:     "",
 		content: line,
 	}
 }
 
 func (app *App) addStatusLine(line ui.Line) {
-	buffer := app.win.CurrentBuffer()
-	if buffer != Home {
-		app.win.AddLine(Home, false, line)
+	network, buffer := app.win.CurrentBuffer()
+	if network != "*" || buffer != "" {
+		app.win.AddLine("*", "", false, line)
 	}
-	app.win.AddLine(buffer, false, line)
+	app.win.AddLine(network, buffer, false, line)
 }
 
 func (app *App) setStatus() {
-	if app.s == nil {
+	s := app.currentSession()
+	if s == nil {
 		return
 	}
-	ts := app.s.Typings(app.win.CurrentBuffer())
+	_, buffer := app.win.CurrentBuffer()
+	ts := s.Typings(buffer)
 	status := ""
 	if 3 < len(ts) {
 		status = "several people are typing..."

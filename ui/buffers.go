@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strings"
 	"time"
 
 	"github.com/gdamore/tcell/v2"
@@ -162,7 +161,8 @@ func (l *Line) NewLines(width int) []int {
 }
 
 type buffer struct {
-	title      string
+	network    string // network of the buffer
+	title      string // title (channel/user) of the buffer, or an empty string for the server buffer
 	highlights int
 	unread     bool
 
@@ -173,7 +173,7 @@ type buffer struct {
 }
 
 type BufferList struct {
-	list    []buffer
+	list    []buffer // sorted by network, then title
 	current int
 	clicked int
 
@@ -224,37 +224,66 @@ func (bs *BufferList) Previous() {
 	bs.list[bs.current].unread = false
 }
 
-func (bs *BufferList) Add(title string) (ok bool) {
-	lTitle := strings.ToLower(title)
-	for _, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
-			return
-		}
-	}
-
-	ok = true
-	bs.list = append(bs.list, buffer{title: title})
-	return
-}
-
-func (bs *BufferList) Remove(title string) (ok bool) {
-	lTitle := strings.ToLower(title)
+// idx finds the position of the buffer that has the given network and the given
+// title, and returns its index if found.  If not found, give the index at which
+// the buffer should be inserted.
+func (bs *BufferList) find(network, title string) (i int, ok bool) {
 	for i, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
-			ok = true
-			bs.list = append(bs.list[:i], bs.list[i+1:]...)
-			if len(bs.list) <= bs.current {
-				bs.current--
+		if network < b.network {
+			return i, false
+		}
+		if network == b.network {
+			if title < b.title {
+				return i, false
 			}
-			return
+			if title == b.title {
+				return i, true
+			}
 		}
 	}
-	return
+	return len(bs.list), false
 }
 
-func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
-	idx := bs.idx(title)
-	if idx < 0 {
+func (bs *BufferList) Add(network, title string) (ok bool) {
+	idx, ok := bs.find(network, title)
+	if ok {
+		return false
+	}
+
+	if idx <= bs.current && len(bs.list) != 0 {
+		bs.current++
+	}
+
+	b := buffer{
+		network: network,
+		title:   title,
+	}
+
+	if idx == len(bs.list) {
+		bs.list = append(bs.list, b)
+	} else {
+		bs.list = append(bs.list[:idx+1], bs.list[idx:]...)
+		bs.list[idx] = b
+	}
+
+	return true
+}
+
+func (bs *BufferList) Remove(network, title string) (ok bool) {
+	idx, ok := bs.find(network, title)
+	if !ok {
+		return false
+	}
+	bs.list = append(bs.list[:idx], bs.list[idx+1:]...)
+	if len(bs.list) <= bs.current {
+		bs.current = len(bs.list) - 1
+	}
+	return true
+}
+
+func (bs *BufferList) AddLine(network, title string, highlight bool, line Line) {
+	idx, ok := bs.find(network, title)
+	if !ok {
 		return
 	}
 
@@ -290,9 +319,9 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 }
 
 // "lines" needs to be sorted by their "At" field.
-func (bs *BufferList) AddLines(title string, lines []Line) {
-	idx := bs.idx(title)
-	if idx < 0 {
+func (bs *BufferList) AddLines(network, title string, lines []Line) {
+	idx, ok := bs.find(network, title)
+	if !ok {
 		return
 	}
 
@@ -334,8 +363,9 @@ func (bs *BufferList) AddLines(title string, lines []Line) {
 	b.lines = append(lines[:limit], b.lines...)
 }
 
-func (bs *BufferList) Current() (title string) {
-	return bs.list[bs.current].title
+func (bs *BufferList) Current() (network, title string) {
+	b := &bs.list[bs.current]
+	return b.network, b.title
 }
 
 func (bs *BufferList) CurrentOldestTime() (t *time.Time) {
@@ -368,20 +398,6 @@ func (bs *BufferList) IsAtTop() bool {
 	return b.isAtTop
 }
 
-func (bs *BufferList) idx(title string) int {
-	if title == "" {
-		return bs.current
-	}
-
-	lTitle := strings.ToLower(title)
-	for i, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
-			return i
-		}
-	}
-	return -1
-}
-
 func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width, height int) {
 	width--
 	st := tcell.StyleDefault
@@ -405,7 +421,18 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		if i == bs.clicked {
 			st = st.Reverse(true)
 		}
-		title := truncate(b.title, width, "\u2026")
+		var title string
+		if b.title == "" {
+			if b.network == "*" {
+				title = "(status)"
+			} else {
+				title = b.network
+			}
+			title = truncate(title, width, "\u2026")
+		} else {
+			x += 2
+			title = truncate(b.title, width-2, "\u2026")
+		}
 		printString(screen, &x, y, Styled(title, st))
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)

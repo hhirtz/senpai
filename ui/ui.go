@@ -78,7 +78,7 @@ func (ui *UI) Close() {
 	ui.screen.Fini()
 }
 
-func (ui *UI) CurrentBuffer() string {
+func (ui *UI) CurrentBuffer() (network, title string) {
 	return ui.bs.Current()
 }
 
@@ -128,20 +128,20 @@ func (ui *UI) IsAtTop() bool {
 	return ui.bs.IsAtTop()
 }
 
-func (ui *UI) AddBuffer(title string) {
-	_ = ui.bs.Add(title)
+func (ui *UI) AddBuffer(network, title string) {
+	_ = ui.bs.Add(network, title)
 }
 
-func (ui *UI) RemoveBuffer(title string) {
-	_ = ui.bs.Remove(title)
+func (ui *UI) RemoveBuffer(network, title string) {
+	_ = ui.bs.Remove(network, title)
 }
 
-func (ui *UI) AddLine(buffer string, highlight bool, line Line) {
-	ui.bs.AddLine(buffer, highlight, line)
+func (ui *UI) AddLine(network, buffer string, highlight bool, line Line) {
+	ui.bs.AddLine(network, buffer, highlight, line)
 }
 
-func (ui *UI) AddLines(buffer string, lines []Line) {
-	ui.bs.AddLines(buffer, lines)
+func (ui *UI) AddLines(network, buffer string, lines []Line) {
+	ui.bs.AddLines(network, buffer, lines)
 }
 
 func (ui *UI) JumpBuffer(sub string) bool {
