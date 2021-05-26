@@ -125,10 +125,11 @@ func (app *App) ircLoop(network string) {
 		}
 	}
 	params := irc.SessionParams{
-		Nickname: app.cfg.Nick,
-		Username: app.cfg.User,
-		RealName: app.cfg.Real,
-		Auth:     auth,
+		Nickname:  app.cfg.Nick,
+		Username:  app.cfg.User,
+		RealName:  app.cfg.Real,
+		NetworkID: network,
+		Auth:      auth,
 	}
 	for !app.win.ShouldExit() {
 		conn := app.connect()
@@ -593,6 +594,8 @@ func (app *App) handleIRCEvent(network string, ev interface{}) {
 			}
 		}
 		app.win.AddLines(network, ev.Target, lines)
+	case irc.NewNetworkEvent:
+		go app.ircLoop(ev.NetworkID)
 	case irc.ErrorEvent:
 		if isBlackListed(msg.Command) {
 			break

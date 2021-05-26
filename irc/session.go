@@ -43,12 +43,14 @@ func (auth *SASLPlain) Respond(challenge string) (res string, err error) {
 
 // SupportedCapabilities is the set of capabilities supported by this library.
 var SupportedCapabilities = map[string]struct{}{
+	"draft/chathistory":        {},
+	"soju.im/bouncer-networks": {},
+
 	"account-notify":    {},
 	"account-tag":       {},
 	"away-notify":       {},
 	"batch":             {},
 	"cap-notify":        {},
-	"draft/chathistory": {},
 	"echo-message":      {},
 	"extended-join":     {},
 	"invite-notify":     {},
@@ -90,11 +92,11 @@ type Channel struct {
 
 // SessionParams defines how to connect to an IRC server.
 type SessionParams struct {
-	Nickname string
-	Username string
-	RealName string
-
-	Auth SASLClient
+	Nickname  string
+	Username  string
+	RealName  string
+	NetworkID string
+	Auth      SASLClient
 }
 
 type Session struct {
@@ -111,6 +113,7 @@ type Session struct {
 	acct   string
 	host   string
 	auth   SASLClient
+	netID  string
 
 	availableCaps map[string]string
 	enabledCaps   map[string]struct{}
@@ -139,6 +142,7 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 		user:          params.Username,
 		real:          params.RealName,
 		auth:          params.Auth,
+		netID:         params.NetworkID,
 		availableCaps: map[string]string{},
 		enabledCaps:   map[string]struct{}{},
 		casemap:       CasemapRFC1459,
@@ -151,6 +155,10 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 		channels:      map[string]Channel{},
 		chBatches:     map[string]HistoryEvent{},
 		chReqs:        map[string]struct{}{},
+	}
+
+	if s.netID == "" {
+		s.netID = "*"
 	}
 
 	s.out <- NewMessage("CAP", "LS", "302")
@@ -428,11 +436,11 @@ func (s *Session) handleUnregistered(msg Message) Event {
 			}
 		}
 	case rplLoggedin:
-		s.out <- NewMessage("CAP", "END")
+		s.endRegistration()
 		s.acct = msg.Params[2]
 		s.host = ParsePrefix(msg.Params[1]).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
-		s.out <- NewMessage("CAP", "END")
+		s.endRegistration()
 	case "CAP":
 		switch msg.Params[1] {
 		case "LS":
@@ -461,7 +469,7 @@ func (s *Session) handleUnregistered(msg Message) Event {
 
 				_, ok := s.availableCaps["sasl"]
 				if s.auth == nil || !ok {
-					s.out <- NewMessage("CAP", "END")
+					s.endRegistration()
 				}
 			}
 		default:
@@ -725,6 +733,13 @@ func (s *Session) handleRegistered(msg Message) Event {
 			delete(s.chReqs, s.Casemap(b.Target))
 			return b
 		}
+	case "BOUNCER":
+		switch msg.Params[0] {
+		case "NETWORK":
+			return NewNetworkEvent{
+				NetworkID: msg.Params[1],
+			}
+		}
 	case "NICK":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		newNick := msg.Params[0]
@@ -782,6 +797,20 @@ func (s *Session) handleRegistered(msg Message) Event {
 		}
 	}
 	return nil
+}
+
+func (s *Session) endRegistration() {
+	if s.HasCapability("soju.im/bouncer-networks") {
+		if s.netID == "*" {
+			s.out <- NewMessage("CAP", "END")
+			s.out <- NewMessage("BOUNCER", "LISTNETWORKS")
+		} else {
+			s.out <- NewMessage("BOUNCER", "BIND", s.netID)
+			s.out <- NewMessage("CAP", "END")
+		}
+	} else {
+		s.out <- NewMessage("CAP", "END")
+	}
 }
 
 func (s *Session) newMessageEvent(msg Message) MessageEvent {

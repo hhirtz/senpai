@@ -62,3 +62,7 @@ type HistoryEvent struct {
 	Target   string
 	Messages []Event
 }
+
+type NewNetworkEvent struct {
+	NetworkID string
+}

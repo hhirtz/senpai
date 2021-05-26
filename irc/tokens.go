@@ -404,6 +404,8 @@ func (msg *Message) IsValid() bool {
 			}
 		}
 		return msg.Params[0][0] == '-'
+	case "BOUNCER":
+		return 3 <= len(msg.Params) && msg.Params[1] == "NETWORK"
 	default:
 		if len(msg.Command) != 3 || len(msg.Params) < 2 {
 			return false
