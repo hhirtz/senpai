@@ -275,9 +275,10 @@ func commandDoNames(app *App, buffer string, args []string) (err error) {
 	body := sb.StyledString()
 	// TODO remove last space
 	app.win.AddLine(buffer, false, ui.Line{
-		At:   time.Now(),
-		Head: "--",
-		Body: body,
+		At:        time.Now(),
+		Head:      "--",
+		HeadColor: tcell.ColorGray,
+		Body:      body,
 	})
 	return
 }
@@ -366,9 +367,10 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 			body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
 		}
 		app.win.AddLine(buffer, false, ui.Line{
-			At:   time.Now(),
-			Head: "--",
-			Body: ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+			At:        time.Now(),
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 		})
 	} else {
 		app.s.ChangeTopic(buffer, args[0])
