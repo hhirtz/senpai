@@ -53,6 +53,20 @@ Some settings are required, the others are optional.
 |  SENDER
 :  nickname of the sender
 
+	Note: when passing those to *notify-send*(1), some notification daemons use
+	*\* for escape sequences in the body, which causes *\* to disappear from the
+	message or triggers unintended side-effects (like newlines).
+
+	To get around this, you can double the backslash with the following snippet:
+
+```
+on-highlight: |
+    escape() {
+        printf "%s" "$1" | sed 's#\\#\\\\#g'
+    }
+    notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
+```
+
 *nick-column-width*
 	The number of cell that the column for nicknames occupies in the timeline.
 	By default, 16.
@@ -117,9 +131,12 @@ highlights:
 	- guest
 	- senpai
 on-highlight: |
+    escape() {
+        printf "%s" "$1" | sed 's#\\#\\\\#g'
+    }
     FOCUS=$(swaymsg -t get_tree | jq '..|objects|select(.focused==true)|.name' | grep senpai | wc -l)
     if [ "$HERE" -eq 0 ] || [ $FOCUS -eq 0 ]; then
-        notify-send "[$BUFFER] $SENDER" "$MESSAGE"
+        notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
     fi
 nick-column-width: 12
 ```
