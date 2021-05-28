@@ -4,9 +4,47 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"strings"
+	"strconv"
+
+	"github.com/gdamore/tcell/v2"
 
 	"gopkg.in/yaml.v2"
 )
+
+type Color tcell.Color
+
+func (c *Color) UnmarshalText(data []byte) error {
+	s := string(data)
+
+	if strings.HasPrefix(s, "#") {
+		hex, err := strconv.ParseInt(s[1:], 16, 32)
+		if err != nil {
+			return err
+		}
+
+		*c = Color(tcell.NewHexColor(int32(hex)))
+		return nil
+	}
+
+	code, err := strconv.Atoi(s)
+	if err != nil {
+		return err
+	}
+
+	if code == -1 {
+		*c = Color(tcell.ColorDefault)
+		return nil
+	}
+
+	if code < 0 || code > 255 {
+		return fmt.Errorf("color code must be between 0-255. If you meant to use true colors, use #aabbcc notation")
+	}
+
+	*c = Color(tcell.PaletteColor(code))
+
+	return nil
+}
 
 type Config struct {
 	Addr     string
@@ -23,6 +61,10 @@ type Config struct {
 	OnHighlight  string `yaml:"on-highlight"`
 	NickColWidth int    `yaml:"nick-column-width"`
 	ChanColWidth int    `yaml:"chan-column-width"`
+
+	Colors struct {
+		Prompt Color
+	}
 
 	Debug bool
 }

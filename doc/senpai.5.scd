@@ -70,6 +70,25 @@ Some settings are required, the others are optional.
 *mouse*
 	Enable or disable mouse support.  Defaults to true.
 
+*colors*
+	Settings for colors of different UI elements.
+
+	Colors are represented as numbers from 0 to 255 for 256 default terminal
+	colors respectively. -1 has special meaning of default terminal color. To
+	use true colors, *#*_rrggbb_ notation is supported.
+
+	Colors are set as sub-options of the main *colors* option:
+
+```
+colors:
+    prompt: 3 # green
+```
+
+[[ *Sub-option*
+:< *Description*
+|  prompt
+:  color for ">"-prompt that appears in command mode
+
 *debug*
 	Dump all sent and received data to the home buffer, useful for debugging.
 	By default, false.

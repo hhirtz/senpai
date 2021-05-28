@@ -70,7 +70,11 @@ func NewApp(cfg Config) (app *App, err error) {
 	if err != nil {
 		return
 	}
-	app.win.SetPrompt(ui.PlainString(">"))
+	app.win.SetPrompt(ui.Styled(">",
+		tcell.
+			StyleDefault.
+			Foreground(tcell.Color(app.cfg.Colors.Prompt))),
+	)
 
 	app.initWindow()
 
@@ -787,7 +791,11 @@ func (app *App) updatePrompt() {
 	command := app.win.InputIsCommand()
 	var prompt ui.StyledString
 	if buffer == Home || command {
-		prompt = ui.PlainString(">")
+		prompt = ui.Styled(">",
+			tcell.
+				StyleDefault.
+				Foreground(tcell.Color(app.cfg.Colors.Prompt)),
+		)
 	} else {
 		prompt = identString(app.s.Nick())
 	}
