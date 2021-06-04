@@ -56,7 +56,11 @@ func (e *Editor) Resize(width int) {
 }
 
 func (e *Editor) IsCommand() bool {
-	return len(e.text[e.lineIdx]) != 0 && e.text[e.lineIdx][0] == '/'
+	line := e.text[e.lineIdx]
+
+	// Command can't start with two slashes because that's an escape for
+	// a literal slash in the message
+	return len(line) >= 1 && line[0] == '/' && !(len(line) >= 2 && line[1] == '/')
 }
 
 func (e *Editor) TextLen() int {
