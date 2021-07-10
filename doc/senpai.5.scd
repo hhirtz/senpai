@@ -54,7 +54,7 @@ Some settings are required, the others are optional.
 :  nickname of the sender
 
 	Note: when passing those to *notify-send*(1), some notification daemons use
-	*\* for escape sequences in the body, which causes *\* to disappear from the
+	*\\* for escape sequences in the body, which causes *\\* to disappear from the
 	message or triggers unintended side-effects (like newlines).
 
 	To get around this, you can double the backslash with the following snippet:
