@@ -377,7 +377,7 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		} else {
 			app.win.InputEnd()
 		}
-	case tcell.KeyBackspace2:
+	case tcell.KeyBackspace, tcell.KeyBackspace2:
 		ok := app.win.InputBackspace()
 		if ok {
 			app.typing()
