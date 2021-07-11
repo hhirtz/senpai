@@ -358,20 +358,7 @@ func commandDoR(app *App, buffer string, args []string) (err error) {
 
 func commandDoTopic(app *App, buffer string, args []string) (err error) {
 	if len(args) == 0 {
-		var body string
-
-		topic, who, at := app.s.Topic(buffer)
-		if who == nil {
-			body = fmt.Sprintf("Topic: %s", topic)
-		} else {
-			body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
-		}
-		app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
-			At:        time.Now(),
-			Head:      "--",
-			HeadColor: tcell.ColorGray,
-			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
-		})
+		app.printTopic(buffer)
 	} else {
 		app.s.ChangeTopic(buffer, args[0])
 	}

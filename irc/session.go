@@ -692,6 +692,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 			s.channels[channelCf] = c
 			ev := SelfJoinEvent{
 				Channel: c.Name,
+				Topic:   c.Topic,
 			}
 			if stamp, ok := s.pendingChannels[channelCf]; ok && time.Now().Sub(stamp) < 5*time.Second {
 				ev.Requested = true

@@ -24,6 +24,7 @@ type UserNickEvent struct {
 type SelfJoinEvent struct {
 	Channel   string
 	Requested bool // whether we recently requested to join that channel
+	Topic     string
 }
 
 type UserJoinEvent struct {

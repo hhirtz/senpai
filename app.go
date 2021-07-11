@@ -515,6 +515,9 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		if ev.Requested {
 			app.win.JumpBufferIndex(i)
 		}
+		if ev.Topic != "" {
+			app.printTopic(ev.Channel)
+		}
 	case irc.UserJoinEvent:
 		body := new(ui.StyledStringBuilder)
 		body.Grow(len(ev.User) + 1)
@@ -807,4 +810,21 @@ func (app *App) updatePrompt() {
 		prompt = identString(app.s.Nick())
 	}
 	app.win.SetPrompt(prompt)
+}
+
+func (app *App) printTopic(buffer string) {
+	var body string
+
+	topic, who, at := app.s.Topic(buffer)
+	if who == nil {
+		body = fmt.Sprintf("Topic: %s", topic)
+	} else {
+		body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
+	}
+	app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
+		At:        time.Now(),
+		Head:      "--",
+		HeadColor: tcell.ColorGray,
+		Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+	})
 }
