@@ -113,6 +113,10 @@ func (l *Line) NewLines(width int) []int {
 			// It fits, but there is no more space in the row.
 			x = 0
 			l.newLines = append(l.newLines, sp2.I)
+		} else if sp1.Split && width < sp2.X-sp1.X {
+			// Some whitespace occupies a width larger than the terminal's.
+			x = 0
+			l.newLines = append(l.newLines, sp1.I)
 		} else if width < sp2.X-sp1.X {
 			// It doesn't fit at all.  The word is longer than the width of the
 			// terminal.  In this case, no newline is placed before (like in the
