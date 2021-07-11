@@ -109,6 +109,7 @@ func (app *App) eventLoop() {
 		app.handleEvents(evs)
 		if !app.pasting {
 			app.setStatus()
+			app.updatePrompt()
 			app.win.Draw()
 		}
 	}
@@ -303,7 +304,6 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	if ev.Buttons() == 0 {
 		if y == app.win.ClickedBuffer() && x < app.cfg.ChanColWidth {
 			app.win.GoToBufferNo(y)
-			app.updatePrompt()
 		}
 		app.win.ClickBuffer(-1)
 	}
@@ -327,7 +327,6 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 	case tcell.KeyRight:
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.NextBuffer()
-			app.updatePrompt()
 		} else if ev.Modifiers() == tcell.ModCtrl {
 			app.win.InputRightWord()
 		} else {
@@ -336,7 +335,6 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 	case tcell.KeyLeft:
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.PreviousBuffer()
-			app.updatePrompt()
 		} else if ev.Modifiers() == tcell.ModCtrl {
 			app.win.InputLeftWord()
 		} else {
@@ -348,14 +346,12 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		} else {
 			app.win.InputUp()
 		}
-		app.updatePrompt()
 	case tcell.KeyDown:
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.NextBuffer()
 		} else {
 			app.win.InputDown()
 		}
-		app.updatePrompt()
 	case tcell.KeyHome:
 		if ev.Modifiers() == tcell.ModAlt {
 			app.win.GoToBufferNo(0)
@@ -373,19 +369,16 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		ok := app.win.InputBackspace()
 		if ok {
 			app.typing()
-			app.updatePrompt()
 		}
 	case tcell.KeyDelete:
 		ok := app.win.InputDelete()
 		if ok {
 			app.typing()
-			app.updatePrompt()
 		}
 	case tcell.KeyCtrlW:
 		ok := app.win.InputDeleteWord()
 		if ok {
 			app.typing()
-			app.updatePrompt()
 		}
 	case tcell.KeyTab:
 		ok := app.win.InputAutoComplete(1)
@@ -409,11 +402,9 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 				Body:      ui.PlainSprintf("%q: %s", input, err),
 			})
 		}
-		app.updatePrompt()
 	case tcell.KeyRune:
 		app.win.InputRune(ev.Rune())
 		app.typing()
-		app.updatePrompt()
 	default:
 		return
 	}
