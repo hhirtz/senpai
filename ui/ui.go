@@ -145,8 +145,9 @@ func (ui *UI) AddLines(buffer string, lines []Line) {
 }
 
 func (ui *UI) JumpBuffer(sub string) bool {
+	subLower := strings.ToLower(sub)
 	for i, b := range ui.bs.list {
-		if strings.Contains(b.title, sub) {
+		if strings.Contains(strings.ToLower(b.title), subLower) {
 			ui.bs.To(i)
 			return true
 		}
