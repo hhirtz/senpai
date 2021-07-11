@@ -265,6 +265,10 @@ func (ui *UI) InputClear() bool {
 	return ui.e.Clear()
 }
 
+func (ui *UI) InputBackSearch() {
+	ui.e.BackSearch()
+}
+
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	innerWidth := w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth - ui.config.MemberColWidth

@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"strings"
+
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -35,6 +37,10 @@ type Editor struct {
 	autoComplete func(cursorIdx int, text []rune) []Completion
 	autoCache    []Completion
 	autoCacheIdx int
+
+	backsearch        bool
+	backsearchPattern []rune // pre-lowercased
+	backsearchIdx     int
 }
 
 // NewEditor returns a new Editor.
@@ -52,6 +58,7 @@ func (e *Editor) Resize(width int) {
 		e.cursorIdx = 0
 		e.offsetIdx = 0
 		e.autoCache = nil
+		e.backsearchEnd()
 	}
 	e.width = width
 }
@@ -69,9 +76,31 @@ func (e *Editor) TextLen() int {
 }
 
 func (e *Editor) PutRune(r rune) {
-	e.putRune(r)
-	e.Right()
 	e.autoCache = nil
+	lowerRune := runeToLower(r)
+	if e.backsearch && e.cursorIdx < e.TextLen() {
+		lowerNext := runeToLower(e.text[e.lineIdx][e.cursorIdx])
+		if lowerRune == lowerNext {
+			e.right()
+			e.backsearchPattern = append(e.backsearchPattern, lowerRune)
+			return
+		}
+	}
+	e.putRune(r)
+	e.right()
+	if e.backsearch {
+		wasEmpty := len(e.backsearchPattern) == 0
+		e.backsearchPattern = append(e.backsearchPattern, lowerRune)
+		if wasEmpty {
+			clearLine := e.lineIdx == len(e.text)-1
+			e.backsearchUpdate(e.lineIdx - 1)
+			if clearLine && e.lineIdx < len(e.text)-1 {
+				e.text = e.text[:len(e.text)-1]
+			}
+		} else {
+			e.backsearchUpdate(e.lineIdx)
+		}
+	}
 }
 
 func (e *Editor) putRune(r rune) {
@@ -93,8 +122,16 @@ func (e *Editor) RemRune() (ok bool) {
 		return
 	}
 	e.remRuneAt(e.cursorIdx - 1)
+	e.left()
 	e.autoCache = nil
-	e.Left()
+	if e.backsearch {
+		if e.TextLen() == 0 {
+			e.backsearchEnd()
+		} else {
+			e.backsearchPattern = e.backsearchPattern[:len(e.backsearchPattern)-1]
+			e.backsearchUpdate(e.lineIdx)
+		}
+	}
 	return
 }
 
@@ -105,6 +142,7 @@ func (e *Editor) RemRuneForward() (ok bool) {
 	}
 	e.remRuneAt(e.cursorIdx)
 	e.autoCache = nil
+	e.backsearchEnd()
 	return
 }
 
@@ -135,7 +173,7 @@ func (e *Editor) RemWord() (ok bool) {
 	// |
 	for e.cursorIdx > 0 && line[e.cursorIdx-1] == ' ' {
 		e.remRuneAt(e.cursorIdx - 1)
-		e.Left()
+		e.left()
 	}
 
 	for i := e.cursorIdx - 1; i >= 0; i -= 1 {
@@ -143,10 +181,11 @@ func (e *Editor) RemWord() (ok bool) {
 			break
 		}
 		e.remRuneAt(i)
-		e.Left()
+		e.left()
 	}
 
 	e.autoCache = nil
+	e.backsearchEnd()
 	return
 }
 
@@ -162,6 +201,7 @@ func (e *Editor) Flush() (content string) {
 	e.cursorIdx = 0
 	e.offsetIdx = 0
 	e.autoCache = nil
+	e.backsearchEnd()
 	return
 }
 
@@ -180,6 +220,7 @@ func (e *Editor) Clear() bool {
 func (e *Editor) Right() {
 	e.right()
 	e.autoCache = nil
+	e.backsearchEnd()
 }
 
 func (e *Editor) right() {
@@ -212,6 +253,11 @@ func (e *Editor) RightWord() {
 }
 
 func (e *Editor) Left() {
+	e.left()
+	e.backsearchEnd()
+}
+
+func (e *Editor) left() {
 	if e.cursorIdx == 0 {
 		return
 	}
@@ -232,13 +278,14 @@ func (e *Editor) LeftWord() {
 	line := e.text[e.lineIdx]
 
 	for e.cursorIdx > 0 && line[e.cursorIdx-1] == ' ' {
-		e.Left()
+		e.left()
 	}
 	for i := e.cursorIdx - 1; i >= 0 && line[i] != ' '; i -= 1 {
-		e.Left()
+		e.left()
 	}
 
 	e.autoCache = nil
+	e.backsearchEnd()
 }
 
 func (e *Editor) Home() {
@@ -248,6 +295,7 @@ func (e *Editor) Home() {
 	e.cursorIdx = 0
 	e.offsetIdx = 0
 	e.autoCache = nil
+	e.backsearchEnd()
 }
 
 func (e *Editor) End() {
@@ -259,6 +307,7 @@ func (e *Editor) End() {
 		e.offsetIdx++
 	}
 	e.autoCache = nil
+	e.backsearchEnd()
 }
 
 func (e *Editor) Up() {
@@ -270,6 +319,7 @@ func (e *Editor) Up() {
 	e.cursorIdx = 0
 	e.offsetIdx = 0
 	e.autoCache = nil
+	e.backsearchEnd()
 	e.End()
 }
 
@@ -286,6 +336,7 @@ func (e *Editor) Down() {
 	e.cursorIdx = 0
 	e.offsetIdx = 0
 	e.autoCache = nil
+	e.backsearchEnd()
 	e.End()
 }
 
@@ -311,7 +362,45 @@ func (e *Editor) AutoComplete(offset int) (ok bool) {
 		e.offsetIdx++
 	}
 
+	e.backsearchEnd()
 	return true
+}
+
+func (e *Editor) BackSearch() {
+	clearLine := false
+	if !e.backsearch {
+		e.backsearch = true
+		e.backsearchPattern = []rune(strings.ToLower(string(e.text[e.lineIdx])))
+		clearLine = e.lineIdx == len(e.text)-1
+	}
+	e.backsearchUpdate(e.lineIdx - 1)
+	if clearLine && e.lineIdx < len(e.text)-1 {
+		e.text = e.text[:len(e.text)-1]
+	}
+}
+
+func (e *Editor) backsearchUpdate(start int) {
+	if len(e.backsearchPattern) == 0 {
+		return
+	}
+	pattern := string(e.backsearchPattern)
+	for i := start; i >= 0; i-- {
+		if match := strings.Index(strings.ToLower(string(e.text[i])), pattern); match >= 0 {
+			e.lineIdx = i
+			e.computeTextWidth()
+			e.cursorIdx = runeOffset(string(e.text[i]), match) + len(e.backsearchPattern)
+			e.offsetIdx = 0
+			for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
+				e.offsetIdx++
+			}
+			e.autoCache = nil
+			break
+		}
+	}
+}
+
+func (e *Editor) backsearchEnd() {
+	e.backsearch = false
 }
 
 func (e *Editor) computeTextWidth() {
@@ -331,7 +420,11 @@ func (e *Editor) Draw(screen tcell.Screen, x0, y int) {
 
 	for i < len(e.text[e.lineIdx]) && x < x0+e.width {
 		r := e.text[e.lineIdx][i]
-		screen.SetContent(x, y, r, nil, st)
+		s := st
+		if e.backsearch && i < e.cursorIdx && i >= e.cursorIdx-len(e.backsearchPattern) {
+			s = s.Underline(true)
+		}
+		screen.SetContent(x, y, r, nil, s)
 		x += runeWidth(r)
 		i++
 	}
@@ -343,4 +436,22 @@ func (e *Editor) Draw(screen tcell.Screen, x0, y int) {
 
 	cursorX := x0 + e.textWidth[e.cursorIdx] - e.textWidth[e.offsetIdx]
 	screen.ShowCursor(cursorX, y)
+}
+
+// runeOffset returns the lowercase version of a rune
+// TODO: len(strings.ToLower(string(r))) == len(strings.ToUpper(string(r))) for all x?
+func runeToLower(r rune) rune {
+	return []rune(strings.ToLower(string(r)))[0]
+}
+
+// runeOffset returns the rune index of the rune starting at byte i in string s
+func runeOffset(s string, pos int) int {
+	n := 0
+	for i, _ := range s {
+		if i >= pos {
+			return n
+		}
+		n++
+	}
+	return n
 }

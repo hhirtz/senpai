@@ -401,6 +401,8 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		if ok {
 			app.typing()
 		}
+	case tcell.KeyCtrlR:
+		app.win.InputBackSearch()
 	case tcell.KeyTab:
 		ok := app.win.InputAutoComplete(1)
 		if ok {
