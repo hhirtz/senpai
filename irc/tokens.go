@@ -517,6 +517,20 @@ type Member struct {
 	Name       *Prefix
 }
 
+type members []Member
+
+func (m members) Len() int {
+	return len(m)
+}
+
+func (m members) Less(i, j int) bool {
+	return strings.ToLower(m[i].Name.Name) < strings.ToLower(m[j].Name.Name)
+}
+
+func (m members) Swap(i, j int) {
+	m[i], m[j] = m[j], m[i]
+}
+
 // ParseNameReply parses the last parameter of RPL_NAMREPLY, according to the
 // membership prefixes of the server.
 func ParseNameReply(trailing string, prefixes string) (names []Member) {

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -207,6 +208,7 @@ func (s *Session) Users() []string {
 
 // Names returns the list of users in the given channel, or nil if this channel
 // is not known by the session.
+// The list is sorted according to member name.
 func (s *Session) Names(channel string) []Member {
 	var names []Member
 	if c, ok := s.channels[s.Casemap(channel)]; ok {
@@ -218,6 +220,7 @@ func (s *Session) Names(channel string) []Member {
 			})
 		}
 	}
+	sort.Sort(members(names))
 	return names
 }
 
