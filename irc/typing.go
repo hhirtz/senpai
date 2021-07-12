@@ -3,6 +3,8 @@ package irc
 import (
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // Typing is an event of Name actively typing in Target.
@@ -85,4 +87,10 @@ func (ts *Typings) List(target string) []string {
 		}
 	}
 	return res
+}
+
+type typingStamp struct {
+	Last  time.Time
+	Type  int
+	Limit *rate.Limiter
 }

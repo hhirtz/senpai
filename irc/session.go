@@ -11,6 +11,8 @@ import (
 	"time"
 	"unicode"
 	"unicode/utf8"
+
+	"golang.org/x/time/rate"
 )
 
 type SASLClient interface {
@@ -102,8 +104,8 @@ type Session struct {
 	out          chan<- Message
 	closed       bool
 	registered   bool
-	typings      *Typings             // incoming typing notifications.
-	typingStamps map[string]time.Time // user typing instants.
+	typings      *Typings               // incoming typing notifications.
+	typingStamps map[string]typingStamp // user typing instants.
 
 	nick   string
 	nickCf string // casemapped nickname.
@@ -134,7 +136,7 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 	s := &Session{
 		out:           out,
 		typings:       NewTypings(),
-		typingStamps:  map[string]time.Time{},
+		typingStamps:  map[string]typingStamp{},
 		nick:          params.Nickname,
 		nickCf:        CasemapASCII(params.Nickname),
 		user:          params.Username,
@@ -342,16 +344,41 @@ func (s *Session) Typing(target string) {
 	}
 	targetCf := s.casemap(target)
 	now := time.Now()
-	if t, ok := s.typingStamps[targetCf]; ok && now.Sub(t).Seconds() < 3.0 {
+	t, ok := s.typingStamps[targetCf]
+	if ok && ((t.Type == TypingActive && now.Sub(t.Last).Seconds() < 3.0) || !t.Limit.Allow()) {
 		return
 	}
-	s.typingStamps[targetCf] = now
+	if !ok {
+		t.Limit = rate.NewLimiter(rate.Limit(1.0/3.0), 5)
+		t.Limit.Reserve() // will always be OK
+	}
+	s.typingStamps[targetCf] = typingStamp{
+		Last:  now,
+		Type:  TypingActive,
+		Limit: t.Limit,
+	}
 	s.out <- NewMessage("TAGMSG", target).WithTag("+typing", "active")
 }
 
 func (s *Session) TypingStop(target string) {
 	if !s.HasCapability("message-tags") {
 		return
+	}
+	targetCf := s.casemap(target)
+	now := time.Now()
+	t, ok := s.typingStamps[targetCf]
+	if ok && (t.Type == TypingDone || !t.Limit.Allow()) {
+		// don't send a +typing=done again if the last typing we sent was a +typing=done
+		return
+	}
+	if !ok {
+		t.Limit = rate.NewLimiter(rate.Limit(1), 5)
+		t.Limit.Reserve() // will always be OK
+	}
+	s.typingStamps[targetCf] = typingStamp{
+		Last:  now,
+		Type:  TypingDone,
+		Limit: t.Limit,
 	}
 	s.out <- NewMessage("TAGMSG", target).WithTag("+typing", "done")
 }
