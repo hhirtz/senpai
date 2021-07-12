@@ -228,6 +228,10 @@ func (ui *UI) InputEnter() (content string) {
 	return ui.e.Flush()
 }
 
+func (ui *UI) InputClear() {
+	ui.e.Clear()
+}
+
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	ui.e.Resize(w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth)
