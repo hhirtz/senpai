@@ -405,7 +405,7 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 		input := app.win.InputEnter()
 		err := app.handleInput(buffer, input)
 		if err != nil {
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyUnread, ui.Line{
 				At:        time.Now(),
 				Head:      "!!",
 				HeadColor: tcell.ColorRed,
@@ -468,7 +468,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			body.WriteString(" as ")
 			body.WriteString(app.s.Nick())
 		}
-		app.win.AddLine(Home, false, ui.Line{
+		app.win.AddLine(Home, ui.NotifyUnread, ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: "--",
 			Body: body.StyledString(),
@@ -499,7 +499,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
 		for _, c := range app.s.ChannelsSharedWith(ev.User) {
-			app.win.AddLine(c, false, ui.Line{
+			app.win.AddLine(c, ui.NotifyNone, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
 				HeadColor: tcell.ColorGray,
@@ -522,7 +522,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.WriteByte('+')
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
-		app.win.AddLine(ev.Channel, false, ui.Line{
+		app.win.AddLine(ev.Channel, ui.NotifyNone, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -538,7 +538,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.WriteByte('-')
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
-		app.win.AddLine(ev.Channel, false, ui.Line{
+		app.win.AddLine(ev.Channel, ui.NotifyNone, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -553,7 +553,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
 		for _, c := range ev.Channels {
-			app.win.AddLine(c, false, ui.Line{
+			app.win.AddLine(c, ui.NotifyNone, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
 				HeadColor: tcell.ColorGray,
@@ -567,7 +567,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString("Topic changed to: ")
 		body.WriteString(ev.Topic)
-		app.win.AddLine(ev.Channel, false, ui.Line{
+		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -575,7 +575,13 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		})
 	case irc.MessageEvent:
 		buffer, line, hlNotification := app.formatMessage(ev)
-		app.win.AddLine(buffer, hlNotification, line)
+		var notify ui.NotifyType
+		if hlNotification {
+			notify = ui.NotifyHighlight
+		} else {
+			notify = ui.NotifyUnread
+		}
+		app.win.AddLine(buffer, notify, line)
 		if hlNotification {
 			app.notifyHighlight(buffer, ev.User, line.Body.String())
 		}

@@ -16,6 +16,14 @@ type point struct {
 	Split bool
 }
 
+type NotifyType int
+
+const (
+	NotifyNone NotifyType = iota
+	NotifyUnread
+	NotifyHighlight
+)
+
 type Line struct {
 	At        time.Time
 	Head      string
@@ -251,7 +259,7 @@ func (bs *BufferList) Remove(title string) (ok bool) {
 	return
 }
 
-func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
+func (bs *BufferList) AddLine(title string, notify NotifyType, line Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
@@ -280,10 +288,10 @@ func (bs *BufferList) AddLine(title string, highlight bool, line Line) {
 		}
 	}
 
-	if !line.Mergeable && idx != bs.current {
+	if notify != NotifyNone && idx != bs.current {
 		b.unread = true
 	}
-	if highlight && idx != bs.current {
+	if notify == NotifyHighlight && idx != bs.current {
 		b.highlights++
 	}
 }

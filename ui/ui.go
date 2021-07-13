@@ -136,8 +136,8 @@ func (ui *UI) RemoveBuffer(title string) {
 	_ = ui.bs.Remove(title)
 }
 
-func (ui *UI) AddLine(buffer string, highlight bool, line Line) {
-	ui.bs.AddLine(buffer, highlight, line)
+func (ui *UI) AddLine(buffer string, notify NotifyType, line Line) {
+	ui.bs.AddLine(buffer, notify, line)
 }
 
 func (ui *UI) AddLines(buffer string, lines []Line) {

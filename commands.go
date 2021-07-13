@@ -140,7 +140,7 @@ func noCommand(app *App, buffer, content string) error {
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, false, line)
+		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
 
 	return nil
@@ -149,7 +149,7 @@ func noCommand(app *App, buffer, content string) error {
 func commandDoHelp(app *App, buffer string, args []string) (err error) {
 	t := time.Now()
 	if len(args) == 0 {
-		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+		app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainString("Available commands:"),
@@ -158,22 +158,22 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 			if cmd.Desc == "" {
 				continue
 			}
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  \x02%s\x02 %s", cmdName, cmd.Usage),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("    %s", cmd.Desc),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At: t,
 			})
 		}
 	} else {
 		search := strings.ToUpper(args[0])
 		found := false
-		app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+		app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainSprintf("Commands that match \"%s\":", search),
@@ -189,21 +189,21 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 			usage.SetStyle(tcell.StyleDefault)
 			usage.WriteByte(' ')
 			usage.WriteString(cmd.Usage)
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: usage.StyledString(),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  %s", cmd.Desc),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At: t,
 			})
 			found = true
 		}
 		if !found {
-			app.win.AddLine(app.win.CurrentBuffer(), false, ui.Line{
+			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  no command matches %q", args[0]),
 			})
@@ -236,7 +236,7 @@ func commandDoMe(app *App, buffer string, args []string) (err error) {
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, false, line)
+		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
 	return
 }
@@ -254,7 +254,7 @@ func commandDoMsg(app *App, buffer string, args []string) (err error) {
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, false, line)
+		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
 	return
 }
@@ -274,7 +274,7 @@ func commandDoNames(app *App, buffer string, args []string) (err error) {
 	}
 	body := sb.StyledString()
 	// TODO remove last space
-	app.win.AddLine(buffer, false, ui.Line{
+	app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
 		At:        time.Now(),
 		Head:      "--",
 		HeadColor: tcell.ColorGray,
@@ -351,7 +351,7 @@ func commandDoR(app *App, buffer string, args []string) (err error) {
 			Content:         args[0],
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, false, line)
+		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
 	return
 }
@@ -366,7 +366,7 @@ func commandDoTopic(app *App, buffer string, args []string) (err error) {
 		} else {
 			body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
 		}
-		app.win.AddLine(buffer, false, ui.Line{
+		app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
 			At:        time.Now(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,

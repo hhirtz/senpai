@@ -15,7 +15,7 @@ const welcomeMessage = "senpai dev build. See senpai(1) for a list of keybinding
 
 func (app *App) initWindow() {
 	app.win.AddBuffer(Home)
-	app.win.AddLine(Home, false, ui.Line{
+	app.win.AddLine(Home, ui.NotifyNone, ui.Line{
 		Head: "--",
 		Body: ui.PlainString(welcomeMessage),
 		At:   time.Now(),
@@ -35,9 +35,9 @@ func (app *App) queueStatusLine(line ui.Line) {
 func (app *App) addStatusLine(line ui.Line) {
 	buffer := app.win.CurrentBuffer()
 	if buffer != Home {
-		app.win.AddLine(Home, false, line)
+		app.win.AddLine(Home, ui.NotifyNone, line)
 	}
-	app.win.AddLine(buffer, false, line)
+	app.win.AddLine(buffer, ui.NotifyNone, line)
 }
 
 func (app *App) setStatus() {
