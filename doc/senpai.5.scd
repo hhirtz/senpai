@@ -72,11 +72,14 @@ on-highlight: |
 ```
 
 *nick-column-width*
-	The number of cell that the column for nicknames occupies in the timeline.
+	The number of cells that the column for nicknames occupies in the timeline.
 	By default, 16.
 
 *chan-column-width*
-	The number of cell that the column for channels occupies.  By default, 16.
+	The number of cells that the column for channels occupies.  By default, 16.
+
+*member-column-width*
+	The number of cells that the column for members occupies.  By default, 16.
 
 *no-tls*
 	Disable TLS encryption.  Defaults to false.

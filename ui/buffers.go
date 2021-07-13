@@ -4,6 +4,8 @@ import (
 	"strings"
 	"time"
 
+	"git.sr.ht/~taiite/senpai/irc"
+
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -185,28 +187,22 @@ type BufferList struct {
 	current int
 	clicked int
 
-	tlWidth      int
+	tlInnerWidth int
 	tlHeight     int
-	nickColWidth int
 }
 
-func NewBufferList(tlWidth, tlHeight, nickColWidth int) BufferList {
+// NewBufferList returns a new BufferList.
+// Call Resize() once before using it.
+func NewBufferList() BufferList {
 	return BufferList{
-		list:         []buffer{},
-		clicked:      -1,
-		tlWidth:      tlWidth,
-		tlHeight:     tlHeight,
-		nickColWidth: nickColWidth,
+		list:    []buffer{},
+		clicked: -1,
 	}
 }
 
-func (bs *BufferList) ResizeTimeline(tlWidth, tlHeight, nickColWidth int) {
-	bs.tlWidth = tlWidth
+func (bs *BufferList) ResizeTimeline(tlInnerWidth, tlHeight int) {
+	bs.tlInnerWidth = tlInnerWidth
 	bs.tlHeight = tlHeight
-}
-
-func (bs *BufferList) tlInnerWidth() int {
-	return bs.tlWidth - bs.nickColWidth - 9
 }
 
 func (bs *BufferList) To(i int) {
@@ -284,7 +280,7 @@ func (bs *BufferList) AddLine(title string, notify NotifyType, line Line) {
 		line.computeSplitPoints()
 		b.lines = append(b.lines, line)
 		if idx == bs.current && 0 < b.scrollAmt {
-			b.scrollAmt += len(line.NewLines(bs.tlInnerWidth())) + 1
+			b.scrollAmt += len(line.NewLines(bs.tlInnerWidth)) + 1
 		}
 	}
 
@@ -433,8 +429,34 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 	}
 }
 
+func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member) {
+	st := tcell.StyleDefault
+
+	for y := y0; y < y0+height; y++ {
+		screen.SetContent(x0, y, 0x2502, nil, st)
+		for x := x0 + 1; x < x0+width; x++ {
+			screen.SetContent(x, y, ' ', nil, st)
+		}
+	}
+
+	for i, m := range members {
+		st = tcell.StyleDefault
+		x := x0 + 1
+		y := y0 + i
+
+		if m.PowerLevel != "" {
+			printString(screen, &x, y, Styled(string([]rune(m.PowerLevel)[0]), st.Foreground(tcell.ColorGreen)))
+		} else {
+			x += 1
+		}
+		name := truncate(m.Name.Name, width-(x-x0), "\u2026")
+		printString(screen, &x, y, Styled(name, st))
+		y++
+	}
+}
+
 func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int) {
-	for x := x0; x < x0+bs.tlWidth; x++ {
+	for x := x0; x < x0+bs.tlInnerWidth+nickColWidth+9; x++ {
 		for y := y0; y < y0+bs.tlHeight; y++ {
 			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
 		}
@@ -450,7 +472,7 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 		x1 := x0 + 9 + nickColWidth
 
 		line := &b.lines[i]
-		nls := line.NewLines(bs.tlInnerWidth())
+		nls := line.NewLines(bs.tlInnerWidth)
 		yi -= len(nls) + 1
 		if y0+bs.tlHeight <= yi {
 			continue

@@ -58,10 +58,11 @@ type Config struct {
 	NoTypings bool `yaml:"no-typings"`
 	Mouse     *bool
 
-	Highlights   []string
-	OnHighlight  string `yaml:"on-highlight"`
-	NickColWidth int    `yaml:"nick-column-width"`
-	ChanColWidth int    `yaml:"chan-column-width"`
+	Highlights     []string
+	OnHighlight    string `yaml:"on-highlight"`
+	NickColWidth   int    `yaml:"nick-column-width"`
+	ChanColWidth   int    `yaml:"chan-column-width"`
+	MemberColWidth int    `yaml:"member-column-width"`
 
 	Colors struct {
 		Prompt Color
@@ -92,6 +93,9 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	}
 	if cfg.ChanColWidth <= 0 {
 		cfg.ChanColWidth = 16
+	}
+	if cfg.MemberColWidth <= 0 {
+		cfg.MemberColWidth = 16
 	}
 	return
 }

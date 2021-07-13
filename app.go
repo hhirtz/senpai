@@ -60,8 +60,9 @@ func NewApp(cfg Config) (app *App, err error) {
 	}
 
 	app.win, err = ui.New(ui.Config{
-		NickColWidth: cfg.NickColWidth,
-		ChanColWidth: cfg.ChanColWidth,
+		NickColWidth:   cfg.NickColWidth,
+		ChanColWidth:   cfg.ChanColWidth,
+		MemberColWidth: cfg.MemberColWidth,
 		AutoComplete: func(cursorIdx int, text []rune) []ui.Completion {
 			return app.completions(cursorIdx, text)
 		},
@@ -116,7 +117,11 @@ func (app *App) eventLoop() {
 		if !app.pasting {
 			app.setStatus()
 			app.updatePrompt()
-			app.win.Draw()
+			var currentMembers []irc.Member
+			if app.s != nil {
+				currentMembers = app.s.Names(app.win.CurrentBuffer())
+			}
+			app.win.Draw(currentMembers)
 		}
 	}
 }

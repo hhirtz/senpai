@@ -37,11 +37,12 @@ type Editor struct {
 	autoCacheIdx int
 }
 
-func NewEditor(width int, autoComplete func(cursorIdx int, text []rune) []Completion) Editor {
+// NewEditor returns a new Editor.
+// Call Resize() once before using it.
+func NewEditor(autoComplete func(cursorIdx int, text []rune) []Completion) Editor {
 	return Editor{
 		text:         [][]rune{{}},
 		textWidth:    []int{0},
-		width:        width,
 		autoComplete: autoComplete,
 	}
 }

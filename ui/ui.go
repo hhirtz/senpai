@@ -5,14 +5,17 @@ import (
 	"sync/atomic"
 	"time"
 
+	"git.sr.ht/~taiite/senpai/irc"
+
 	"github.com/gdamore/tcell/v2"
 )
 
 type Config struct {
-	NickColWidth int
-	ChanColWidth int
-	AutoComplete func(cursorIdx int, text []rune) []Completion
-	Mouse        bool
+	NickColWidth   int
+	ChanColWidth   int
+	MemberColWidth int
+	AutoComplete   func(cursorIdx int, text []rune) []Completion
+	Mouse          bool
 }
 
 type UI struct {
@@ -46,7 +49,7 @@ func New(config Config) (ui *UI, err error) {
 	}
 	ui.screen.EnablePaste()
 
-	w, h := ui.screen.Size()
+	_, h := ui.screen.Size()
 	ui.screen.Clear()
 	ui.screen.ShowCursor(0, h-2)
 
@@ -59,8 +62,8 @@ func New(config Config) (ui *UI, err error) {
 		}
 	}()
 
-	ui.bs = NewBufferList(w, h, ui.config.NickColWidth)
-	ui.e = NewEditor(w, ui.config.AutoComplete)
+	ui.bs = NewBufferList()
+	ui.e = NewEditor(ui.config.AutoComplete)
 	ui.Resize()
 
 	return
@@ -242,18 +245,20 @@ func (ui *UI) InputClear() bool {
 
 func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
-	ui.e.Resize(w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth)
-	ui.bs.ResizeTimeline(w-ui.config.ChanColWidth, h-2, ui.config.NickColWidth)
+	innerWidth := w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth - ui.config.MemberColWidth
+	ui.e.Resize(innerWidth)
+	ui.bs.ResizeTimeline(innerWidth, h-2)
 }
 
-func (ui *UI) Draw() {
+func (ui *UI) Draw(members []irc.Member) {
 	w, h := ui.screen.Size()
 
 	ui.e.Draw(ui.screen, 9+ui.config.ChanColWidth+ui.config.NickColWidth, h-1)
 
 	ui.bs.DrawTimeline(ui.screen, ui.config.ChanColWidth, 0, ui.config.NickColWidth)
 	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
-	ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth)
+	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members)
+	ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth-ui.config.MemberColWidth)
 
 	for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {
 		ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
@@ -264,6 +269,8 @@ func (ui *UI) Draw() {
 }
 
 func (ui *UI) drawStatusBar(x0, y, width int) {
+	width--
+
 	st := tcell.StyleDefault.Dim(true)
 
 	for x := x0; x < x0+width; x++ {
