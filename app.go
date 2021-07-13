@@ -511,10 +511,13 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			})
 		}
 	case irc.SelfJoinEvent:
-		app.win.AddBuffer(ev.Channel)
+		i := app.win.AddBuffer(ev.Channel)
 		app.s.NewHistoryRequest(ev.Channel).
 			WithLimit(200).
 			Before(msg.TimeOrNow())
+		if ev.Requested {
+			app.win.JumpBufferIndex(i)
+		}
 	case irc.UserJoinEvent:
 		body := new(ui.StyledStringBuilder)
 		body.Grow(len(ev.User) + 1)

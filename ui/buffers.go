@@ -224,17 +224,16 @@ func (bs *BufferList) Previous() {
 	bs.list[bs.current].unread = false
 }
 
-func (bs *BufferList) Add(title string) (ok bool) {
+func (bs *BufferList) Add(title string) int {
 	lTitle := strings.ToLower(title)
-	for _, b := range bs.list {
+	for i, b := range bs.list {
 		if strings.ToLower(b.title) == lTitle {
-			return
+			return i
 		}
 	}
 
-	ok = true
 	bs.list = append(bs.list, buffer{title: title})
-	return
+	return len(bs.list) - 1
 }
 
 func (bs *BufferList) Remove(title string) (ok bool) {

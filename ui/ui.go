@@ -128,8 +128,8 @@ func (ui *UI) IsAtTop() bool {
 	return ui.bs.IsAtTop()
 }
 
-func (ui *UI) AddBuffer(title string) {
-	_ = ui.bs.Add(title)
+func (ui *UI) AddBuffer(title string) int {
+	return ui.bs.Add(title)
 }
 
 func (ui *UI) RemoveBuffer(title string) {
@@ -153,6 +153,14 @@ func (ui *UI) JumpBuffer(sub string) bool {
 		}
 	}
 
+	return false
+}
+
+func (ui *UI) JumpBufferIndex(i int) bool {
+	if i >= 0 && i < len(ui.bs.list) {
+		ui.bs.To(i)
+		return true
+	}
 	return false
 }
 

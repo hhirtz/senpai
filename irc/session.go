@@ -130,30 +130,33 @@ type Session struct {
 	channels  map[string]Channel      // joined channels.
 	chBatches map[string]HistoryEvent // channel history batches being processed.
 	chReqs    map[string]struct{}     // set of targets for which history is currently requested.
+
+	pendingChannels map[string]time.Time // set of join requests stamps for channels.
 }
 
 func NewSession(out chan<- Message, params SessionParams) *Session {
 	s := &Session{
-		out:           out,
-		typings:       NewTypings(),
-		typingStamps:  map[string]typingStamp{},
-		nick:          params.Nickname,
-		nickCf:        CasemapASCII(params.Nickname),
-		user:          params.Username,
-		real:          params.RealName,
-		auth:          params.Auth,
-		availableCaps: map[string]string{},
-		enabledCaps:   map[string]struct{}{},
-		casemap:       CasemapRFC1459,
-		chantypes:     "#&",
-		linelen:       512,
-		historyLimit:  100,
-		prefixSymbols: "@+",
-		prefixModes:   "ov",
-		users:         map[string]*User{},
-		channels:      map[string]Channel{},
-		chBatches:     map[string]HistoryEvent{},
-		chReqs:        map[string]struct{}{},
+		out:             out,
+		typings:         NewTypings(),
+		typingStamps:    map[string]typingStamp{},
+		nick:            params.Nickname,
+		nickCf:          CasemapASCII(params.Nickname),
+		user:            params.Username,
+		real:            params.RealName,
+		auth:            params.Auth,
+		availableCaps:   map[string]string{},
+		enabledCaps:     map[string]struct{}{},
+		casemap:         CasemapRFC1459,
+		chantypes:       "#&",
+		linelen:         512,
+		historyLimit:    100,
+		prefixSymbols:   "@+",
+		prefixModes:     "ov",
+		users:           map[string]*User{},
+		channels:        map[string]Channel{},
+		chBatches:       map[string]HistoryEvent{},
+		chReqs:          map[string]struct{}{},
+		pendingChannels: map[string]time.Time{},
 	}
 
 	s.out <- NewMessage("CAP", "LS", "302")
@@ -272,6 +275,8 @@ func (s *Session) SendRaw(raw string) {
 }
 
 func (s *Session) Join(channel, key string) {
+	channelCf := s.Casemap(channel)
+	s.pendingChannels[channelCf] = time.Now()
 	if key == "" {
 		s.out <- NewMessage("JOIN", channel)
 	} else {
@@ -685,9 +690,13 @@ func (s *Session) handleRegistered(msg Message) Event {
 		if c, ok := s.channels[channelCf]; ok && !c.complete {
 			c.complete = true
 			s.channels[channelCf] = c
-			return SelfJoinEvent{
+			ev := SelfJoinEvent{
 				Channel: c.Name,
 			}
+			if stamp, ok := s.pendingChannels[channelCf]; ok && time.Now().Sub(stamp) < 5*time.Second {
+				ev.Requested = true
+			}
+			return ev
 		}
 	case rplTopic:
 		channelCf := s.Casemap(msg.Params[1])
