@@ -33,6 +33,10 @@ Some settings are required, the others are optional.
 *password*
 	Your password, used for SASL authentication.
 
+*channels*
+	A list of channel names that senpai will automatically join at startup and
+	server reconnect.
+
 *highlights*
 	A list of keywords that will trigger a notification and a display indicator
 	when said by others.  By default, senpai will use your current nickname.
@@ -127,6 +131,7 @@ nick: Guest123456
 user: senpai
 real: Guest von Lenon
 password: A secure password, I guess?
+channels: ["#rahxephon"]
 highlights:
 	- guest
 	- senpai

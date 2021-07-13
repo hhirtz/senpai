@@ -457,6 +457,11 @@ func (app *App) handleIRCEvent(ev interface{}) {
 	// Mutate UI state
 	switch ev := ev.(type) {
 	case irc.RegisteredEvent:
+		for _, channel := range app.cfg.Channels {
+			// TODO: group JOIN messages
+			// TODO: support autojoining channels with keys
+			app.s.Join(channel, "")
+		}
 		body := new(ui.StyledStringBuilder)
 		body.WriteString("Connected to the server")
 		if app.s.Nick() != app.cfg.Nick {

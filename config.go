@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"strings"
 	"strconv"
+	"strings"
 
 	"github.com/gdamore/tcell/v2"
 
@@ -53,6 +53,7 @@ type Config struct {
 	User     string
 	Password *string
 	NoTLS    bool `yaml:"no-tls"`
+	Channels []string
 
 	NoTypings bool `yaml:"no-typings"`
 	Mouse     *bool
