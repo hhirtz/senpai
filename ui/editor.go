@@ -164,16 +164,16 @@ func (e *Editor) Flush() (content string) {
 	return
 }
 
-func (e *Editor) Clear() {
+func (e *Editor) Clear() bool {
 	if e.TextLen() == 0 {
-		return
+		return false
 	}
 	e.text[e.lineIdx] = []rune{}
 	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
 	e.offsetIdx = 0
 	e.autoCache = nil
-	return
+	return true
 }
 
 func (e *Editor) Right() {

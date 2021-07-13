@@ -236,8 +236,8 @@ func (ui *UI) InputEnter() (content string) {
 	return ui.e.Flush()
 }
 
-func (ui *UI) InputClear() {
-	ui.e.Clear()
+func (ui *UI) InputClear() bool {
+	return ui.e.Clear()
 }
 
 func (ui *UI) Resize() {

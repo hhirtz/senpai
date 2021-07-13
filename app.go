@@ -320,8 +320,9 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 	switch ev.Key() {
 	case tcell.KeyCtrlC:
-		app.win.InputClear()
-		app.typing()
+		if app.win.InputClear() {
+			app.typing()
+		}
 	case tcell.KeyCtrlL:
 		app.win.Resize()
 	case tcell.KeyCtrlU, tcell.KeyPgUp:
