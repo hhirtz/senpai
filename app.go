@@ -811,6 +811,12 @@ func (app *App) updatePrompt() {
 				StyleDefault.
 				Foreground(tcell.Color(app.cfg.Colors.Prompt)),
 		)
+	} else if app.s == nil {
+		prompt = ui.Styled("<offline>",
+			tcell.
+				StyleDefault.
+				Foreground(tcell.ColorRed),
+		)
 	} else {
 		prompt = identString(app.s.Nick())
 	}
