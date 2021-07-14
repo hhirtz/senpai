@@ -2,6 +2,7 @@ package senpai
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -478,6 +479,12 @@ func (app *App) handleInput(buffer, content string) error {
 
 func commandDoBuffer(app *App, buffer string, args []string) error {
 	name := args[0]
+	i, err := strconv.Atoi(name)
+	if err == nil {
+		if app.win.JumpBufferIndex(i) {
+			return nil
+		}
+	}
 	if !app.win.JumpBuffer(args[0]) {
 		return fmt.Errorf("none of the buffers match %q", name)
 	}

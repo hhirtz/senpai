@@ -1,6 +1,8 @@
 package ui
 
 import (
+	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -396,6 +398,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		screen.SetContent(x0+width, y, 0x2502, nil, st)
 	}
 
+	indexPadding := 1 + int(math.Ceil(math.Log10(float64(len(bs.list)))))
 	for i, b := range bs.list {
 		st = tcell.StyleDefault
 		x := x0
@@ -408,7 +411,12 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		if i == bs.clicked {
 			st = st.Reverse(true)
 		}
-		title := truncate(b.title, width, "\u2026")
+		indexText := fmt.Sprintf("%d:", i)
+		for ; x < x0+indexPadding-len(indexText); x++ {
+			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+		}
+		printString(screen, &x, y, Styled(indexText, st.Foreground(tcell.ColorGrey)))
+		title := truncate(b.title, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(title, st))
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
