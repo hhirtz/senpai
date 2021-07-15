@@ -28,6 +28,8 @@ type UI struct {
 	e      Editor
 	prompt StyledString
 	status string
+
+	memberOffset int
 }
 
 func New(config Config) (ui *UI, err error) {
@@ -91,10 +93,12 @@ func (ui *UI) CurrentBufferOldestTime() (t *time.Time) {
 
 func (ui *UI) NextBuffer() {
 	ui.bs.Next()
+	ui.memberOffset = 0
 }
 
 func (ui *UI) PreviousBuffer() {
 	ui.bs.Previous()
+	ui.memberOffset = 0
 }
 
 func (ui *UI) ClickedBuffer() int {
@@ -108,7 +112,9 @@ func (ui *UI) ClickBuffer(i int) {
 }
 
 func (ui *UI) GoToBufferNo(i int) {
-	ui.bs.To(i)
+	if ui.bs.To(i) {
+		ui.memberOffset = 0
+	}
 }
 
 func (ui *UI) ScrollUp() {
@@ -127,6 +133,17 @@ func (ui *UI) ScrollDownBy(n int) {
 	ui.bs.ScrollDown(n)
 }
 
+func (ui *UI) ScrollMemberUpBy(n int) {
+	ui.memberOffset -= n
+	if ui.memberOffset < 0 {
+		ui.memberOffset = 0
+	}
+}
+
+func (ui *UI) ScrollMemberDownBy(n int) {
+	ui.memberOffset += n
+}
+
 func (ui *UI) IsAtTop() bool {
 	return ui.bs.IsAtTop()
 }
@@ -137,6 +154,7 @@ func (ui *UI) AddBuffer(title string) int {
 
 func (ui *UI) RemoveBuffer(title string) {
 	_ = ui.bs.Remove(title)
+	ui.memberOffset = 0
 }
 
 func (ui *UI) AddLine(buffer string, notify NotifyType, line Line) {
@@ -151,7 +169,9 @@ func (ui *UI) JumpBuffer(sub string) bool {
 	subLower := strings.ToLower(sub)
 	for i, b := range ui.bs.list {
 		if strings.Contains(strings.ToLower(b.title), subLower) {
-			ui.bs.To(i)
+			if ui.bs.To(i) {
+				ui.memberOffset = 0
+			}
 			return true
 		}
 	}
@@ -161,7 +181,9 @@ func (ui *UI) JumpBuffer(sub string) bool {
 
 func (ui *UI) JumpBufferIndex(i int) bool {
 	if i >= 0 && i < len(ui.bs.list) {
-		ui.bs.To(i)
+		if ui.bs.To(i) {
+			ui.memberOffset = 0
+		}
 		return true
 	}
 	return false
@@ -250,6 +272,10 @@ func (ui *UI) Resize() {
 	ui.bs.ResizeTimeline(innerWidth, h-2)
 }
 
+func (ui *UI) Size() (int, int) {
+	return ui.screen.Size()
+}
+
 func (ui *UI) Draw(members []irc.Member) {
 	w, h := ui.screen.Size()
 
@@ -257,7 +283,7 @@ func (ui *UI) Draw(members []irc.Member) {
 
 	ui.bs.DrawTimeline(ui.screen, ui.config.ChanColWidth, 0, ui.config.NickColWidth)
 	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
-	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members)
+	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
 	ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth-ui.config.MemberColWidth)
 
 	for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {

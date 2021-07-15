@@ -296,9 +296,13 @@ func (app *App) handleUIEvent(ev interface{}) {
 
 func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	x, y := ev.Position()
+	w, _ := app.win.Size()
 	if ev.Buttons()&tcell.WheelUp != 0 {
 		if x < app.cfg.ChanColWidth {
 			// TODO scroll chan list
+		} else if x > w-app.cfg.MemberColWidth {
+			app.win.ScrollMemberUpBy(4)
+			app.requestHistory()
 		} else {
 			app.win.ScrollUpBy(4)
 			app.requestHistory()
@@ -307,6 +311,8 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	if ev.Buttons()&tcell.WheelDown != 0 {
 		if x < app.cfg.ChanColWidth {
 			// TODO scroll chan list
+		} else if x > w-app.cfg.MemberColWidth {
+			app.win.ScrollMemberDownBy(4)
 		} else {
 			app.win.ScrollDownBy(4)
 		}

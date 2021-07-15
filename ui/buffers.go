@@ -207,7 +207,10 @@ func (bs *BufferList) ResizeTimeline(tlInnerWidth, tlHeight int) {
 	bs.tlHeight = tlHeight
 }
 
-func (bs *BufferList) To(i int) {
+func (bs *BufferList) To(i int) bool {
+	if i == bs.current {
+		return false
+	}
 	if 0 <= i {
 		bs.current = i
 		if len(bs.list) <= bs.current {
@@ -215,7 +218,9 @@ func (bs *BufferList) To(i int) {
 		}
 		bs.list[bs.current].highlights = 0
 		bs.list[bs.current].unread = false
+		return true
 	}
+	return false
 }
 
 func (bs *BufferList) Next() {
@@ -437,8 +442,15 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 	}
 }
 
-func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member) {
+func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member, offset *int) {
 	st := tcell.StyleDefault
+
+	if y0+len(members)-*offset < height {
+		*offset = y0 + len(members) - height
+		if *offset < 0 {
+			*offset = 0
+		}
+	}
 
 	for y := y0; y < y0+height; y++ {
 		screen.SetContent(x0, y, 0x2502, nil, st)
@@ -447,7 +459,7 @@ func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width,
 		}
 	}
 
-	for i, m := range members {
+	for i, m := range members[*offset:] {
 		st = tcell.StyleDefault
 		x := x0 + 1
 		y := y0 + i
