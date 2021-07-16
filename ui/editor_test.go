@@ -51,7 +51,8 @@ func assertEditorEq(t *testing.T, actual, expected Editor) {
 }
 
 func TestOneLetter(t *testing.T) {
-	e := NewEditor(5, nil)
+	e := NewEditor(nil)
+	e.Resize(5)
 	e.PutRune('h')
 	assertEditorEq(t, e, Editor{
 		text:      [][]rune{[]rune{'h'}},
@@ -63,7 +64,8 @@ func TestOneLetter(t *testing.T) {
 }
 
 func TestFourLetters(t *testing.T) {
-	e := NewEditor(5, nil)
+	e := NewEditor(nil)
+	e.Resize(5)
 	e.PutRune('h')
 	e.PutRune('e')
 	e.PutRune('l')
@@ -72,7 +74,8 @@ func TestFourLetters(t *testing.T) {
 }
 
 func TestOneLeft(t *testing.T) {
-	e := NewEditor(5, nil)
+	e := NewEditor(nil)
+	e.Resize(5)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.Left()
@@ -83,7 +86,8 @@ func TestOneLeft(t *testing.T) {
 }
 
 func TestOneRem(t *testing.T) {
-	e := NewEditor(5, nil)
+	e := NewEditor(nil)
+	e.Resize(5)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.RemRune()
@@ -94,7 +98,8 @@ func TestOneRem(t *testing.T) {
 }
 
 func TestLeftAndRem(t *testing.T) {
-	e := NewEditor(5, nil)
+	e := NewEditor(nil)
+	e.Resize(5)
 	e.PutRune('h')
 	e.PutRune('l')
 	e.PutRune('e')
