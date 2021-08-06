@@ -35,7 +35,11 @@ things out with an IRC server, then you have two options:
 
 ## Contributing and stuff
 
-Patches are welcome at <mailto:~taiite/public-inbox@lists.sr.ht>!
+Contributions are accepted as patches to [the mailing list][ml] and as pull
+requests on [Github].
+
+[ml]: mailto:~taiite/public-inbox@lists.sr.ht
+[Github]: https://github.com/hhirtz/senpai/pulls
 
 Browse tickets at <https://todo.sr.ht/~taiite/senpai>.
 
