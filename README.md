@@ -47,4 +47,4 @@ Browse tickets at <https://todo.sr.ht/~taiite/senpai>.
 
 This senpai is open source! Please use it under the ISC license.
 
-Copyright (C) 2020 Hubert Hirtz
+Copyright (C) 2021 The senpai Contributors
