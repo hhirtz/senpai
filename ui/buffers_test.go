@@ -140,25 +140,5 @@ func TestRenderedHeight(t *testing.T) {
 	assertNewLines(t, "have a good day!", 16, 1) // |have a good day!|
 	assertNewLines(t, "have a good day!", 17, 1) // |have a good day! |
 
-	// LEN=15, WIDTH=11
-	// TODO find other zero- or two-width chars, since IRC color codes are
-	// now handled by app.go
-	assertNewLines(t, "\x0342barmand\x03: cc", 1, 10) // |b|a|r|m|a|n|d|:|c|c|
-	assertNewLines(t, "\x0342barmand\x03: cc", 2, 5)  // |ba|rm|an|d:|cc|
-	assertNewLines(t, "\x0342barmand\x03: cc", 3, 4)  // |bar|man|d: |cc |
-	assertNewLines(t, "\x0342barmand\x03: cc", 4, 3)  // |barm|and:|cc  |
-	assertNewLines(t, "\x0342barmand\x03: cc", 5, 3)  // |barma|nd:  |cc   |
-	assertNewLines(t, "\x0342barmand\x03: cc", 6, 2)  // |barman|d: cc |
-	assertNewLines(t, "\x0342barmand\x03: cc", 7, 2)  // |barmand|: cc   |
-	assertNewLines(t, "\x0342barmand\x03: cc", 8, 2)  // |barmand:|cc      |
-	assertNewLines(t, "\x0342barmand\x03: cc", 9, 2)  // |barmand: |cc       |
-	assertNewLines(t, "\x0342barmand\x03: cc", 10, 2) // |barmand:  |cc        |
-	assertNewLines(t, "\x0342barmand\x03: cc", 11, 1) // |barmand: cc|
-	assertNewLines(t, "\x0342barmand\x03: cc", 12, 1) // |barmand: cc |
-	assertNewLines(t, "\x0342barmand\x03: cc", 13, 1) // |barmand: cc  |
-	assertNewLines(t, "\x0342barmand\x03: cc", 14, 1) // |barmand: cc   |
-	assertNewLines(t, "\x0342barmand\x03: cc", 15, 1) // |barmand: cc    |
-	assertNewLines(t, "\x0342barmand\x03: cc", 16, 1) // |barmand: cc     |
-
 	assertNewLines(t, "cc en direct du word wrapping des familles le tests ça v a va va v a va", 46, 2)
 }
