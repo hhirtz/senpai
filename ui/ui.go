@@ -148,7 +148,7 @@ func (ui *UI) IsAtTop() bool {
 	return ui.bs.IsAtTop()
 }
 
-func (ui *UI) AddBuffer(title string) int {
+func (ui *UI) AddBuffer(title string) (i int, added bool) {
 	return ui.bs.Add(title)
 }
 
@@ -161,8 +161,8 @@ func (ui *UI) AddLine(buffer string, notify NotifyType, line Line) {
 	ui.bs.AddLine(buffer, notify, line)
 }
 
-func (ui *UI) AddLines(buffer string, lines []Line) {
-	ui.bs.AddLines(buffer, lines)
+func (ui *UI) AddLines(buffer string, before, after []Line) {
+	ui.bs.AddLines(buffer, before, after)
 }
 
 func (ui *UI) JumpBuffer(sub string) bool {

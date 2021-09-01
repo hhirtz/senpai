@@ -429,6 +429,12 @@ func (r *HistoryRequest) doRequest() {
 	r.s.out <- NewMessage("CHATHISTORY", args...)
 }
 
+func (r *HistoryRequest) After(t time.Time) {
+	r.command = "AFTER"
+	r.bounds = []string{formatTimestamp(t)}
+	r.doRequest()
+}
+
 func (r *HistoryRequest) Before(t time.Time) {
 	r.command = "BEFORE"
 	r.bounds = []string{formatTimestamp(t)}

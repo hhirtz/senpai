@@ -235,16 +235,16 @@ func (bs *BufferList) Previous() {
 	bs.list[bs.current].unread = false
 }
 
-func (bs *BufferList) Add(title string) int {
+func (bs *BufferList) Add(title string) (i int, added bool) {
 	lTitle := strings.ToLower(title)
 	for i, b := range bs.list {
 		if strings.ToLower(b.title) == lTitle {
-			return i
+			return i, false
 		}
 	}
 
 	bs.list = append(bs.list, buffer{title: title})
-	return len(bs.list) - 1
+	return len(bs.list) - 1, true
 }
 
 func (bs *BufferList) Remove(title string) (ok bool) {
@@ -299,49 +299,20 @@ func (bs *BufferList) AddLine(title string, notify NotifyType, line Line) {
 	}
 }
 
-// "lines" needs to be sorted by their "At" field.
-func (bs *BufferList) AddLines(title string, lines []Line) {
+func (bs *BufferList) AddLines(title string, before, after []Line) {
 	idx := bs.idx(title)
 	if idx < 0 {
 		return
 	}
 
 	b := &bs.list[idx]
-	limit := len(lines)
 
-	if 0 < len(b.lines) {
-		// Compute "limit", the index first line of "lines" that should
-		// not be added to the buffer.
-		firstLineTime := b.lines[0].At.Unix()
-		firstLineBody := b.lines[0].Body
-		for i, l := range lines {
-			historyLineTime := l.At.Unix()
-			if historyLineTime < firstLineTime {
-				// This line is behind the first line of the
-				// buffer.
-				continue
-			}
-			if historyLineTime > firstLineTime {
-				// This line happened after the first line of
-				// the buffer.
-				limit = i
-				break
-			}
-			if l.Body.string == firstLineBody.string {
-				// This line happened at the same millisecond
-				// as the first line of the buffer, and has the
-				// same contents. Heuristic: it's the same
-				// message.
-				limit = i
-				break
-			}
-		}
+	if len(before) != 0 {
+		b.lines = append(before, b.lines...)
 	}
-	for i := 0; i < limit; i++ {
-		lines[i].computeSplitPoints()
+	if len(after) != 0 {
+		b.lines = append(b.lines, after...)
 	}
-
-	b.lines = append(lines[:limit], b.lines...)
 }
 
 func (bs *BufferList) Current() (title string) {
@@ -353,7 +324,7 @@ func (bs *BufferList) CurrentOldestTime() (t *time.Time) {
 	if 0 < len(ls) {
 		t = &ls[0].At
 	}
-	return
+	return t
 }
 
 func (bs *BufferList) ScrollUp(n int) {

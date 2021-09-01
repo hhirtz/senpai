@@ -24,6 +24,42 @@ const (
 	ircEvent
 )
 
+type bound struct {
+	first time.Time
+	last  time.Time
+
+	firstMessage string
+	lastMessage  string
+}
+
+// Compare returns 0 if line is within bounds, -1 if before, 1 if after.
+func (b *bound) Compare(line *ui.Line) int {
+	if line.At.Before(b.first) {
+		return -1
+	}
+	if line.At.After(b.last) {
+		return 1
+	}
+	if line.At.Equal(b.first) && line.Body.String() != b.firstMessage {
+		return -1
+	}
+	if line.At.Equal(b.last) && line.Body.String() != b.lastMessage {
+		return -1
+	}
+	return 0
+}
+
+// Update updates the bounds to include the given line.
+func (b *bound) Update(line *ui.Line) {
+	if line.At.Before(b.first) {
+		b.first = line.At
+		b.firstMessage = line.Body.String()
+	} else if line.At.After(b.last) {
+		b.last = line.At
+		b.lastMessage = line.Body.String()
+	}
+}
+
 type event struct {
 	src     source
 	content interface{}
@@ -38,13 +74,15 @@ type App struct {
 	cfg        Config
 	highlights []string
 
-	lastQuery string
+	lastQuery     string
+	messageBounds map[string]bound
 }
 
 func NewApp(cfg Config) (app *App, err error) {
 	app = &App{
-		cfg:    cfg,
-		events: make(chan event, eventChanSize),
+		cfg:           cfg,
+		events:        make(chan event, eventChanSize),
+		messageBounds: map[string]bound{},
 	}
 
 	if cfg.Highlights != nil {
@@ -521,10 +559,17 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			})
 		}
 	case irc.SelfJoinEvent:
-		i := app.win.AddBuffer(ev.Channel)
-		app.s.NewHistoryRequest(ev.Channel).
-			WithLimit(200).
-			Before(msg.TimeOrNow())
+		i, added := app.win.AddBuffer(ev.Channel)
+		bounds, ok := app.messageBounds[ev.Channel]
+		if added || !ok {
+			app.s.NewHistoryRequest(ev.Channel).
+				WithLimit(200).
+				Before(msg.TimeOrNow())
+		} else {
+			app.s.NewHistoryRequest(ev.Channel).
+				WithLimit(200).
+				After(bounds.last)
+		}
 		if ev.Requested {
 			app.win.JumpBufferIndex(i)
 		}
@@ -604,16 +649,39 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		if !app.s.IsChannel(msg.Params[0]) && !app.s.IsMe(ev.User) {
 			app.lastQuery = msg.Prefix.Name
 		}
+		bounds := app.messageBounds[ev.Target]
+		bounds.Update(&line)
+		app.messageBounds[ev.Target] = bounds
 	case irc.HistoryEvent:
-		var lines []ui.Line
+		var linesBefore []ui.Line
+		var linesAfter []ui.Line
+		bounds, hasBounds := app.messageBounds[ev.Target]
 		for _, m := range ev.Messages {
 			switch ev := m.(type) {
 			case irc.MessageEvent:
 				_, line, _ := app.formatMessage(ev)
-				lines = append(lines, line)
+				if hasBounds {
+					c := bounds.Compare(&line)
+					if c < 0 {
+						linesBefore = append(linesBefore, line)
+					} else if c > 0 {
+						linesAfter = append(linesAfter, line)
+					}
+				} else {
+					linesAfter = append(linesAfter, line)
+				}
 			}
 		}
-		app.win.AddLines(ev.Target, lines)
+		app.win.AddLines(ev.Target, linesBefore, linesAfter)
+		if len(linesBefore) != 0 {
+			bounds.Update(&linesBefore[0])
+			bounds.Update(&linesBefore[len(linesBefore)-1])
+		}
+		if len(linesAfter) != 0 {
+			bounds.Update(&linesAfter[0])
+			bounds.Update(&linesAfter[len(linesAfter)-1])
+		}
+		app.messageBounds[ev.Target] = bounds
 	case irc.ErrorEvent:
 		if isBlackListed(msg.Command) {
 			break
