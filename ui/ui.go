@@ -299,7 +299,9 @@ func (ui *UI) Draw(members []irc.Member) {
 	} else {
 		ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
 	}
-	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
+	if ui.config.MemberColWidth != 0 {
+		ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
+	}
 	if ui.config.ChanColWidth == 0 {
 		ui.drawStatusBar(ui.config.ChanColWidth, h-3, w-ui.config.MemberColWidth)
 	} else {

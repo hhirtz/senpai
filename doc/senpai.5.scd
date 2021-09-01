@@ -80,7 +80,8 @@ on-highlight: |
 	cells.  By default, the channel list is horizontal.
 
 *member-column-width*
-	The number of cells that the column for members occupies.  By default, 16.
+	Show the list of channel members on the right of the screen, with a width
+	equals to the given amount of cells.
 
 *no-tls*
 	Disable TLS encryption.  Defaults to false.

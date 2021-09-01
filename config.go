@@ -94,8 +94,8 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	if cfg.ChanColWidth < 0 {
 		cfg.ChanColWidth = 0
 	}
-	if cfg.MemberColWidth <= 0 {
-		cfg.MemberColWidth = 16
+	if cfg.MemberColWidth < 0 {
+		cfg.MemberColWidth = 0
 	}
 	return
 }
