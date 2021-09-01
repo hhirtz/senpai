@@ -413,6 +413,37 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 	}
 }
 
+func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, width int) {
+	x := x0
+
+	for i, b := range bs.list {
+		if width <= x-x0 {
+			break
+		}
+		st := tcell.StyleDefault
+		if b.unread {
+			st = st.Bold(true)
+		} else if i == bs.current {
+			st = st.Underline(true)
+		}
+		if i == bs.clicked {
+			st = st.Reverse(true)
+		}
+		title := truncate(b.title, width-x, "\u2026")
+		printString(screen, &x, y0, Styled(title, st))
+		if 0 < b.highlights {
+			st = st.Foreground(tcell.ColorRed).Reverse(true)
+			screen.SetContent(x, y0, ' ', nil, st)
+			x++
+			printNumber(screen, &x, y0, st, b.highlights)
+			screen.SetContent(x, y0, ' ', nil, st)
+			x++
+		}
+		screen.SetContent(x, y0, ' ', nil, tcell.StyleDefault)
+		x++
+	}
+}
+
 func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member, offset *int) {
 	st := tcell.StyleDefault
 

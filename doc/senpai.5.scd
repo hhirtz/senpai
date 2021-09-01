@@ -76,7 +76,8 @@ on-highlight: |
 	By default, 16.
 
 *chan-column-width*
-	The number of cells that the column for channels occupies.  By default, 16.
+	Make the channel list vertical, with a width equals to the given amount of
+	cells.  By default, the channel list is horizontal.
 
 *member-column-width*
 	The number of cells that the column for members occupies.  By default, 16.

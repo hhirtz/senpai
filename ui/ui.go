@@ -273,7 +273,11 @@ func (ui *UI) Resize() {
 	w, h := ui.screen.Size()
 	innerWidth := w - 9 - ui.config.ChanColWidth - ui.config.NickColWidth - ui.config.MemberColWidth
 	ui.e.Resize(innerWidth)
-	ui.bs.ResizeTimeline(innerWidth, h-2)
+	if ui.config.ChanColWidth == 0 {
+		ui.bs.ResizeTimeline(innerWidth, h-3)
+	} else {
+		ui.bs.ResizeTimeline(innerWidth, h-2)
+	}
 }
 
 func (ui *UI) Size() (int, int) {
@@ -283,17 +287,36 @@ func (ui *UI) Size() (int, int) {
 func (ui *UI) Draw(members []irc.Member) {
 	w, h := ui.screen.Size()
 
-	ui.e.Draw(ui.screen, 9+ui.config.ChanColWidth+ui.config.NickColWidth, h-1)
+	if ui.config.ChanColWidth == 0 {
+		ui.e.Draw(ui.screen, 9+ui.config.NickColWidth, h-2)
+	} else {
+		ui.e.Draw(ui.screen, 9+ui.config.ChanColWidth+ui.config.NickColWidth, h-1)
+	}
 
 	ui.bs.DrawTimeline(ui.screen, ui.config.ChanColWidth, 0, ui.config.NickColWidth)
-	ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
-	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
-	ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth-ui.config.MemberColWidth)
-
-	for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {
-		ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
+	if ui.config.ChanColWidth == 0 {
+		ui.bs.DrawHorizontalBufferList(ui.screen, 0, h-1, w-ui.config.MemberColWidth)
+	} else {
+		ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
 	}
-	printIdent(ui.screen, ui.config.ChanColWidth+7, h-1, ui.config.NickColWidth, ui.prompt)
+	ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
+	if ui.config.ChanColWidth == 0 {
+		ui.drawStatusBar(ui.config.ChanColWidth, h-3, w-ui.config.MemberColWidth)
+	} else {
+		ui.drawStatusBar(ui.config.ChanColWidth, h-2, w-ui.config.ChanColWidth-ui.config.MemberColWidth)
+	}
+
+	if ui.config.ChanColWidth == 0 {
+		for x := 0; x < 9+ui.config.NickColWidth; x++ {
+			ui.screen.SetContent(x, h-2, ' ', nil, tcell.StyleDefault)
+		}
+		printIdent(ui.screen, 7, h-2, ui.config.NickColWidth, ui.prompt)
+	} else {
+		for x := ui.config.ChanColWidth; x < 9+ui.config.ChanColWidth+ui.config.NickColWidth; x++ {
+			ui.screen.SetContent(x, h-1, ' ', nil, tcell.StyleDefault)
+		}
+		printIdent(ui.screen, ui.config.ChanColWidth+7, h-1, ui.config.NickColWidth, ui.prompt)
+	}
 
 	ui.screen.Show()
 }

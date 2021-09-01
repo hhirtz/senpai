@@ -91,8 +91,8 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	if cfg.NickColWidth <= 0 {
 		cfg.NickColWidth = 16
 	}
-	if cfg.ChanColWidth <= 0 {
-		cfg.ChanColWidth = 16
+	if cfg.ChanColWidth < 0 {
+		cfg.ChanColWidth = 0
 	}
 	if cfg.MemberColWidth <= 0 {
 		cfg.MemberColWidth = 16
