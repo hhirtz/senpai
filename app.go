@@ -51,10 +51,13 @@ func (b *bound) Compare(line *ui.Line) int {
 
 // Update updates the bounds to include the given line.
 func (b *bound) Update(line *ui.Line) {
-	if line.At.Before(b.first) {
+	if line.At.IsZero() {
+		return
+	}
+	if b.first.IsZero() || line.At.Before(b.first) {
 		b.first = line.At
 		b.firstMessage = line.Body.String()
-	} else if line.At.After(b.last) {
+	} else if b.last.IsZero() || line.At.After(b.last) {
 		b.last = line.At
 		b.lastMessage = line.Body.String()
 	}
@@ -340,7 +343,6 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 			// TODO scroll chan list
 		} else if x > w-app.cfg.MemberColWidth {
 			app.win.ScrollMemberUpBy(4)
-			app.requestHistory()
 		} else {
 			app.win.ScrollUpBy(4)
 			app.requestHistory()
@@ -480,8 +482,8 @@ func (app *App) requestHistory() {
 	buffer := app.win.CurrentBuffer()
 	if app.win.IsAtTop() && buffer != Home {
 		t := time.Now()
-		if oldest := app.win.CurrentBufferOldestTime(); oldest != nil {
-			t = *oldest
+		if bound, ok := app.messageBounds[buffer]; ok {
+			t = bound.first
 		}
 		app.s.NewHistoryRequest(buffer).
 			WithLimit(100).

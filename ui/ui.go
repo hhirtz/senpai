@@ -3,7 +3,6 @@ package ui
 import (
 	"strings"
 	"sync/atomic"
-	"time"
 
 	"git.sr.ht/~taiite/senpai/irc"
 
@@ -85,10 +84,6 @@ func (ui *UI) Close() {
 
 func (ui *UI) CurrentBuffer() string {
 	return ui.bs.Current()
-}
-
-func (ui *UI) CurrentBufferOldestTime() (t *time.Time) {
-	return ui.bs.CurrentOldestTime()
 }
 
 func (ui *UI) NextBuffer() {

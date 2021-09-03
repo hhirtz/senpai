@@ -319,14 +319,6 @@ func (bs *BufferList) Current() (title string) {
 	return bs.list[bs.current].title
 }
 
-func (bs *BufferList) CurrentOldestTime() (t *time.Time) {
-	ls := bs.list[bs.current].lines
-	if 0 < len(ls) {
-		t = &ls[0].At
-	}
-	return t
-}
-
 func (bs *BufferList) ScrollUp(n int) {
 	b := &bs.list[bs.current]
 	if b.isAtTop {
