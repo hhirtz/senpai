@@ -307,6 +307,13 @@ func (bs *BufferList) AddLines(title string, before, after []Line) {
 
 	b := &bs.list[idx]
 
+	for i := 0; i < len(before); i++ {
+		before[i].computeSplitPoints()
+	}
+	for i := 0; i < len(after); i++ {
+		after[i].computeSplitPoints()
+	}
+
 	if len(before) != 0 {
 		b.lines = append(before, b.lines...)
 	}
