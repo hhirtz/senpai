@@ -35,7 +35,7 @@ func main() {
 
 	cfg, err := senpai.LoadConfigFile(configPath)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to load the required configuraiton file at %q: %s\n", configPath, err)
+		fmt.Fprintf(os.Stderr, "failed to load the required configuration file at %q: %s\n", configPath, err)
 		os.Exit(1)
 	}
 

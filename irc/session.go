@@ -88,7 +88,7 @@ type Channel struct {
 	TopicTime time.Time        // the last time the topic has been changed.
 	Secret    bool             // whether the channel is on the server channel list.
 
-	complete bool // whether this stucture is fully initialized.
+	complete bool // whether this structure is fully initialized.
 }
 
 // SessionParams defines how to connect to an IRC server.
@@ -174,7 +174,7 @@ func (s *Session) Close() {
 	close(s.out)
 }
 
-// HasCapability reports whether the given capability has been negociated
+// HasCapability reports whether the given capability has been negotiated
 // successfully.
 func (s *Session) HasCapability(capability string) bool {
 	_, ok := s.enabledCaps[capability]

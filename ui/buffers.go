@@ -93,12 +93,12 @@ func (l *Line) NewLines(width int) []int {
 	x := 0
 	for i := 1; i < len(l.splitPoints); i++ {
 		// Iterate through the split points 2 by 2.  Split points are placed at
-		// the begining of whitespace (see IsSplitRune) and at the begining of
-		// non-whitespace. Iterating on 2 points each time, sp1 and sp2, allow
-		// consideration of a "word" of (non-)whitespace.
+		// the beginning of whitespace (see IsSplitRune) and at the beginning
+		// of non-whitespace. Iterating on 2 points each time, sp1 and sp2,
+		// allows consideration of a "word" of (non-)whitespace.
 		// Split points have the index I in the string and the width X of the
 		// screen.  Finally, the Split field is set to true if the split point
-		// is at the begining of a whitespace.
+		// is at the beginning of a whitespace.
 
 		// Below, "row" means a line in the terminal, while "line" means (l *Line).
 
