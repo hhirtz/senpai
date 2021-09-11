@@ -408,7 +408,6 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			}
 			screen.SetContent(x0+width, y, 0x2590, nil, st)
 		}
-		y++
 	}
 }
 
@@ -472,7 +471,6 @@ func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width,
 		}
 		name := truncate(m.Name.Name, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(name, st))
-		y++
 	}
 }
 

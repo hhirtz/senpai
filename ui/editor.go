@@ -447,7 +447,7 @@ func runeToLower(r rune) rune {
 // runeOffset returns the rune index of the rune starting at byte i in string s
 func runeOffset(s string, pos int) int {
 	n := 0
-	for i, _ := range s {
+	for i := range s {
 		if i >= pos {
 			return n
 		}

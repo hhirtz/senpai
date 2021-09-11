@@ -515,7 +515,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			// TODO: support autojoining channels with keys
 			app.s.Join(channel, "")
 		}
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.WriteString("Connected to the server")
 		if app.s.Nick() != app.cfg.Nick {
 			body.WriteString(" as ")
@@ -527,7 +527,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			Body: body.StyledString(),
 		})
 	case irc.SelfNickEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.FormerNick) + 4 + len(app.s.Nick()))
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.FormerNick)
@@ -543,7 +543,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			Highlight: true,
 		})
 	case irc.UserNickEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.FormerNick) + 4 + len(ev.User))
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.FormerNick)
@@ -579,7 +579,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			app.printTopic(ev.Channel)
 		}
 	case irc.UserJoinEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.User) + 1)
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
 		body.WriteByte('+')
@@ -595,7 +595,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
 	case irc.UserPartEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.User) + 1)
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
 		body.WriteByte('-')
@@ -609,7 +609,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			Mergeable: true,
 		})
 	case irc.UserQuitEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.User) + 1)
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
 		body.WriteByte('-')
@@ -625,7 +625,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			})
 		}
 	case irc.TopicChangeEvent:
-		body := new(ui.StyledStringBuilder)
+		var body ui.StyledStringBuilder
 		body.Grow(len(ev.Topic) + 18)
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString("Topic changed to: ")
@@ -846,11 +846,11 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 	}
 
 	content := strings.TrimSuffix(ev.Content, "\x01")
-	content = strings.TrimRightFunc(ev.Content, unicode.IsSpace)
+	content = strings.TrimRightFunc(content, unicode.IsSpace)
 	if isAction {
 		content = content[7:]
 	}
-	body := new(ui.StyledStringBuilder)
+	var body ui.StyledStringBuilder
 	if isNotice {
 		color := identColor(ev.User)
 		body.SetStyle(tcell.StyleDefault.Foreground(color))
