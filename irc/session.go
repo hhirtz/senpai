@@ -241,6 +241,7 @@ func (s *Session) Typings(target string) []string {
 			res[i] = u.Name.Name
 		}
 	}
+	sort.Strings(res)
 	return res
 }
 
