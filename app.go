@@ -197,7 +197,7 @@ func (app *App) ircLoop() {
 		go func() {
 			for stop := range session.TypingStops() {
 				app.events <- event{
-					src: ircEvent,
+					src:     ircEvent,
 					content: stop,
 				}
 			}
@@ -606,6 +606,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		})
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
+		delete(app.messageBounds, ev.Channel)
 	case irc.UserPartEvent:
 		var body ui.StyledStringBuilder
 		body.Grow(len(ev.User) + 1)
