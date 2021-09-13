@@ -244,6 +244,10 @@ func (s *Session) Typings(target string) []string {
 	return res
 }
 
+func (s *Session) TypingStops() <-chan Typing {
+	return s.typings.Stops()
+}
+
 func (s *Session) ChannelsSharedWith(name string) []string {
 	var user *User
 	if u, ok := s.users[s.Casemap(name)]; ok {

@@ -194,6 +194,14 @@ func (app *App) ircLoop() {
 			src:     ircEvent,
 			content: session,
 		}
+		go func() {
+			for stop := range session.TypingStops() {
+				app.events <- event{
+					src: ircEvent,
+					content: stop,
+				}
+			}
+		}()
 		for msg := range in {
 			if app.cfg.Debug {
 				app.queueStatusLine(ui.Line{
@@ -499,6 +507,10 @@ func (app *App) handleIRCEvent(ev interface{}) {
 	}
 	if s, ok := ev.(*irc.Session); ok {
 		app.s = s
+		return
+	}
+	if _, ok := ev.(irc.Typing); ok {
+		// Just refresh the screen.
 		return
 	}
 
