@@ -198,7 +198,7 @@ func commandDoHelp(app *App, args []string) (err error) {
 			if !strings.Contains(cmdName, search) {
 				continue
 			}
-			usage := new(ui.StyledStringBuilder)
+			var usage ui.StyledStringBuilder
 			usage.Grow(len(cmdName) + 1 + len(cmd.Usage))
 			usage.SetStyle(tcell.StyleDefault.Bold(true))
 			usage.WriteString(cmdName)
@@ -278,7 +278,7 @@ func commandDoMsg(app *App, args []string) (err error) {
 
 func commandDoNames(app *App, args []string) (err error) {
 	buffer := app.win.CurrentBuffer()
-	sb := new(ui.StyledStringBuilder)
+	var sb ui.StyledStringBuilder
 	sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
 	sb.WriteString("Names: ")
 	for _, name := range app.s.Names(buffer) {
