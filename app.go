@@ -641,7 +641,8 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.Grow(len(ev.Topic) + 18)
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString("Topic changed to: ")
-		body.WriteString(ev.Topic)
+		topic := ui.IRCString(ev.Topic)
+		body.WriteString(topic.String())
 		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
