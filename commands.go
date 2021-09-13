@@ -17,7 +17,7 @@ type command struct {
 	MaxArgs   int
 	Usage     string
 	Desc      string
-	Handle    func(app *App, buffer string, args []string) error
+	Handle    func(app *App, args []string) error
 }
 
 type commandSet map[string]*command
@@ -147,7 +147,22 @@ func noCommand(app *App, buffer, content string) error {
 	return nil
 }
 
-func commandDoHelp(app *App, buffer string, args []string) (err error) {
+func commandDoBuffer(app *App, args []string) error {
+	name := args[0]
+	i, err := strconv.Atoi(name)
+	if err == nil {
+		if app.win.JumpBufferIndex(i) {
+			return nil
+		}
+	}
+	if !app.win.JumpBuffer(args[0]) {
+		return fmt.Errorf("none of the buffers match %q", name)
+	}
+
+	return nil
+}
+
+func commandDoHelp(app *App, args []string) (err error) {
 	t := time.Now()
 	if len(args) == 0 {
 		app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
@@ -213,7 +228,7 @@ func commandDoHelp(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoJoin(app *App, buffer string, args []string) (err error) {
+func commandDoJoin(app *App, args []string) (err error) {
 	key := ""
 	if len(args) == 2 {
 		key = args[1]
@@ -222,7 +237,8 @@ func commandDoJoin(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoMe(app *App, buffer string, args []string) (err error) {
+func commandDoMe(app *App, args []string) (err error) {
+	buffer := app.win.CurrentBuffer()
 	if buffer == Home {
 		buffer = app.lastQuery
 	}
@@ -242,7 +258,7 @@ func commandDoMe(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoMsg(app *App, buffer string, args []string) (err error) {
+func commandDoMsg(app *App, args []string) (err error) {
 	target := args[0]
 	content := args[1]
 	app.s.PrivMsg(target, content)
@@ -260,7 +276,8 @@ func commandDoMsg(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoNames(app *App, buffer string, args []string) (err error) {
+func commandDoNames(app *App, args []string) (err error) {
+	buffer := app.win.CurrentBuffer()
 	sb := new(ui.StyledStringBuilder)
 	sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
 	sb.WriteString("Names: ")
@@ -284,7 +301,7 @@ func commandDoNames(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoNick(app *App, buffer string, args []string) (err error) {
+func commandDoNick(app *App, args []string) (err error) {
 	nick := args[0]
 	if i := strings.IndexAny(nick, " :@!*?"); i >= 0 {
 		return fmt.Errorf("illegal char %q in nickname", nick[i])
@@ -293,7 +310,7 @@ func commandDoNick(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoMode(app *App, buffer string, args []string) (err error) {
+func commandDoMode(app *App, args []string) (err error) {
 	channel := args[0]
 	flags := args[1]
 	modeArgs := args[2:]
@@ -302,8 +319,8 @@ func commandDoMode(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoPart(app *App, buffer string, args []string) (err error) {
-	channel := buffer
+func commandDoPart(app *App, args []string) (err error) {
+	channel := app.win.CurrentBuffer()
 	reason := ""
 	if 0 < len(args) {
 		if app.s.IsChannel(args[0]) {
@@ -324,7 +341,7 @@ func commandDoPart(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoQuit(app *App, buffer string, args []string) (err error) {
+func commandDoQuit(app *App, args []string) (err error) {
 	reason := ""
 	if 0 < len(args) {
 		reason = args[0]
@@ -336,12 +353,12 @@ func commandDoQuit(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoQuote(app *App, buffer string, args []string) (err error) {
+func commandDoQuote(app *App, args []string) (err error) {
 	app.s.SendRaw(args[0])
 	return
 }
 
-func commandDoR(app *App, buffer string, args []string) (err error) {
+func commandDoR(app *App, args []string) (err error) {
 	app.s.PrivMsg(app.lastQuery, args[0])
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
@@ -357,11 +374,11 @@ func commandDoR(app *App, buffer string, args []string) (err error) {
 	return
 }
 
-func commandDoTopic(app *App, buffer string, args []string) (err error) {
+func commandDoTopic(app *App, args []string) (err error) {
 	if len(args) == 0 {
-		app.printTopic(buffer)
+		app.printTopic(app.win.CurrentBuffer())
 	} else {
-		app.s.ChangeTopic(buffer, args[0])
+		app.s.ChangeTopic(app.win.CurrentBuffer(), args[0])
 	}
 	return
 }
@@ -474,20 +491,5 @@ func (app *App) handleInput(buffer, content string) error {
 		return fmt.Errorf("command %q cannot be executed from home", cmdName)
 	}
 
-	return cmd.Handle(app, buffer, args)
-}
-
-func commandDoBuffer(app *App, buffer string, args []string) error {
-	name := args[0]
-	i, err := strconv.Atoi(name)
-	if err == nil {
-		if app.win.JumpBufferIndex(i) {
-			return nil
-		}
-	}
-	if !app.win.JumpBuffer(args[0]) {
-		return fmt.Errorf("none of the buffers match %q", name)
-	}
-
-	return nil
+	return cmd.Handle(app, args)
 }
