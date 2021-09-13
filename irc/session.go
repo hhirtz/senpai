@@ -741,6 +741,14 @@ func (s *Session) handleRegistered(msg Message) Event {
 				Topic:   c.Topic,
 			}
 		}
+	case "MODE":
+		channelCf := s.Casemap(msg.Params[0])
+		if c, ok := s.channels[channelCf]; ok {
+			return ModeChangeEvent{
+				Channel: c.Name,
+				Mode: strings.Join(msg.Params[1:], " "),
+			}
+		}
 	case "PRIVMSG", "NOTICE":
 		targetCf := s.casemap(msg.Params[0])
 		nickCf := s.casemap(msg.Prefix.Name)

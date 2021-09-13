@@ -51,6 +51,11 @@ type TopicChangeEvent struct {
 	Topic   string
 }
 
+type ModeChangeEvent struct {
+	Channel string
+	Mode    string
+}
+
 type MessageEvent struct {
 	User            string
 	Target          string

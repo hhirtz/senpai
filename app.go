@@ -648,6 +648,18 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 		})
+	case irc.ModeChangeEvent:
+		var body ui.StyledStringBuilder
+		body.Grow(len(ev.Mode) + 13)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString("Mode change: ")
+		body.WriteString(ev.Mode)
+		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
+		})
 	case irc.MessageEvent:
 		buffer, line, hlNotification := app.formatMessage(ev)
 		var notify ui.NotifyType
