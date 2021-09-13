@@ -440,6 +440,10 @@ func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, widt
 		screen.SetContent(x, y0, ' ', nil, tcell.StyleDefault)
 		x++
 	}
+	for x < width {
+		screen.SetContent(x, y0, ' ', nil, tcell.StyleDefault)
+		x++
+	}
 }
 
 func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member, offset *int) {

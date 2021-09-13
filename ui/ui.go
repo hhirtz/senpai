@@ -331,7 +331,7 @@ func (ui *UI) drawStatusBar(x0, y, width int) {
 		return
 	}
 
-	s := new(StyledStringBuilder)
+	var s StyledStringBuilder
 	s.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 	s.WriteString("--")
 
