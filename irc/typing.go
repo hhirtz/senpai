@@ -69,7 +69,7 @@ func (ts *Typings) Active(target, name string) {
 	}()
 }
 
-// Active should be called when a user is done typing to some target.
+// Done should be called when a user is done typing to some target.
 func (ts *Typings) Done(target, name string) {
 	ts.l.Lock()
 	delete(ts.targets, Typing{target, name})

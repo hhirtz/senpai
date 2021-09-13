@@ -2,8 +2,8 @@ package ui
 
 import "testing"
 
-var hell Editor = Editor{
-	text:      [][]rune{[]rune{'h', 'e', 'l', 'l'}},
+var hell = Editor{
+	text:      [][]rune{{'h', 'e', 'l', 'l'}},
 	textWidth: []int{0, 1, 2, 3, 4},
 	cursorIdx: 4,
 	offsetIdx: 0,
@@ -55,7 +55,7 @@ func TestOneLetter(t *testing.T) {
 	e.Resize(5)
 	e.PutRune('h')
 	assertEditorEq(t, e, Editor{
-		text:      [][]rune{[]rune{'h'}},
+		text:      [][]rune{{'h'}},
 		textWidth: []int{0, 1},
 		cursorIdx: 1,
 		offsetIdx: 0,

@@ -35,62 +35,62 @@ func TestIRCString(t *testing.T) {
 	assertIRCString(t, "\x02hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Bold(true)},
+			{Start: 0, Style: tcell.StyleDefault.Bold(true)},
 		},
 	})
 	assertIRCString(t, "\x035hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
 		},
 	})
 	assertIRCString(t, "\x0305hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
 		},
 	})
 	assertIRCString(t, "\x0305,0hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
 		},
 	})
 	assertIRCString(t, "\x035,00hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
 		},
 	})
 	assertIRCString(t, "\x0305,00hello", StyledString{
 		string: "hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
 		},
 	})
 
 	assertIRCString(t, "\x035,hello", StyledString{
 		string: ",hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
 		},
 	})
 	assertIRCString(t, "\x0305,hello", StyledString{
 		string: ",hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
 		},
 	})
 	assertIRCString(t, "\x03050hello", StyledString{
 		string: "0hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown)},
 		},
 	})
 	assertIRCString(t, "\x0305,000hello", StyledString{
 		string: "0hello",
 		styles: []rangedStyle{
-			rangedStyle{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
+			{Start: 0, Style: tcell.StyleDefault.Foreground(tcell.ColorBrown).Background(tcell.ColorWhite)},
 		},
 	})
 }

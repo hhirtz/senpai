@@ -22,7 +22,7 @@ func CasemapASCII(name string) string {
 	return sb.String()
 }
 
-// CasemapASCII of name is the canonical representation of name according to the
+// CasemapRFC1459 of name is the canonical representation of name according to the
 // rfc-1459 casemapping.
 func CasemapRFC1459(name string) string {
 	var sb strings.Builder
@@ -57,7 +57,7 @@ func word(s string) (word, rest string) {
 	return
 }
 
-// tagEscape returns the the value of '\c' given c according to the message-tags
+// tagEscape returns the value of '\c' given c according to the message-tags
 // specification.
 func tagEscape(c rune) (escape rune) {
 	switch c {
@@ -155,13 +155,6 @@ func parseTags(s string) (tags map[string]string) {
 var (
 	errEmptyMessage      = errors.New("empty message")
 	errIncompleteMessage = errors.New("message is incomplete")
-)
-
-var (
-	errEmptyBatchID    = errors.New("empty BATCH ID")
-	errNoPrefix        = errors.New("missing prefix")
-	errNotEnoughParams = errors.New("not enough params")
-	errUnknownCommand  = errors.New("unknown command")
 )
 
 type Prefix struct {

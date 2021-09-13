@@ -296,9 +296,9 @@ func commandDoNick(app *App, buffer string, args []string) (err error) {
 func commandDoMode(app *App, buffer string, args []string) (err error) {
 	channel := args[0]
 	flags := args[1]
-	mode_args := args[2:]
+	modeArgs := args[2:]
 
-	app.s.ChangeMode(channel, flags, mode_args)
+	app.s.ChangeMode(channel, flags, modeArgs)
 	return
 }
 

@@ -10,7 +10,7 @@ import (
 	"github.com/mattn/go-runewidth"
 )
 
-var condition runewidth.Condition = runewidth.Condition{}
+var condition = runewidth.Condition{}
 
 func runeWidth(r rune) int {
 	return condition.RuneWidth(r)
