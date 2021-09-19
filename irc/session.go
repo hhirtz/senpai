@@ -115,8 +115,7 @@ type Session struct {
 	host   string
 	auth   SASLClient
 
-	availableCaps map[string]string
-	enabledCaps   map[string]struct{}
+	enabledCaps map[string]struct{}
 
 	// ISUPPORT features
 	casemap       func(string) string
@@ -144,7 +143,6 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 		user:            params.Username,
 		real:            params.RealName,
 		auth:            params.Auth,
-		availableCaps:   map[string]string{},
 		enabledCaps:     map[string]struct{}{},
 		casemap:         CasemapRFC1459,
 		chantypes:       "#&",
@@ -159,9 +157,21 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 		pendingChannels: map[string]time.Time{},
 	}
 
-	s.out <- NewMessage("CAP", "LS", "302")
+	s.out <- NewMessage("CAP", "LS", "302") // needed to advertise 302 support
+	for capability := range SupportedCapabilities {
+		s.out <- NewMessage("CAP", "REQ", capability)
+	}
 	s.out <- NewMessage("NICK", s.nick)
 	s.out <- NewMessage("USER", s.user, "0", "*", s.real)
+	if s.auth != nil {
+		s.out <- NewMessage("AUTHENTICATE", s.auth.Handshake())
+		resp, err := s.auth.Respond("+")
+		if err != nil {
+			panic(err)
+		}
+		s.out <- NewMessage("AUTHENTICATE", resp)
+	}
+	s.out <- NewMessage("CAP", "END")
 
 	return s
 }
@@ -466,53 +476,18 @@ func (s *Session) handleUnregistered(msg Message) Event {
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth != nil {
-			res, err := s.auth.Respond(msg.Params[0])
-			if err != nil {
-				s.out <- NewMessage("AUTHENTICATE", "*")
+			if msg.Params[0] == "+" {
+				// Server has processed the "AUTHENTICATE <mechanism>" message
 			} else {
-				s.out <- NewMessage("AUTHENTICATE", res)
+				// Unexpected AUTHENTICATE message from server, abort authentication.
+				s.out <- NewMessage("AUTHENTICATE", "*")
 			}
 		}
 	case rplLoggedin:
-		s.out <- NewMessage("CAP", "END")
 		s.acct = msg.Params[2]
 		s.host = ParsePrefix(msg.Params[1]).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
-		s.out <- NewMessage("CAP", "END")
-	case "CAP":
-		switch msg.Params[1] {
-		case "LS":
-			var willContinue bool
-			var ls string
-
-			if msg.Params[2] == "*" {
-				willContinue = true
-				ls = msg.Params[3]
-			} else {
-				willContinue = false
-				ls = msg.Params[2]
-			}
-
-			for _, c := range ParseCaps(ls) {
-				s.availableCaps[c.Name] = c.Value
-			}
-
-			if !willContinue {
-				for c := range s.availableCaps {
-					if _, ok := SupportedCapabilities[c]; !ok {
-						continue
-					}
-					s.out <- NewMessage("CAP", "REQ", c)
-				}
-
-				_, ok := s.availableCaps["sasl"]
-				if s.auth == nil || !ok {
-					s.out <- NewMessage("CAP", "END")
-				}
-			}
-		default:
-			return s.handleRegistered(msg)
-		}
+		// Auth failed, let registration end anyway.
 	case errNicknameinuse:
 		s.out <- NewMessage("NICK", msg.Params[1]+"_")
 	case rplSaslsuccess:
@@ -563,38 +538,26 @@ func (s *Session) handleRegistered(msg Message) Event {
 					delete(s.enabledCaps, c.Name)
 				}
 
-				if s.auth != nil && c.Name == "sasl" {
-					h := s.auth.Handshake()
-					s.out <- NewMessage("AUTHENTICATE", h)
-				} else if len(s.channels) != 0 && c.Name == "multi-prefix" {
+				if c.Name == "multi-prefix" {
 					// TODO merge NAMES commands
 					for channel := range s.channels {
 						s.out <- NewMessage("NAMES", channel)
 					}
 				}
 			}
-		case "NAK":
-			// do nothing
 		case "NEW":
 			for _, c := range ParseCaps(msg.Params[2]) {
-				s.availableCaps[c.Name] = c.Value
-				_, ok := SupportedCapabilities[c.Name]
-				if !ok {
-					continue
+				if _, ok := SupportedCapabilities[c.Name]; ok {
+					s.out <- NewMessage("CAP", "REQ", c.Name)
 				}
-				s.out <- NewMessage("CAP", "REQ", c.Name)
-			}
-
-			_, ok := s.availableCaps["sasl"]
-			if s.acct == "" && ok {
-				// TODO authenticate
+				// TODO authenticate if necessary
 			}
 		case "DEL":
 			for _, c := range ParseCaps(msg.Params[2]) {
-				delete(s.availableCaps, c.Name)
 				delete(s.enabledCaps, c.Name)
 			}
 		}
+		// do nothing on LS and NAK
 	case "JOIN":
 		nickCf := s.Casemap(msg.Prefix.Name)
 		channelCf := s.Casemap(msg.Params[0])
@@ -747,7 +710,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 		if c, ok := s.channels[channelCf]; ok {
 			return ModeChangeEvent{
 				Channel: c.Name,
-				Mode: strings.Join(msg.Params[1:], " "),
+				Mode:    strings.Join(msg.Params[1:], " "),
 			}
 		}
 	case "PRIVMSG", "NOTICE":
