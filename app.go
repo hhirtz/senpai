@@ -79,13 +79,15 @@ type App struct {
 
 	lastQuery     string
 	messageBounds map[string]bound
+	lastBuffer    string
 }
 
-func NewApp(cfg Config) (app *App, err error) {
+func NewApp(cfg Config, lastBuffer string) (app *App, err error) {
 	app = &App{
 		cfg:           cfg,
 		events:        make(chan event, eventChanSize),
 		messageBounds: map[string]bound{},
+		lastBuffer:    lastBuffer,
 	}
 
 	if cfg.Highlights != nil {
@@ -134,6 +136,10 @@ func (app *App) Run() {
 	go app.uiLoop()
 	go app.ircLoop()
 	app.eventLoop()
+}
+
+func (app *App) CurrentBuffer() string {
+	return app.win.CurrentBuffer()
 }
 
 // eventLoop retrieves events (in batches) from the event channel and handle
@@ -589,6 +595,12 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		}
 		if ev.Topic != "" {
 			app.printTopic(ev.Channel)
+		}
+
+		// Restore last buffer
+		lastBuffer := app.lastBuffer
+		if ev.Channel == lastBuffer {
+			app.win.JumpBuffer(lastBuffer)
 		}
 	case irc.UserJoinEvent:
 		var body ui.StyledStringBuilder
