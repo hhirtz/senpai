@@ -306,11 +306,7 @@ func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
 // uiLoop retrieves events from the UI and forwards them to app.events for
 // handling in app.eventLoop().
 func (app *App) uiLoop() {
-	for {
-		ev, ok := <-app.win.Events
-		if !ok {
-			break
-		}
+	for ev := range app.win.Events {
 		app.events <- event{
 			src:     uiEvent,
 			content: ev,
