@@ -299,6 +299,7 @@ func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
 			})
 			out <- msg
 		}
+		close(out)
 	}()
 	return debugOut
 }
