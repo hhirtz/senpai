@@ -6,8 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"git.sr.ht/~taiite/senpai/irc"
-
 	"github.com/gdamore/tcell/v2"
 )
 
@@ -451,38 +449,6 @@ func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, widt
 	for x < width {
 		screen.SetContent(x, y0, ' ', nil, tcell.StyleDefault)
 		x++
-	}
-}
-
-func (bs *BufferList) DrawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member, offset *int) {
-	st := tcell.StyleDefault
-
-	if y0+len(members)-*offset < height {
-		*offset = y0 + len(members) - height
-		if *offset < 0 {
-			*offset = 0
-		}
-	}
-
-	for y := y0; y < y0+height; y++ {
-		screen.SetContent(x0, y, 0x2502, nil, st)
-		for x := x0 + 1; x < x0+width; x++ {
-			screen.SetContent(x, y, ' ', nil, st)
-		}
-	}
-
-	for i, m := range members[*offset:] {
-		st = tcell.StyleDefault
-		x := x0 + 1
-		y := y0 + i
-
-		if m.PowerLevel != "" {
-			printString(screen, &x, y, Styled(string([]rune(m.PowerLevel)[0]), st.Foreground(tcell.ColorGreen)))
-		} else {
-			x += 1
-		}
-		name := truncate(m.Name.Name, width-(x-x0), "\u2026")
-		printString(screen, &x, y, Styled(name, st))
 	}
 }
 

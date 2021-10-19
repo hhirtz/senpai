@@ -296,7 +296,7 @@ func (ui *UI) Draw(members []irc.Member) {
 		ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
 	}
 	if ui.config.MemberColWidth != 0 {
-		ui.bs.DrawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
+		drawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)
 	}
 	if ui.config.ChanColWidth == 0 {
 		ui.drawStatusBar(ui.config.ChanColWidth, h-3, w-ui.config.MemberColWidth)
@@ -344,4 +344,34 @@ func (ui *UI) drawStatusBar(x0, y, width int) {
 	s.WriteString(ui.status)
 
 	printString(ui.screen, &x, y, s.StyledString())
+}
+
+func drawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, members []irc.Member, offset *int) {
+	if y0+len(members)-*offset < height {
+		*offset = y0 + len(members) - height
+		if *offset < 0 {
+			*offset = 0
+		}
+	}
+
+	for y := y0; y < y0+height; y++ {
+		screen.SetContent(x0, y, 0x2502, nil, tcell.StyleDefault)
+		for x := x0 + 1; x < x0+width; x++ {
+			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+		}
+	}
+
+	for i, m := range members[*offset:] {
+		x := x0 + 1
+		y := y0 + i
+
+		if m.PowerLevel != "" {
+			powerLevel := Styled(string([]rune(m.PowerLevel)[0]), tcell.StyleDefault.Foreground(tcell.ColorGreen))
+			printString(screen, &x, y, powerLevel)
+		} else {
+			x += 1
+		}
+		name := truncate(m.Name.Name, width-(x-x0), "\u2026")
+		printString(screen, &x, y, Styled(name, tcell.StyleDefault))
+	}
 }
