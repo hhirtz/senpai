@@ -24,6 +24,12 @@ const (
 	ircEvent
 )
 
+func isCommand(input []rune) bool {
+	// Command can't start with two slashes because that's an escape for
+	// a literal slash in the message
+	return len(input) >= 1 && input[0] == '/' && !(len(input) >= 2 && input[1] == '/')
+}
+
 type bound struct {
 	first time.Time
 	last  time.Time
@@ -164,6 +170,7 @@ func (app *App) eventLoop() {
 		if !app.pasting {
 			app.setStatus()
 			app.updatePrompt()
+			app.setBufferNumbers()
 			var currentMembers []irc.Member
 			if app.s != nil {
 				currentMembers = app.s.Names(app.win.CurrentBuffer())
@@ -812,9 +819,10 @@ func (app *App) typing() {
 	if buffer == Home {
 		return
 	}
-	if app.win.InputLen() == 0 {
+	input := app.win.InputContent()
+	if len(input) == 0 {
 		app.s.TypingStop(buffer)
-	} else if !app.win.InputIsCommand() {
+	} else if !isCommand(input) {
 		app.s.Typing(app.win.CurrentBuffer())
 	}
 }
@@ -916,7 +924,7 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 // updatePrompt changes the prompt text according to the application context.
 func (app *App) updatePrompt() {
 	buffer := app.win.CurrentBuffer()
-	command := app.win.InputIsCommand()
+	command := isCommand(app.win.InputContent())
 	var prompt ui.StyledString
 	if buffer == Home || command {
 		prompt = ui.Styled(">",

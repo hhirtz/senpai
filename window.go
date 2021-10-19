@@ -61,6 +61,24 @@ func (app *App) setStatus() {
 	app.win.SetStatus(status)
 }
 
+func (app *App) setBufferNumbers() {
+	input := app.win.InputContent()
+	if len(input) < 2 || input[0] != '/' {
+		app.win.ShowBufferNumbers(false)
+		return
+	}
+	commandEnd := len(input)
+	for i := 0; i < len(input); i++ {
+		if input[i] == ' ' {
+			commandEnd = i
+			break
+		}
+	}
+	command := string(input[:commandEnd])
+	showBufferNumbers := strings.HasPrefix("/buffer", command)
+	app.win.ShowBufferNumbers(showBufferNumbers)
+}
+
 func identColor(ident string) tcell.Color {
 	h := fnv.New32()
 	_, _ = h.Write([]byte(ident))

@@ -112,6 +112,10 @@ func (ui *UI) GoToBufferNo(i int) {
 	}
 }
 
+func (ui *UI) ShowBufferNumbers(enable bool) {
+	ui.bs.ShowBufferNumbers(enable)
+}
+
 func (ui *UI) ScrollUp() {
 	ui.bs.ScrollUp(ui.bs.tlHeight / 2)
 }
@@ -192,12 +196,9 @@ func (ui *UI) SetPrompt(prompt StyledString) {
 	ui.prompt = prompt
 }
 
-func (ui *UI) InputIsCommand() bool {
-	return ui.e.IsCommand()
-}
-
-func (ui *UI) InputLen() int {
-	return ui.e.TextLen()
+// InputContent result must not be modified.
+func (ui *UI) InputContent() []rune {
+	return ui.e.Content()
 }
 
 func (ui *UI) InputRune(r rune) {

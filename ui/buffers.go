@@ -191,6 +191,8 @@ type BufferList struct {
 
 	tlInnerWidth int
 	tlHeight     int
+
+	showBufferNumbers bool
 }
 
 // NewBufferList returns a new BufferList.
@@ -221,6 +223,10 @@ func (bs *BufferList) To(i int) bool {
 		return true
 	}
 	return false
+}
+
+func (bs *BufferList) ShowBufferNumbers(enabled bool) {
+	bs.showBufferNumbers = enabled
 }
 
 func (bs *BufferList) Next() {
@@ -386,11 +392,13 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		if i == bs.clicked {
 			st = st.Reverse(true)
 		}
-		indexText := fmt.Sprintf("%d:", i)
-		for ; x < x0+indexPadding-len(indexText); x++ {
-			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+		if bs.showBufferNumbers {
+			indexText := fmt.Sprintf("%d:", i)
+			for ; x < x0+indexPadding-len(indexText); x++ {
+				screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+			}
+			printString(screen, &x, y, Styled(indexText, st.Foreground(tcell.ColorGrey)))
 		}
-		printString(screen, &x, y, Styled(indexText, st.Foreground(tcell.ColorGrey)))
 		title := truncate(b.title, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(title, st))
 		if 0 < b.highlights {
