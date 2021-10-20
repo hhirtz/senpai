@@ -355,24 +355,22 @@ func drawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, memb
 		}
 	}
 
-	for y := y0; y < y0+height; y++ {
-		screen.SetContent(x0, y, 0x2502, nil, tcell.StyleDefault)
-		for x := x0 + 1; x < x0+width; x++ {
-			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
-		}
-	}
+	drawVerticalLine(screen, x0, y0, height)
+	x0++
+	width--
+	clearArea(screen, x0, y0, width, height)
 
 	for i, m := range members[*offset:] {
-		x := x0 + 1
+		x := x0
 		y := y0 + i
-
 		if m.PowerLevel != "" {
-			powerLevel := Styled(string([]rune(m.PowerLevel)[0]), tcell.StyleDefault.Foreground(tcell.ColorGreen))
-			printString(screen, &x, y, powerLevel)
+			powerLevelText := m.PowerLevel[:1]
+			powerLevelSt := tcell.StyleDefault.Foreground(tcell.ColorGreen)
+			printString(screen, &x, y, Styled(powerLevelText, powerLevelSt))
 		} else {
-			x += 1
+			x++
 		}
-		name := truncate(m.Name.Name, width-(x-x0), "\u2026")
-		printString(screen, &x, y, Styled(name, tcell.StyleDefault))
+		name := truncate(m.Name.Name, width-1, "\u2026")
+		printString(screen, &x, y, PlainString(name))
 	}
 }

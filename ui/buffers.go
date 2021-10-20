@@ -368,51 +368,45 @@ func (bs *BufferList) idx(title string) int {
 
 func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width, height int) {
 	width--
-	st := tcell.StyleDefault
-
-	for y := y0; y < y0+height; y++ {
-		for x := x0; x < x0+width; x++ {
-			screen.SetContent(x, y, ' ', nil, st)
-		}
-		screen.SetContent(x0+width, y, 0x2502, nil, st)
-	}
+	drawVerticalLine(screen, x0+width, y0, height)
+	clearArea(screen, x0, y0, width, height)
 
 	indexPadding := 1 + int(math.Ceil(math.Log10(float64(len(bs.list)))))
 	for i, b := range bs.list {
-		st = tcell.StyleDefault
 		x := x0
 		y := y0 + i
+		st := tcell.StyleDefault
 		if b.unread {
 			st = st.Bold(true)
-		} else if y == bs.current {
+		} else if i == bs.current {
 			st = st.Underline(true)
 		}
 		if i == bs.clicked {
 			st = st.Reverse(true)
 		}
 		if bs.showBufferNumbers {
+			indexSt := st.Foreground(tcell.ColorGray)
 			indexText := fmt.Sprintf("%d:", i)
-			for ; x < x0+indexPadding-len(indexText); x++ {
-				screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
-			}
-			printString(screen, &x, y, Styled(indexText, st.Foreground(tcell.ColorGrey)))
+			printString(screen, &x, y, Styled(indexText, indexSt))
+			x = x0 + indexPadding
 		}
+
 		title := truncate(b.title, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(title, st))
-		if 0 < b.highlights {
-			st = st.Foreground(tcell.ColorRed).Reverse(true)
-			screen.SetContent(x, y, ' ', nil, st)
-			x++
-			printNumber(screen, &x, y, st, b.highlights)
-			screen.SetContent(x, y, ' ', nil, st)
-			x++
-		}
+
 		if i == bs.clicked {
-			st = tcell.StyleDefault.Reverse(true)
+			st := tcell.StyleDefault.Reverse(true)
 			for ; x < x0+width; x++ {
 				screen.SetContent(x, y, ' ', nil, st)
 			}
-			screen.SetContent(x0+width, y, 0x2590, nil, st)
+			screen.SetContent(x, y, 0x2590, nil, st)
+		}
+
+		if b.highlights != 0 {
+			highlightSt := st.Foreground(tcell.ColorRed).Reverse(true)
+			highlightText := fmt.Sprintf(" %d ", b.highlights)
+			x = x0 + width - len(highlightText)
+			printString(screen, &x, y, Styled(highlightText, highlightSt))
 		}
 	}
 }

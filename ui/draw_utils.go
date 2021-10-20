@@ -53,3 +53,17 @@ func printTime(screen tcell.Screen, x int, y int, st tcell.Style, t time.Time) {
 	screen.SetContent(x+3, y, mn0, nil, st)
 	screen.SetContent(x+4, y, mn1, nil, st)
 }
+
+func clearArea(screen tcell.Screen, x0, y0, width, height int) {
+	for x := x0; x < x0+width; x++ {
+		for y := y0; y < y0+height; y++ {
+			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
+		}
+	}
+}
+
+func drawVerticalLine(screen tcell.Screen, x, y0, height int) {
+	for y := y0; y < y0+height; y++ {
+		screen.SetContent(x, y, 0x2502, nil, tcell.StyleDefault)
+	}
+}
