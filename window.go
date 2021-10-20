@@ -9,42 +9,50 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
-var Home = "home"
-
 const welcomeMessage = "senpai dev build. See senpai(1) for a list of keybindings and commands. Private messages and status notices go here."
 
 func (app *App) initWindow() {
-	app.win.AddBuffer(Home)
-	app.win.AddLine(Home, ui.NotifyNone, ui.Line{
+	app.win.AddBuffer("", "(home)", "")
+	app.win.AddLine("", "", ui.NotifyNone, ui.Line{
 		Head: "--",
 		Body: ui.PlainString(welcomeMessage),
 		At:   time.Now(),
 	})
 }
 
-func (app *App) queueStatusLine(line ui.Line) {
+type statusLine struct {
+	netID string
+	line  ui.Line
+}
+
+func (app *App) queueStatusLine(netID string, line ui.Line) {
 	if line.At.IsZero() {
 		line.At = time.Now()
 	}
 	app.events <- event{
-		src:     uiEvent,
-		content: line,
+		src: "*",
+		content: statusLine{
+			netID: netID,
+			line:  line,
+		},
 	}
 }
 
-func (app *App) addStatusLine(line ui.Line) {
-	buffer := app.win.CurrentBuffer()
-	if buffer != Home {
-		app.win.AddLine(Home, ui.NotifyNone, line)
+func (app *App) addStatusLine(netID string, line ui.Line) {
+	currentNetID, buffer := app.win.CurrentBuffer()
+	if currentNetID == netID && buffer != "" {
+		app.win.AddLine(netID, buffer, ui.NotifyNone, line)
 	}
-	app.win.AddLine(buffer, ui.NotifyNone, line)
+	app.win.AddLine(netID, "", ui.NotifyNone, line)
 }
 
 func (app *App) setStatus() {
-	if app.s == nil {
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
 		return
 	}
-	ts := app.s.Typings(app.win.CurrentBuffer())
+	ts := s.Typings(buffer)
 	status := ""
 	if 3 < len(ts) {
 		status = "several people are typing..."

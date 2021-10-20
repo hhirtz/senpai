@@ -172,6 +172,8 @@ func (l *Line) NewLines(width int) []int {
 }
 
 type buffer struct {
+	netID      string
+	netName    string
 	title      string
 	highlights int
 	unread     bool
@@ -239,15 +241,39 @@ func (bs *BufferList) Previous() {
 	bs.list[bs.current].unread = false
 }
 
-func (bs *BufferList) Add(title string) (i int, added bool) {
+func (bs *BufferList) Add(netID, netName, title string) (i int, added bool) {
 	lTitle := strings.ToLower(title)
+	gotNetID := false
 	for i, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
-			return i, false
+		lbTitle := strings.ToLower(b.title)
+		if b.netID == netID {
+			gotNetID = true
+			if lbTitle == lTitle {
+				return i, false
+			}
+		} else if gotNetID || (b.netID == netID && lbTitle < lTitle) {
+			b := buffer{
+				netID:   netID,
+				netName: netName,
+				title:   title,
+			}
+			bs.list = append(bs.list[:i+1], bs.list[i:]...)
+			bs.list[i] = b
+			if i <= bs.current && bs.current < len(bs.list) {
+				bs.current++
+			}
+			return i, true
 		}
 	}
 
-	bs.list = append(bs.list, buffer{title: title})
+	if netName == "" {
+		netName = netID
+	}
+	bs.list = append(bs.list, buffer{
+		netID:   netID,
+		netName: netName,
+		title:   title,
+	})
 	return len(bs.list) - 1, true
 }
 
@@ -266,8 +292,8 @@ func (bs *BufferList) Remove(title string) (ok bool) {
 	return
 }
 
-func (bs *BufferList) AddLine(title string, notify NotifyType, line Line) {
-	idx := bs.idx(title)
+func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line) {
+	idx := bs.idx(netID, title)
 	if idx < 0 {
 		return
 	}
@@ -303,8 +329,8 @@ func (bs *BufferList) AddLine(title string, notify NotifyType, line Line) {
 	}
 }
 
-func (bs *BufferList) AddLines(title string, before, after []Line) {
-	idx := bs.idx(title)
+func (bs *BufferList) AddLines(netID, title string, before, after []Line) {
+	idx := bs.idx(netID, title)
 	if idx < 0 {
 		return
 	}
@@ -326,8 +352,9 @@ func (bs *BufferList) AddLines(title string, before, after []Line) {
 	}
 }
 
-func (bs *BufferList) Current() (title string) {
-	return bs.list[bs.current].title
+func (bs *BufferList) Current() (netID, title string) {
+	b := &bs.list[bs.current]
+	return b.netID, b.title
 }
 
 func (bs *BufferList) ScrollUp(n int) {
@@ -352,14 +379,10 @@ func (bs *BufferList) IsAtTop() bool {
 	return b.isAtTop
 }
 
-func (bs *BufferList) idx(title string) int {
-	if title == "" {
-		return bs.current
-	}
-
+func (bs *BufferList) idx(netID, title string) int {
 	lTitle := strings.ToLower(title)
 	for i, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
+		if b.netID == netID && strings.ToLower(b.title) == lTitle {
 			return i
 		}
 	}
@@ -391,7 +414,18 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 			x = x0 + indexPadding
 		}
 
-		title := truncate(b.title, width-(x-x0), "\u2026")
+		var title string
+		if b.title == "" {
+			title = b.netName
+		} else {
+			if i == bs.clicked {
+				screen.SetContent(x, y, ' ', nil, tcell.StyleDefault.Reverse(true))
+				screen.SetContent(x+1, y, ' ', nil, tcell.StyleDefault.Reverse(true))
+			}
+			x += 2
+			title = b.title
+		}
+		title = truncate(title, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(title, st))
 
 		if i == bs.clicked {
@@ -427,8 +461,17 @@ func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, widt
 		if i == bs.clicked {
 			st = st.Reverse(true)
 		}
-		title := truncate(b.title, width-x, "\u2026")
+
+		var title string
+		if b.title == "" {
+			st = st.Dim(true)
+			title = b.netName
+		} else {
+			title = b.title
+		}
+		title = truncate(title, width-x, "\u2026")
 		printString(screen, &x, y0, Styled(title, st))
+
 		if 0 < b.highlights {
 			st = st.Foreground(tcell.ColorRed).Reverse(true)
 			screen.SetContent(x, y0, ' ', nil, st)

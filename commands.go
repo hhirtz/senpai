@@ -136,28 +136,27 @@ func init() {
 	}
 }
 
-func noCommand(app *App, buffer, content string) error {
-	// You can't send messages to home buffer, and it might get
-	// delivered to a user "home" without a bouncer, which will be bad.
-	if buffer == Home {
-		return fmt.Errorf("can't send message to home")
+func noCommand(app *App, content string) error {
+	netID, buffer := app.win.CurrentBuffer()
+	if buffer == "" {
+		return fmt.Errorf("can't send message to this buffer")
 	}
-
-	if app.s == nil {
+	s := app.sessions[netID]
+	if s == nil {
 		return errOffline
 	}
 
-	app.s.PrivMsg(buffer, content)
-	if !app.s.HasCapability("echo-message") {
-		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            app.s.Nick(),
+	s.PrivMsg(buffer, content)
+	if !s.HasCapability("echo-message") {
+		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
+			User:            s.Nick(),
 			Target:          buffer,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, ui.NotifyNone, line)
+		app.win.AddLine(netID, buffer, ui.NotifyNone, line)
 	}
 
 	return nil
@@ -180,8 +179,9 @@ func commandDoBuffer(app *App, args []string) error {
 
 func commandDoHelp(app *App, args []string) (err error) {
 	t := time.Now()
+	netID, buffer := app.win.CurrentBuffer()
 	if len(args) == 0 {
-		app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainString("Available commands:"),
@@ -190,22 +190,22 @@ func commandDoHelp(app *App, args []string) (err error) {
 			if cmd.Desc == "" {
 				continue
 			}
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  \x02%s\x02 %s", cmdName, cmd.Usage),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("    %s", cmd.Desc),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At: t,
 			})
 		}
 	} else {
 		search := strings.ToUpper(args[0])
 		found := false
-		app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainSprintf("Commands that match \"%s\":", search),
@@ -221,21 +221,21 @@ func commandDoHelp(app *App, args []string) (err error) {
 			usage.SetStyle(tcell.StyleDefault)
 			usage.WriteByte(' ')
 			usage.WriteString(cmd.Usage)
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: usage.StyledString(),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  %s", cmd.Desc),
 			})
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At: t,
 			})
 			found = true
 		}
 		if !found {
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  no command matches %q", args[0]),
 			})
@@ -245,75 +245,81 @@ func commandDoHelp(app *App, args []string) (err error) {
 }
 
 func commandDoJoin(app *App, args []string) (err error) {
-	if app.s == nil {
+	s := app.CurrentSession()
+	if s == nil {
 		return errOffline
 	}
-
+	channel := args[0]
 	key := ""
 	if len(args) == 2 {
 		key = args[1]
 	}
-	app.s.Join(args[0], key)
+	s.Join(channel, key)
 	return nil
 }
 
 func commandDoMe(app *App, args []string) (err error) {
-	if app.s == nil {
-		return errOffline
-	}
-
-	buffer := app.win.CurrentBuffer()
-	if buffer == Home {
+	netID, buffer := app.win.CurrentBuffer()
+	if buffer == "" {
+		netID = app.lastQueryNet
 		buffer = app.lastQuery
 	}
+	s := app.sessions[netID]
+	if s == nil {
+		return errOffline
+	}
 	content := fmt.Sprintf("\x01ACTION %s\x01", args[0])
-	app.s.PrivMsg(buffer, content)
-	if !app.s.HasCapability("echo-message") {
-		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            app.s.Nick(),
+	s.PrivMsg(buffer, content)
+	if !s.HasCapability("echo-message") {
+		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
+			User:            s.Nick(),
 			Target:          buffer,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, ui.NotifyNone, line)
+		app.win.AddLine(netID, buffer, ui.NotifyNone, line)
 	}
 	return nil
 }
 
 func commandDoMsg(app *App, args []string) (err error) {
-	if app.s == nil {
-		return errOffline
-	}
-
 	target := args[0]
 	content := args[1]
-	app.s.PrivMsg(target, content)
-	if !app.s.HasCapability("echo-message") {
-		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            app.s.Nick(),
+	netID, _ := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
+		return errOffline
+	}
+	s.PrivMsg(target, content)
+	if !s.HasCapability("echo-message") {
+		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
+			User:            s.Nick(),
 			Target:          target,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, ui.NotifyNone, line)
+		app.win.AddLine(netID, buffer, ui.NotifyNone, line)
 	}
 	return nil
 }
 
 func commandDoNames(app *App, args []string) (err error) {
-	if app.s == nil {
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
 		return errOffline
 	}
-
-	buffer := app.win.CurrentBuffer()
+	if !s.IsChannel(buffer) {
+		return fmt.Errorf("this is not a channel")
+	}
 	var sb ui.StyledStringBuilder
 	sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
 	sb.WriteString("Names: ")
-	for _, name := range app.s.Names(buffer) {
+	for _, name := range s.Names(buffer) {
 		if name.PowerLevel != "" {
 			sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
 			sb.WriteString(name.PowerLevel)
@@ -324,7 +330,7 @@ func commandDoNames(app *App, args []string) (err error) {
 	}
 	body := sb.StyledString()
 	// TODO remove last space
-	app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
+	app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 		At:        time.Now(),
 		Head:      "--",
 		HeadColor: tcell.ColorGray,
@@ -334,40 +340,40 @@ func commandDoNames(app *App, args []string) (err error) {
 }
 
 func commandDoNick(app *App, args []string) (err error) {
-	if app.s == nil {
-		return errOffline
-	}
-
 	nick := args[0]
-	if i := strings.IndexAny(nick, " :@!*?"); i >= 0 {
+	if i := strings.IndexAny(nick, " :"); i >= 0 {
 		return fmt.Errorf("illegal char %q in nickname", nick[i])
 	}
-	app.s.ChangeNick(nick)
-	return nil
+	s := app.CurrentSession()
+	if s == nil {
+		return errOffline
+	}
+	s.ChangeNick(nick)
+	return
 }
 
 func commandDoMode(app *App, args []string) (err error) {
-	if app.s == nil {
-		return errOffline
-	}
-
 	channel := args[0]
 	flags := args[1]
 	modeArgs := args[2:]
 
-	app.s.ChangeMode(channel, flags, modeArgs)
+	s := app.CurrentSession()
+	if s == nil {
+		return errOffline
+	}
+	s.ChangeMode(channel, flags, modeArgs)
 	return nil
 }
 
 func commandDoPart(app *App, args []string) (err error) {
-	if app.s == nil {
+	netID, channel := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
 		return errOffline
 	}
-
-	channel := app.win.CurrentBuffer()
 	reason := ""
 	if 0 < len(args) {
-		if app.s.IsChannel(args[0]) {
+		if s.IsChannel(args[0]) {
 			channel = args[0]
 			if 1 < len(args) {
 				reason = args[1]
@@ -376,10 +382,11 @@ func commandDoPart(app *App, args []string) (err error) {
 			reason = args[0]
 		}
 	}
-	if channel == Home {
-		return fmt.Errorf("cannot part home")
+
+	if channel == "" {
+		return fmt.Errorf("cannot part this buffer")
 	}
-	app.s.Part(channel, reason)
+	s.Part(channel, reason)
 	return nil
 }
 
@@ -388,68 +395,73 @@ func commandDoQuit(app *App, args []string) (err error) {
 	if 0 < len(args) {
 		reason = args[0]
 	}
-	if app.s != nil {
-		app.s.Quit(reason)
+	for _, session := range app.sessions {
+		session.Quit(reason)
 	}
 	app.win.Exit()
 	return nil
 }
 
 func commandDoQuote(app *App, args []string) (err error) {
-	if app.s == nil {
+	s := app.CurrentSession()
+	if s == nil {
 		return errOffline
 	}
-
-	app.s.SendRaw(args[0])
+	s.SendRaw(args[0])
 	return nil
 }
 
 func commandDoR(app *App, args []string) (err error) {
-	if app.s == nil {
+	s := app.sessions[app.lastQueryNet]
+	if s == nil {
 		return errOffline
 	}
-
-	app.s.PrivMsg(app.lastQuery, args[0])
-	if !app.s.HasCapability("echo-message") {
-		buffer, line, _ := app.formatMessage(irc.MessageEvent{
-			User:            app.s.Nick(),
+	s.PrivMsg(app.lastQuery, args[0])
+	if !s.HasCapability("echo-message") {
+		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
+			User:            s.Nick(),
 			Target:          app.lastQuery,
 			TargetIsChannel: true,
 			Command:         "PRIVMSG",
 			Content:         args[0],
 			Time:            time.Now(),
 		})
-		app.win.AddLine(buffer, ui.NotifyNone, line)
+		app.win.AddLine(app.lastQueryNet, buffer, ui.NotifyNone, line)
 	}
 	return nil
 }
 
 func commandDoTopic(app *App, args []string) (err error) {
-	if app.s == nil {
-		return errOffline
-	}
-
+	netID, buffer := app.win.CurrentBuffer()
+	var ok bool
 	if len(args) == 0 {
-		app.printTopic(app.win.CurrentBuffer())
+		ok = app.printTopic(netID, buffer)
 	} else {
-		app.s.ChangeTopic(app.win.CurrentBuffer(), args[0])
+		s := app.sessions[netID]
+		if s != nil {
+			s.ChangeTopic(buffer, args[0])
+			ok = true
+		}
+	}
+	if !ok {
+		return errOffline
 	}
 	return nil
 }
 
 func commandDoInvite(app *App, args []string) (err error) {
-	if app.s == nil {
+	nick := args[0]
+	netID, channel := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
 		return errOffline
 	}
-
-	nick := args[0]
-	channel := app.win.CurrentBuffer()
 	if len(args) == 2 {
 		channel = args[1]
-	} else if channel == Home {
-		return fmt.Errorf("cannot invite to home")
+	} else if channel == "" {
+		return fmt.Errorf("either send this command from a channel, or specify the channel")
 	}
-	app.s.Invite(nick, channel)
+	s.Invite(nick, channel)
 	return nil
 }
 
@@ -522,7 +534,7 @@ func (app *App) handleInput(buffer, content string) error {
 
 	cmdName, rawArgs, isCommand := parseCommand(content)
 	if !isCommand {
-		return noCommand(app, buffer, rawArgs)
+		return noCommand(app, rawArgs)
 	}
 	if cmdName == "" {
 		return fmt.Errorf("lone slash at the beginning")
@@ -554,8 +566,8 @@ func (app *App) handleInput(buffer, content string) error {
 	if len(args) < cmd.MinArgs {
 		return fmt.Errorf("usage: %s %s", cmdName, cmd.Usage)
 	}
-	if buffer == Home && !cmd.AllowHome {
-		return fmt.Errorf("command %q cannot be executed from home", cmdName)
+	if buffer == "" && !cmd.AllowHome {
+		return fmt.Errorf("command %q cannot be executed from a server buffer", cmdName)
 	}
 
 	return cmd.Handle(app, args)

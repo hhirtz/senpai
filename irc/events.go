@@ -75,3 +75,8 @@ type HistoryEvent struct {
 	Target   string
 	Messages []Event
 }
+
+type BouncerNetworkEvent struct {
+	ID   string
+	Name string
+}

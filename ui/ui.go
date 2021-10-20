@@ -82,7 +82,7 @@ func (ui *UI) Close() {
 	ui.screen.Fini()
 }
 
-func (ui *UI) CurrentBuffer() string {
+func (ui *UI) CurrentBuffer() (netID, title string) {
 	return ui.bs.Current()
 }
 
@@ -147,8 +147,8 @@ func (ui *UI) IsAtTop() bool {
 	return ui.bs.IsAtTop()
 }
 
-func (ui *UI) AddBuffer(title string) (i int, added bool) {
-	return ui.bs.Add(title)
+func (ui *UI) AddBuffer(netID, netName, title string) (i int, added bool) {
+	return ui.bs.Add(netID, netName, title)
 }
 
 func (ui *UI) RemoveBuffer(title string) {
@@ -156,12 +156,12 @@ func (ui *UI) RemoveBuffer(title string) {
 	ui.memberOffset = 0
 }
 
-func (ui *UI) AddLine(buffer string, notify NotifyType, line Line) {
-	ui.bs.AddLine(buffer, notify, line)
+func (ui *UI) AddLine(netID, buffer string, notify NotifyType, line Line) {
+	ui.bs.AddLine(netID, buffer, notify, line)
 }
 
-func (ui *UI) AddLines(buffer string, before, after []Line) {
-	ui.bs.AddLines(buffer, before, after)
+func (ui *UI) AddLines(netID, buffer string, before, after []Line) {
+	ui.bs.AddLines(netID, buffer, before, after)
 }
 
 func (ui *UI) JumpBuffer(sub string) bool {
@@ -184,6 +184,19 @@ func (ui *UI) JumpBufferIndex(i int) bool {
 			ui.memberOffset = 0
 		}
 		return true
+	}
+	return false
+}
+
+func (ui *UI) JumpBufferNetwork(netID, sub string) bool {
+	subLower := strings.ToLower(sub)
+	for i, b := range ui.bs.list {
+		if b.netID == netID && strings.Contains(strings.ToLower(b.title), subLower) {
+			if ui.bs.To(i) {
+				ui.memberOffset = 0
+			}
+			return true
+		}
 	}
 	return false
 }

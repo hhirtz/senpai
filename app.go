@@ -17,13 +17,6 @@ import (
 
 const eventChanSize = 64
 
-type source int
-
-const (
-	uiEvent source = iota
-	ircEvent
-)
-
 func isCommand(input []rune) bool {
 	// Command can't start with two slashes because that's an escape for
 	// a literal slash in the message
@@ -70,30 +63,32 @@ func (b *bound) Update(line *ui.Line) {
 }
 
 type event struct {
-	src     source
+	src     string // "*" if UI, netID otherwise
 	content interface{}
 }
 
 type App struct {
-	win     *ui.UI
-	s       *irc.Session
-	pasting bool
-	events  chan event
+	win      *ui.UI
+	sessions map[string]*irc.Session
+	pasting  bool
+	events   chan event
 
 	cfg        Config
 	highlights []string
 
 	lastQuery     string
+	lastQueryNet  string
 	messageBounds map[string]bound
+	lastNetID     string
 	lastBuffer    string
 }
 
-func NewApp(cfg Config, lastBuffer string) (app *App, err error) {
+func NewApp(cfg Config) (app *App, err error) {
 	app = &App{
-		cfg:           cfg,
+		sessions:      map[string]*irc.Session{},
 		events:        make(chan event, eventChanSize),
+		cfg:           cfg,
 		messageBounds: map[string]bound{},
-		lastBuffer:    lastBuffer,
 	}
 
 	if cfg.Highlights != nil {
@@ -133,18 +128,28 @@ func NewApp(cfg Config, lastBuffer string) (app *App, err error) {
 
 func (app *App) Close() {
 	app.win.Close()
-	if app.s != nil {
-		app.s.Close()
+	for _, session := range app.sessions {
+		session.Close()
 	}
+}
+
+func (app *App) SwitchToBuffer(netID, buffer string) {
+	app.lastNetID = netID
+	app.lastBuffer = buffer
 }
 
 func (app *App) Run() {
 	go app.uiLoop()
-	go app.ircLoop()
+	go app.ircLoop("")
 	app.eventLoop()
 }
 
-func (app *App) CurrentBuffer() string {
+func (app *App) CurrentSession() *irc.Session {
+	netID, _ := app.win.CurrentBuffer()
+	return app.sessions[netID]
+}
+
+func (app *App) CurrentBuffer() (netID, buffer string) {
 	return app.win.CurrentBuffer()
 }
 
@@ -172,8 +177,10 @@ func (app *App) eventLoop() {
 			app.updatePrompt()
 			app.setBufferNumbers()
 			var currentMembers []irc.Member
-			if app.s != nil {
-				currentMembers = app.s.Names(app.win.CurrentBuffer())
+			netID, buffer := app.win.CurrentBuffer()
+			s := app.sessions[netID]
+			if s != nil && buffer != "" {
+				currentMembers = s.Names(buffer)
 			}
 			app.win.Draw(currentMembers)
 		}
@@ -182,7 +189,7 @@ func (app *App) eventLoop() {
 
 // ircLoop maintains a connection to the IRC server by connecting and then
 // forwarding IRC events to app.events repeatedly.
-func (app *App) ircLoop() {
+func (app *App) ircLoop(netID string) {
 	var auth irc.SASLClient
 	if app.cfg.Password != nil {
 		auth = &irc.SASLPlain{
@@ -194,45 +201,46 @@ func (app *App) ircLoop() {
 		Nickname: app.cfg.Nick,
 		Username: app.cfg.User,
 		RealName: app.cfg.Real,
+		NetID:    netID,
 		Auth:     auth,
 	}
 	for !app.win.ShouldExit() {
-		conn := app.connect()
+		conn := app.connect(netID)
 		in, out := irc.ChanInOut(conn)
 		if app.cfg.Debug {
-			out = app.debugOutputMessages(out)
+			out = app.debugOutputMessages(netID, out)
 		}
 		session := irc.NewSession(out, params)
 		app.events <- event{
-			src:     ircEvent,
+			src:     netID,
 			content: session,
 		}
 		go func() {
 			for stop := range session.TypingStops() {
 				app.events <- event{
-					src:     ircEvent,
+					src:     netID,
 					content: stop,
 				}
 			}
 		}()
 		for msg := range in {
 			if app.cfg.Debug {
-				app.queueStatusLine(ui.Line{
+				app.queueStatusLine(netID, ui.Line{
 					At:   time.Now(),
 					Head: "IN --",
 					Body: ui.PlainString(msg.String()),
 				})
 			}
 			app.events <- event{
-				src:     ircEvent,
+				src:     netID,
 				content: msg,
 			}
 		}
 		app.events <- event{
-			src:     ircEvent,
+			src:     netID,
 			content: nil,
 		}
-		app.queueStatusLine(ui.Line{
+		app.queueStatusLine(netID, ui.Line{
 			Head:      "!!",
 			HeadColor: tcell.ColorRed,
 			Body:      ui.PlainString("Connection lost"),
@@ -241,9 +249,9 @@ func (app *App) ircLoop() {
 	}
 }
 
-func (app *App) connect() net.Conn {
+func (app *App) connect(netID string) net.Conn {
 	for {
-		app.queueStatusLine(ui.Line{
+		app.queueStatusLine(netID, ui.Line{
 			Head: "--",
 			Body: ui.PlainSprintf("Connecting to %s...", app.cfg.Addr),
 		})
@@ -251,7 +259,7 @@ func (app *App) connect() net.Conn {
 		if err == nil {
 			return conn
 		}
-		app.queueStatusLine(ui.Line{
+		app.queueStatusLine(netID, ui.Line{
 			Head:      "!!",
 			HeadColor: tcell.ColorRed,
 			Body:      ui.PlainSprintf("Connection failed: %v", err),
@@ -295,11 +303,11 @@ func (app *App) tryConnect() (conn net.Conn, err error) {
 	return
 }
 
-func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
+func (app *App) debugOutputMessages(netID string, out chan<- irc.Message) chan<- irc.Message {
 	debugOut := make(chan irc.Message, cap(out))
 	go func() {
 		for msg := range debugOut {
-			app.queueStatusLine(ui.Line{
+			app.queueStatusLine(netID, ui.Line{
 				At:   time.Now(),
 				Head: "OUT --",
 				Body: ui.PlainString(msg.String()),
@@ -316,7 +324,7 @@ func (app *App) debugOutputMessages(out chan<- irc.Message) chan<- irc.Message {
 func (app *App) uiLoop() {
 	for ev := range app.win.Events {
 		app.events <- event{
-			src:     uiEvent,
+			src:     "*",
 			content: ev,
 		}
 	}
@@ -325,13 +333,10 @@ func (app *App) uiLoop() {
 // handleEvents handles a batch of events.
 func (app *App) handleEvents(evs []event) {
 	for _, ev := range evs {
-		switch ev.src {
-		case uiEvent:
+		if ev.src == "*" {
 			app.handleUIEvent(ev.content)
-		case ircEvent:
-			app.handleIRCEvent(ev.content)
-		default:
-			panic("unreachable")
+		} else {
+			app.handleIRCEvent(ev.src, ev.content)
 		}
 	}
 }
@@ -346,10 +351,10 @@ func (app *App) handleUIEvent(ev interface{}) {
 		app.handleMouseEvent(ev)
 	case *tcell.EventKey:
 		app.handleKeyEvent(ev)
-	case ui.Line:
-		app.addStatusLine(ev)
+	case statusLine:
+		app.addStatusLine(ev.netID, ev.line)
 	default:
-		return
+		panic("unreachable")
 	}
 }
 
@@ -472,11 +477,11 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 			app.typing()
 		}
 	case tcell.KeyCR, tcell.KeyLF:
-		buffer := app.win.CurrentBuffer()
+		netID, buffer := app.win.CurrentBuffer()
 		input := app.win.InputEnter()
 		err := app.handleInput(buffer, input)
 		if err != nil {
-			app.win.AddLine(app.win.CurrentBuffer(), ui.NotifyUnread, ui.Line{
+			app.win.AddLine(netID, buffer, ui.NotifyUnread, ui.Line{
 				At:        time.Now(),
 				Head:      "!!",
 				HeadColor: tcell.ColorRed,
@@ -494,29 +499,35 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 // requestHistory is a wrapper around irc.Session.RequestHistory to only request
 // history when needed.
 func (app *App) requestHistory() {
-	if app.s == nil {
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
 		return
 	}
-	buffer := app.win.CurrentBuffer()
-	if app.win.IsAtTop() && buffer != Home {
+	if app.win.IsAtTop() && buffer != "" {
 		t := time.Now()
 		if bound, ok := app.messageBounds[buffer]; ok {
 			t = bound.first
 		}
-		app.s.NewHistoryRequest(buffer).
+		s.NewHistoryRequest(buffer).
 			WithLimit(100).
 			Before(t)
 	}
 }
 
-func (app *App) handleIRCEvent(ev interface{}) {
+func (app *App) handleIRCEvent(netID string, ev interface{}) {
 	if ev == nil {
-		app.s.Close()
-		app.s = nil
+		if s, ok := app.sessions[netID]; ok {
+			s.Close()
+			delete(app.sessions, netID)
+		}
 		return
 	}
 	if s, ok := ev.(*irc.Session); ok {
-		app.s = s
+		if s, ok := app.sessions[netID]; ok {
+			s.Close()
+		}
+		app.sessions[netID] = s
 		return
 	}
 	if _, ok := ev.(irc.Typing); ok {
@@ -524,12 +535,19 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		return
 	}
 
-	msg := ev.(irc.Message)
+	msg, ok := ev.(irc.Message)
+	if !ok {
+		panic("unreachable")
+	}
+	s, ok := app.sessions[netID]
+	if !ok {
+		panic("unreachable")
+	}
 
 	// Mutate IRC state
-	ev, err := app.s.HandleMessage(msg)
+	ev, err := s.HandleMessage(msg)
 	if err != nil {
-		app.win.AddLine(Home, ui.NotifyUnread, ui.Line{
+		app.win.AddLine(netID, "", ui.NotifyUnread, ui.Line{
 			Head:      "!!",
 			HeadColor: tcell.ColorRed,
 			Body:      ui.PlainSprintf("Received corrupt message %q: %s", msg.String(), err),
@@ -543,26 +561,26 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		for _, channel := range app.cfg.Channels {
 			// TODO: group JOIN messages
 			// TODO: support autojoining channels with keys
-			app.s.Join(channel, "")
+			s.Join(channel, "")
 		}
 		body := "Connected to the server"
-		if app.s.Nick() != app.cfg.Nick {
-			body = fmt.Sprintf("Connected to the server as %s", app.s.Nick())
+		if s.Nick() != app.cfg.Nick {
+			body = fmt.Sprintf("Connected to the server as %s", s.Nick())
 		}
-		app.win.AddLine(Home, ui.NotifyUnread, ui.Line{
+		app.win.AddLine(netID, "", ui.NotifyNone, ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: "--",
 			Body: ui.PlainString(body),
 		})
 	case irc.SelfNickEvent:
 		var body ui.StyledStringBuilder
-		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, app.s.Nick()))
+		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, s.Nick()))
 		textStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
 		arrowStyle := tcell.StyleDefault
 		body.AddStyle(0, textStyle)
 		body.AddStyle(len(ev.FormerNick), arrowStyle)
-		body.AddStyle(body.Len()-len(app.s.Nick()), textStyle)
-		app.addStatusLine(ui.Line{
+		body.AddStyle(body.Len()-len(s.Nick()), textStyle)
+		app.addStatusLine(netID, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -577,8 +595,8 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.AddStyle(0, textStyle)
 		body.AddStyle(len(ev.FormerNick), arrowStyle)
 		body.AddStyle(body.Len()-len(ev.User), textStyle)
-		for _, c := range app.s.ChannelsSharedWith(ev.User) {
-			app.win.AddLine(c, ui.NotifyNone, ui.Line{
+		for _, c := range s.ChannelsSharedWith(ev.User) {
+			app.win.AddLine(netID, c, ui.NotifyNone, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
 				HeadColor: tcell.ColorGray,
@@ -587,14 +605,14 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			})
 		}
 	case irc.SelfJoinEvent:
-		i, added := app.win.AddBuffer(ev.Channel)
+		i, added := app.win.AddBuffer(netID, "", ev.Channel)
 		bounds, ok := app.messageBounds[ev.Channel]
 		if added || !ok {
-			app.s.NewHistoryRequest(ev.Channel).
+			s.NewHistoryRequest(ev.Channel).
 				WithLimit(200).
 				Before(msg.TimeOrNow())
 		} else {
-			app.s.NewHistoryRequest(ev.Channel).
+			s.NewHistoryRequest(ev.Channel).
 				WithLimit(200).
 				After(bounds.last)
 		}
@@ -602,13 +620,14 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			app.win.JumpBufferIndex(i)
 		}
 		if ev.Topic != "" {
-			app.printTopic(ev.Channel)
+			app.printTopic(netID, ev.Channel)
 		}
 
 		// Restore last buffer
-		lastBuffer := app.lastBuffer
-		if ev.Channel == lastBuffer {
-			app.win.JumpBuffer(lastBuffer)
+		if netID == app.lastNetID && ev.Channel == app.lastBuffer {
+			app.win.JumpBufferNetwork(app.lastNetID, app.lastBuffer)
+			app.lastNetID = ""
+			app.lastBuffer = ""
 		}
 	case irc.UserJoinEvent:
 		var body ui.StyledStringBuilder
@@ -617,7 +636,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.WriteByte('+')
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
-		app.win.AddLine(ev.Channel, ui.NotifyNone, ui.Line{
+		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -634,7 +653,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.WriteByte('-')
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
-		app.win.AddLine(ev.Channel, ui.NotifyNone, ui.Line{
+		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -649,7 +668,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 		body.WriteString(ev.User)
 		for _, c := range ev.Channels {
-			app.win.AddLine(c, ui.NotifyNone, ui.Line{
+			app.win.AddLine(netID, c, ui.NotifyNone, ui.Line{
 				At:        msg.TimeOrNow(),
 				Head:      "--",
 				HeadColor: tcell.ColorGray,
@@ -659,7 +678,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		}
 	case irc.TopicChangeEvent:
 		body := fmt.Sprintf("Topic changed to: %s", ev.Topic)
-		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
+		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -667,7 +686,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		})
 	case irc.ModeChangeEvent:
 		body := fmt.Sprintf("Mode change: %s", ev.Mode)
-		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
+		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -677,11 +696,11 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		var buffer string
 		var notify ui.NotifyType
 		var body string
-		if app.s.IsMe(ev.Invitee) {
-			buffer = Home
+		if s.IsMe(ev.Invitee) {
+			buffer = ""
 			notify = ui.NotifyHighlight
 			body = fmt.Sprintf("%s invited you to join %s", ev.Inviter, ev.Channel)
-		} else if app.s.IsMe(ev.Inviter) {
+		} else if s.IsMe(ev.Inviter) {
 			buffer = ev.Channel
 			notify = ui.NotifyNone
 			body = fmt.Sprintf("You invited %s to join this channel", ev.Invitee)
@@ -690,7 +709,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			notify = ui.NotifyUnread
 			body = fmt.Sprintf("%s invited %s to join this channel", ev.Inviter, ev.Invitee)
 		}
-		app.win.AddLine(buffer, notify, ui.Line{
+		app.win.AddLine(netID, buffer, notify, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
@@ -698,19 +717,20 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			Highlight: notify == ui.NotifyHighlight,
 		})
 	case irc.MessageEvent:
-		buffer, line, hlNotification := app.formatMessage(ev)
+		buffer, line, hlNotification := app.formatMessage(s, ev)
 		var notify ui.NotifyType
 		if hlNotification {
 			notify = ui.NotifyHighlight
 		} else {
 			notify = ui.NotifyUnread
 		}
-		app.win.AddLine(buffer, notify, line)
+		app.win.AddLine(netID, buffer, notify, line)
 		if hlNotification {
 			app.notifyHighlight(buffer, ev.User, line.Body.String())
 		}
-		if !app.s.IsChannel(msg.Params[0]) && !app.s.IsMe(ev.User) {
+		if !s.IsChannel(msg.Params[0]) && !s.IsMe(ev.User) {
 			app.lastQuery = msg.Prefix.Name
+			app.lastQueryNet = netID
 		}
 		bounds := app.messageBounds[ev.Target]
 		bounds.Update(&line)
@@ -722,7 +742,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		for _, m := range ev.Messages {
 			switch ev := m.(type) {
 			case irc.MessageEvent:
-				_, line, _ := app.formatMessage(ev)
+				_, line, _ := app.formatMessage(s, ev)
 				if hasBounds {
 					c := bounds.Compare(&line)
 					if c < 0 {
@@ -735,7 +755,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 				}
 			}
 		}
-		app.win.AddLines(ev.Target, linesBefore, linesAfter)
+		app.win.AddLines(netID, ev.Target, linesBefore, linesAfter)
 		if len(linesBefore) != 0 {
 			bounds.Update(&linesBefore[0])
 			bounds.Update(&linesBefore[len(linesBefore)-1])
@@ -745,6 +765,11 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			bounds.Update(&linesAfter[len(linesAfter)-1])
 		}
 		app.messageBounds[ev.Target] = bounds
+	case irc.BouncerNetworkEvent:
+		_, added := app.win.AddBuffer(ev.ID, ev.Name, "")
+		if added {
+			go app.ircLoop(ev.ID)
+		}
 	case irc.ErrorEvent:
 		if isBlackListed(msg.Command) {
 			break
@@ -764,7 +789,7 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		default:
 			panic("unreachable")
 		}
-		app.addStatusLine(ui.Line{
+		app.addStatusLine(netID, ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: head,
 			Body: ui.PlainString(body),
@@ -782,13 +807,13 @@ func isBlackListed(command string) bool {
 }
 
 // isHighlight reports whether the given message content is a highlight.
-func (app *App) isHighlight(content string) bool {
-	contentCf := app.s.Casemap(content)
+func (app *App) isHighlight(s *irc.Session, content string) bool {
+	contentCf := s.Casemap(content)
 	if app.highlights == nil {
-		return strings.Contains(contentCf, app.s.NickCf())
+		return strings.Contains(contentCf, s.NickCf())
 	}
 	for _, h := range app.highlights {
-		if strings.Contains(contentCf, app.s.Casemap(h)) {
+		if strings.Contains(contentCf, s.Casemap(h)) {
 			return true
 		}
 	}
@@ -805,8 +830,9 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	if err != nil {
 		return
 	}
+	netID, curBuffer := app.win.CurrentBuffer()
 	here := "0"
-	if buffer == app.win.CurrentBuffer() {
+	if buffer == curBuffer { // TODO also check netID
 		here = "1"
 	}
 	cmd := exec.Command(sh, "-c", app.cfg.OnHighlight)
@@ -819,7 +845,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		body := fmt.Sprintf("Failed to invoke on-highlight command: %v. Output: %q", err, string(output))
-		app.addStatusLine(ui.Line{
+		app.addStatusLine(netID, ui.Line{
 			At:        time.Now(),
 			Head:      "!!",
 			HeadColor: tcell.ColorRed,
@@ -831,32 +857,36 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 // typing sends typing notifications to the IRC server according to the user
 // input.
 func (app *App) typing() {
-	if app.s == nil || app.cfg.NoTypings {
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil || app.cfg.NoTypings {
 		return
 	}
-	buffer := app.win.CurrentBuffer()
-	if buffer == Home {
+	if buffer == "" {
 		return
 	}
 	input := app.win.InputContent()
 	if len(input) == 0 {
-		app.s.TypingStop(buffer)
+		s.TypingStop(buffer)
 	} else if !isCommand(input) {
-		app.s.Typing(app.win.CurrentBuffer())
+		s.Typing(buffer)
 	}
 }
 
 // completions computes the list of completions given the input text and the
 // cursor position.
 func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
-	var cs []ui.Completion
-
 	if len(text) == 0 {
-		return cs
+		return nil
+	}
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
+		return nil
 	}
 
-	buffer := app.win.CurrentBuffer()
-	if app.s.IsChannel(buffer) {
+	var cs []ui.Completion
+	if buffer != "" {
 		cs = app.completionsChannelTopic(cs, cursorIdx, text)
 		cs = app.completionsChannelMembers(cs, cursorIdx, text)
 	}
@@ -878,17 +908,22 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 // - which buffer the message must be added to,
 // - the UI line,
 // - whether senpai must trigger the "on-highlight" command.
-func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
-	isFromSelf := app.s.IsMe(ev.User)
-	isHighlight := app.isHighlight(ev.Content)
+func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
+	isFromSelf := s.IsMe(ev.User)
+	isHighlight := app.isHighlight(s, ev.Content)
 	isAction := strings.HasPrefix(ev.Content, "\x01ACTION")
 	isQuery := !ev.TargetIsChannel && ev.Command == "PRIVMSG"
 	isNotice := ev.Command == "NOTICE"
 
 	if !ev.TargetIsChannel && isNotice {
-		buffer = app.win.CurrentBuffer()
+		curNetID, curBuffer := app.win.CurrentBuffer()
+		if curNetID == s.NetID() {
+			buffer = curBuffer
+		} else {
+			isHighlight = true
+		}
 	} else if !ev.TargetIsChannel {
-		buffer = Home
+		buffer = ""
 	} else {
 		buffer = ev.Target
 	}
@@ -942,40 +977,45 @@ func (app *App) formatMessage(ev irc.MessageEvent) (buffer string, line ui.Line,
 
 // updatePrompt changes the prompt text according to the application context.
 func (app *App) updatePrompt() {
-	buffer := app.win.CurrentBuffer()
+	netID, buffer := app.win.CurrentBuffer()
+	s := app.sessions[netID]
 	command := isCommand(app.win.InputContent())
 	var prompt ui.StyledString
-	if buffer == Home || command {
+	if buffer == "" || command {
 		prompt = ui.Styled(">",
 			tcell.
 				StyleDefault.
 				Foreground(tcell.Color(app.cfg.Colors.Prompt)),
 		)
-	} else if app.s == nil {
+	} else if s == nil {
 		prompt = ui.Styled("<offline>",
 			tcell.
 				StyleDefault.
 				Foreground(tcell.ColorRed),
 		)
 	} else {
-		prompt = identString(app.s.Nick())
+		prompt = identString(s.Nick())
 	}
 	app.win.SetPrompt(prompt)
 }
 
-func (app *App) printTopic(buffer string) {
+func (app *App) printTopic(netID, buffer string) (ok bool) {
 	var body string
-
-	topic, who, at := app.s.Topic(buffer)
+	s := app.sessions[netID]
+	if s == nil {
+		return false
+	}
+	topic, who, at := s.Topic(buffer)
 	if who == nil {
 		body = fmt.Sprintf("Topic: %s", topic)
 	} else {
 		body = fmt.Sprintf("Topic (by %s, %s): %s", who, at.Local().Format("Mon Jan 2 15:04:05"), topic)
 	}
-	app.win.AddLine(buffer, ui.NotifyNone, ui.Line{
+	app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 		At:        time.Now(),
 		Head:      "--",
 		HeadColor: tcell.ColorGray,
 		Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 	})
+	return true
 }

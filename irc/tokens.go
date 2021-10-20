@@ -132,7 +132,6 @@ func escapeTagValue(unescaped string) string {
 }
 
 func parseTags(s string) (tags map[string]string) {
-	s = s[1:]
 	tags = map[string]string{}
 
 	for _, item := range strings.Split(s, ";") {
@@ -239,7 +238,7 @@ func ParseMessage(line string) (msg Message, err error) {
 		var tags string
 
 		tags, line = word(line)
-		msg.Tags = parseTags(tags)
+		msg.Tags = parseTags(tags[1:])
 	}
 
 	line = strings.TrimLeft(line, " ")

@@ -57,7 +57,8 @@ var SupportedCapabilities = map[string]struct{}{
 	"sasl":          {},
 	"setname":       {},
 
-	"draft/chathistory": {},
+	"draft/chathistory":        {},
+	"soju.im/bouncer-networks": {},
 }
 
 // Values taken by the "@+typing=" client tag.  TypingUnspec means the value or
@@ -91,8 +92,8 @@ type SessionParams struct {
 	Nickname string
 	Username string
 	RealName string
-
-	Auth SASLClient
+	NetID    string
+	Auth     SASLClient
 }
 
 type Session struct {
@@ -108,6 +109,7 @@ type Session struct {
 	real   string
 	acct   string
 	host   string
+	netID  string
 	auth   SASLClient
 
 	availableCaps map[string]string
@@ -138,6 +140,7 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 		nickCf:          CasemapASCII(params.Nickname),
 		user:            params.Username,
 		real:            params.RealName,
+		netID:           params.NetID,
 		auth:            params.Auth,
 		availableCaps:   map[string]string{},
 		enabledCaps:     map[string]struct{}{},
@@ -178,6 +181,10 @@ func (s *Session) HasCapability(capability string) bool {
 
 func (s *Session) Nick() string {
 	return s.nick
+}
+
+func (s *Session) NetID() string {
+	return s.netID
 }
 
 // NickCf is our casemapped nickname.
@@ -486,10 +493,10 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 			return nil, err
 		}
 
-		s.out <- NewMessage("CAP", "END")
+		s.endRegistration()
 		s.host = ParsePrefix(userhost).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
-		s.out <- NewMessage("CAP", "END")
+		s.endRegistration()
 	case "CAP":
 		var subcommand string
 		if err := msg.ParseParams(nil, &subcommand); err != nil {
@@ -525,7 +532,7 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 
 				_, ok := s.availableCaps["sasl"]
 				if s.auth == nil || !ok {
-					s.out <- NewMessage("CAP", "END")
+					s.endRegistration()
 				}
 			}
 		default:
@@ -1024,6 +1031,19 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 				FormerNick: msg.Prefix.Name,
 			}, nil
 		}
+	case "BOUNCER":
+		if len(msg.Params) < 3 {
+			break
+		}
+		if msg.Params[0] != "NETWORK" || s.netID != "" {
+			break
+		}
+		id := msg.Params[1]
+		attrs := parseTags(msg.Params[2])
+		return BouncerNetworkEvent{
+			ID:   id,
+			Name: attrs["name"],
+		}, nil
 	case "PING":
 		var payload string
 		if err := msg.ParseParams(&payload); err != nil {
@@ -1137,6 +1157,8 @@ func (s *Session) updateFeatures(features []string) {
 
 	Switch:
 		switch key {
+		case "BOUNCER_NETID":
+			s.netID = value
 		case "CASEMAPPING":
 			switch value {
 			case "ascii":
@@ -1173,5 +1195,19 @@ func (s *Session) updateFeatures(features []string) {
 			s.prefixModes = value[1 : numPrefixes+1]
 			s.prefixSymbols = value[numPrefixes+2:]
 		}
+	}
+}
+
+func (s *Session) endRegistration() {
+	if _, ok := s.enabledCaps["soju.im/bouncer-networks"]; !ok {
+		s.out <- NewMessage("CAP", "END")
+		return
+	}
+	if s.netID == "" {
+		s.out <- NewMessage("CAP", "END")
+		s.out <- NewMessage("BOUNCER", "LISTNETWORKS")
+	} else {
+		s.out <- NewMessage("BOUNCER", "BIND", s.netID)
+		s.out <- NewMessage("CAP", "END")
 	}
 }

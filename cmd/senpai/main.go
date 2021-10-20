@@ -43,19 +43,21 @@ func main() {
 
 	cfg.Debug = cfg.Debug || debug
 
-	lastBuffer := getLastBuffer()
-
-	app, err := senpai.NewApp(cfg, lastBuffer)
+	app, err := senpai.NewApp(cfg)
 	if err != nil {
 		panic(err)
 	}
+
+	lastNetID, lastBuffer := getLastBuffer()
+	app.SwitchToBuffer(lastNetID, lastBuffer)
 
 	app.Run()
 	app.Close()
 
 	// Write last buffer on close
 	lastBufferPath := getLastBufferPath()
-	err = os.WriteFile(lastBufferPath, []byte(app.CurrentBuffer()), 0666)
+	lastNetID, lastBuffer = app.CurrentBuffer()
+	err = os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
 	}
@@ -76,11 +78,16 @@ func getLastBufferPath() string {
 	return lastBufferPath
 }
 
-func getLastBuffer() string {
+func getLastBuffer() (netID, buffer string) {
 	buf, err := ioutil.ReadFile(getLastBufferPath())
 	if err != nil {
-		return ""
+		return "", ""
 	}
 
-	return strings.TrimSpace(string(buf))
+	fields := strings.SplitN(string(buf), " ", 2)
+	if len(fields) < 2 {
+		return "", ""
+	}
+
+	return fields[0], fields[1]
 }

@@ -23,6 +23,7 @@ extensions, such as:
 
 - _CHATHISTORY_, senpai fetches history from the server instead of keeping logs,
 - _@+typing_, senpai shows when others are typing a message,
+- _BOUNCER_, senpai connects to all your networks at once automatically,
 - and more to come!
 
 # CONFIGURATION
