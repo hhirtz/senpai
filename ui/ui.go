@@ -341,6 +341,7 @@ func (ui *UI) drawStatusBar(x0, y, width int) {
 	x += 2
 
 	s.Reset()
+	s.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
 	s.WriteString(ui.status)
 
 	printString(ui.screen, &x, y, s.StyledString())

@@ -98,6 +98,23 @@ func (s StyledString) String() string {
 	return s.string
 }
 
+func (s StyledString) Truncate(w int, tail StyledString) StyledString {
+	if stringWidth(s.string) < w {
+		return s
+	}
+	var sb StyledStringBuilder
+	truncated := truncate(s.string, w-stringWidth(tail.string), "")
+	sb.WriteString(truncated)
+	for _, style := range s.styles {
+		if len(truncated) <= style.Start {
+			break
+		}
+		sb.styles = append(sb.styles, style)
+	}
+	sb.WriteStyledString(tail)
+	return sb.StyledString()
+}
+
 func isDigit(c byte) bool {
 	return '0' <= c && c <= '9'
 }
@@ -213,6 +230,11 @@ type StyledStringBuilder struct {
 	styles []rangedStyle
 }
 
+func (sb *StyledStringBuilder) Reset() {
+	sb.Builder.Reset()
+	sb.styles = sb.styles[:0]
+}
+
 func (sb *StyledStringBuilder) WriteStyledString(s StyledString) {
 	start := len(sb.styles)
 	sb.styles = append(sb.styles, s.styles...)
@@ -250,12 +272,16 @@ func (sb *StyledStringBuilder) SetStyle(style tcell.Style) {
 }
 
 func (sb *StyledStringBuilder) StyledString() StyledString {
-	styles := sb.styles
-	if len(sb.styles) != 0 && sb.styles[len(sb.styles)-1].Start == sb.Len() {
-		styles = sb.styles[:len(sb.styles)-1]
+	string := sb.String()
+	styles := make([]rangedStyle, 0, len(sb.styles))
+	for _, style := range sb.styles {
+		if len(string) <= style.Start {
+			break
+		}
+		styles = append(styles, style)
 	}
 	return StyledString{
-		string: sb.String(),
+		string: string,
 		styles: styles,
 	}
 }
