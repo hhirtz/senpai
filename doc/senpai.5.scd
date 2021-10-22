@@ -34,12 +34,12 @@ Some settings are required, the others are optional.
 	Your password, used for SASL authentication. See also *password-cmd*.
 
 *password-cmd*
-    Alternatively to providing your SASL authentication password directly in
-    plaintext, you can specify a command to be run to fetch the password at
-    runtime. This is useful if you store your passwords in a separate (probably
-    encrypted) file using `gpg` or a command line password manager such as
-    `pass` or `gopass`. If a *password-cmd* is provided, the value of *password*
-    will be ignored and the output of *password-cmd* will be used for login.
+	Alternatively to providing your SASL authentication password directly in
+	plaintext, you can specify a command to be run to fetch the password at
+	runtime. This is useful if you store your passwords in a separate (probably
+	encrypted) file using `gpg` or a command line password manager such as
+	_pass_ or _gopass_. If a *password-cmd* is provided, the value of *password*
+	will be ignored and the output of *password-cmd* will be used for login.
 
 *channels*
 	A list of channel names that senpai will automatically join at startup and
