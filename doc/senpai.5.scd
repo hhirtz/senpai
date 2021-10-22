@@ -31,7 +31,15 @@ Some settings are required, the others are optional.
 	authentication.  By default, the value of *nick* is used.
 
 *password*
-	Your password, used for SASL authentication.
+	Your password, used for SASL authentication. See also *password-cmd*.
+
+*password-cmd*
+    Alternatively to providing your SASL authentication password directly in
+    plaintext, you can specify a command to be run to fetch the password at
+    runtime. This is useful if you store your passwords in a separate (probably
+    encrypted) file using `gpg` or a command line password manager such as
+    `pass` or `gopass`. If a *password-cmd* is provided, the value of *password*
+    will be ignored and the output of *password-cmd* will be used for login.
 
 *channels*
 	A list of channel names that senpai will automatically join at startup and
@@ -125,9 +133,10 @@ addr: irc.libera.chat
 nick: Guest123456
 ```
 
-A more advanced configuration file that enables SASL authentication, sends
+A more advanced configuration file that enables SASL authentication, fetches the
+password from an external program instead of storing in plaintext, sends
 notifications on highlight and decreases the width of the nick column to 12
-(note: _swaymsg_ is specific to sway, a wayland compositor.  Use whatever you
+(note: _swaymsg_ is specific to sway, a wayland compositor. Use whatever you
 need to know if the terminal emulator that runs senpai has focus):
 
 ```
@@ -135,7 +144,7 @@ addr: irc.libera.chat
 nick: Guest123456
 user: senpai
 real: Guest von Lenon
-password: A secure password, I guess?
+password-cmd: "gopass show irc/guest" # use your favorite CLI password solution here
 channels: ["#rahxephon"]
 highlights:
 	- guest

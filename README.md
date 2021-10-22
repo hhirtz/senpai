@@ -14,6 +14,8 @@ cat <<EOF >~/.config/senpai/senpai.yaml
 addr: irc.libera.chat
 nick: senpai
 password: "my password can't be this cute"
+# alternatively, specify a command to fetch your password:
+# password-cmd: "gopass show irc/<username>"
 EOF
 go run ./cmd/senpai
 ```

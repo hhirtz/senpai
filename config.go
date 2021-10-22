@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -47,13 +48,14 @@ func (c *Color) UnmarshalText(data []byte) error {
 }
 
 type Config struct {
-	Addr     string
-	Nick     string
-	Real     string
-	User     string
-	Password *string
-	NoTLS    bool `yaml:"no-tls"`
-	Channels []string
+	Addr        string
+	Nick        string
+	Real        string
+	User        string
+	Password    *string
+	PasswordCmd string `yaml:"password-cmd"`
+	NoTLS       bool   `yaml:"no-tls"`
+	Channels    []string
 
 	NoTypings bool `yaml:"no-typings"`
 	Mouse     *bool
@@ -88,6 +90,13 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	if cfg.Real == "" {
 		cfg.Real = cfg.Nick
 	}
+	if cfg.PasswordCmd != "" {
+		password, err := runPasswordCmd(cfg.PasswordCmd)
+		if err != nil {
+			return cfg, err
+		}
+		cfg.Password = &password
+	}
 	if cfg.NickColWidth <= 0 {
 		cfg.NickColWidth = 16
 	}
@@ -112,5 +121,15 @@ func LoadConfigFile(filename string) (cfg Config, err error) {
 	if err != nil {
 		return cfg, fmt.Errorf("invalid content found in the file: %s", err)
 	}
+	return
+}
+
+func runPasswordCmd(command string) (password string, err error) {
+	cmd := exec.Command("sh", "-c", command)
+	stdout, err := cmd.Output()
+	if err == nil {
+		password = strings.TrimSuffix(string(stdout), "\n")
+	}
+
 	return
 }
