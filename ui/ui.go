@@ -370,7 +370,15 @@ func drawVerticalMemberList(screen tcell.Screen, x0, y0, width, height int, memb
 		} else {
 			x++
 		}
-		name := truncate(m.Name.Name, width-1, "\u2026")
-		printString(screen, &x, y, PlainString(name))
+
+		var name StyledString
+		nameText := truncate(m.Name.Name, width-1, "\u2026")
+		if m.Away {
+			name = Styled(nameText, tcell.StyleDefault.Foreground(tcell.ColorGray))
+		} else {
+			name = PlainString(nameText)
+		}
+
+		printString(screen, &x, y, name)
 	}
 }

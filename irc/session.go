@@ -71,8 +71,8 @@ const (
 
 // User is a known IRC user (we share a channel with it).
 type User struct {
-	Name    *Prefix // the nick, user and hostname of the user if known.
-	AwayMsg string  // the away message if the user is away, "" otherwise.
+	Name *Prefix // the nick, user and hostname of the user if known.
+	Away bool    // whether the user is away or not
 }
 
 // Channel is a joined channel.
@@ -217,6 +217,7 @@ func (s *Session) Names(channel string) []Member {
 			names = append(names, Member{
 				PowerLevel: pl,
 				Name:       u.Name.Copy(),
+				Away:       u.Away,
 			})
 		}
 	}
@@ -581,14 +582,23 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		}
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
 	case rplWhoreply:
-		var nick, host string
-		if err := msg.ParseParams(nil, nil, nil, &host, nil, &nick); err != nil {
+		var nick, host, stats string
+		if err := msg.ParseParams(nil, nil, nil, &host, nil, &nick, &stats, nil); err != nil {
 			return nil, err
 		}
 
-		if s.nickCf == s.Casemap(nick) {
+		nickCf := s.Casemap(nick)
+		away := stats[0] == 'G' // stats is not empty because it's not the trailing parameter
+
+		if s.nickCf == nickCf {
 			s.host = host
 		}
+
+		if u, ok := s.users[nickCf]; ok {
+			u.Away = away
+		}
+	case rplEndofwho:
+		// do nothing
 	case "CAP":
 		var subcommand, caps string
 		if err := msg.ParseParams(nil, &subcommand, &caps); err != nil {
@@ -653,6 +663,12 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			s.channels[channelCf] = Channel{
 				Name:    msg.Params[0],
 				Members: map[*User]string{},
+			}
+			if _, ok := s.enabledCaps["away-notify"]; ok {
+				// Only try to know who is away if the list is
+				// updated by the server via away-notify.
+				// Otherwise, it'll become outdated over time.
+				s.out <- NewMessage("WHO", channel)
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if _, ok := s.users[nickCf]; !ok {
@@ -893,6 +909,16 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			Invitee: nick,
 			Channel: channel,
 		}, nil
+	case "AWAY":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		nickCf := s.Casemap(msg.Prefix.Name)
+
+		if u, ok := s.users[nickCf]; ok {
+			u.Away = len(msg.Params) == 1
+		}
 	case "PRIVMSG", "NOTICE":
 		if msg.Prefix == nil {
 			return nil, errMissingPrefix

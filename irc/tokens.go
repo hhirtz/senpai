@@ -463,6 +463,7 @@ func ParseCaps(caps string) (diff []Cap) {
 type Member struct {
 	PowerLevel string
 	Name       *Prefix
+	Away       bool
 }
 
 type members []Member
