@@ -11,6 +11,10 @@ import (
 	"github.com/gdamore/tcell/v2"
 )
 
+var (
+	errOffline = fmt.Errorf("you are disconnected from the server, retry later")
+)
+
 type command struct {
 	AllowHome bool
 	MinArgs   int
@@ -136,7 +140,11 @@ func noCommand(app *App, buffer, content string) error {
 	// You can't send messages to home buffer, and it might get
 	// delivered to a user "home" without a bouncer, which will be bad.
 	if buffer == Home {
-		return fmt.Errorf("Can't send message to home")
+		return fmt.Errorf("can't send message to home")
+	}
+
+	if app.s == nil {
+		return errOffline
 	}
 
 	app.s.PrivMsg(buffer, content)
@@ -233,19 +241,27 @@ func commandDoHelp(app *App, args []string) (err error) {
 			})
 		}
 	}
-	return
+	return nil
 }
 
 func commandDoJoin(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	key := ""
 	if len(args) == 2 {
 		key = args[1]
 	}
 	app.s.Join(args[0], key)
-	return
+	return nil
 }
 
 func commandDoMe(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	buffer := app.win.CurrentBuffer()
 	if buffer == Home {
 		buffer = app.lastQuery
@@ -263,10 +279,14 @@ func commandDoMe(app *App, args []string) (err error) {
 		})
 		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
-	return
+	return nil
 }
 
 func commandDoMsg(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	target := args[0]
 	content := args[1]
 	app.s.PrivMsg(target, content)
@@ -281,10 +301,14 @@ func commandDoMsg(app *App, args []string) (err error) {
 		})
 		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
-	return
+	return nil
 }
 
 func commandDoNames(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	buffer := app.win.CurrentBuffer()
 	var sb ui.StyledStringBuilder
 	sb.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGrey))
@@ -306,28 +330,40 @@ func commandDoNames(app *App, args []string) (err error) {
 		HeadColor: tcell.ColorGray,
 		Body:      body,
 	})
-	return
+	return nil
 }
 
 func commandDoNick(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	nick := args[0]
 	if i := strings.IndexAny(nick, " :@!*?"); i >= 0 {
 		return fmt.Errorf("illegal char %q in nickname", nick[i])
 	}
 	app.s.ChangeNick(nick)
-	return
+	return nil
 }
 
 func commandDoMode(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	channel := args[0]
 	flags := args[1]
 	modeArgs := args[2:]
 
 	app.s.ChangeMode(channel, flags, modeArgs)
-	return
+	return nil
 }
 
 func commandDoPart(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	channel := app.win.CurrentBuffer()
 	reason := ""
 	if 0 < len(args) {
@@ -340,13 +376,11 @@ func commandDoPart(app *App, args []string) (err error) {
 			reason = args[0]
 		}
 	}
-
-	if channel != Home {
-		app.s.Part(channel, reason)
-	} else {
-		err = fmt.Errorf("cannot part home!")
+	if channel == Home {
+		return fmt.Errorf("cannot part home")
 	}
-	return
+	app.s.Part(channel, reason)
+	return nil
 }
 
 func commandDoQuit(app *App, args []string) (err error) {
@@ -358,15 +392,23 @@ func commandDoQuit(app *App, args []string) (err error) {
 		app.s.Quit(reason)
 	}
 	app.win.Exit()
-	return
+	return nil
 }
 
 func commandDoQuote(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	app.s.SendRaw(args[0])
-	return
+	return nil
 }
 
 func commandDoR(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	app.s.PrivMsg(app.lastQuery, args[0])
 	if !app.s.HasCapability("echo-message") {
 		buffer, line, _ := app.formatMessage(irc.MessageEvent{
@@ -379,19 +421,27 @@ func commandDoR(app *App, args []string) (err error) {
 		})
 		app.win.AddLine(buffer, ui.NotifyNone, line)
 	}
-	return
+	return nil
 }
 
 func commandDoTopic(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	if len(args) == 0 {
 		app.printTopic(app.win.CurrentBuffer())
 	} else {
 		app.s.ChangeTopic(app.win.CurrentBuffer(), args[0])
 	}
-	return
+	return nil
 }
 
 func commandDoInvite(app *App, args []string) (err error) {
+	if app.s == nil {
+		return errOffline
+	}
+
 	nick := args[0]
 	channel := app.win.CurrentBuffer()
 	if len(args) == 2 {
@@ -462,10 +512,7 @@ func parseCommand(s string) (command, args string, isCommand bool) {
 		i = len(s)
 	}
 
-	isCommand = true
-	command = strings.ToUpper(s[1:i])
-	args = strings.TrimLeft(s[i:], " ")
-	return
+	return strings.ToUpper(s[1:i]), strings.TrimLeft(s[i:], " "), true
 }
 
 func (app *App) handleInput(buffer, content string) error {
