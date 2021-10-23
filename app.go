@@ -545,26 +545,23 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			// TODO: support autojoining channels with keys
 			app.s.Join(channel, "")
 		}
-		var body ui.StyledStringBuilder
-		body.WriteString("Connected to the server")
+		body := "Connected to the server"
 		if app.s.Nick() != app.cfg.Nick {
-			body.WriteString(" as ")
-			body.WriteString(app.s.Nick())
+			body = fmt.Sprintf("Connected to the server as %s", app.s.Nick())
 		}
 		app.win.AddLine(Home, ui.NotifyUnread, ui.Line{
 			At:   msg.TimeOrNow(),
 			Head: "--",
-			Body: body.StyledString(),
+			Body: ui.PlainString(body),
 		})
 	case irc.SelfNickEvent:
 		var body ui.StyledStringBuilder
-		body.Grow(len(ev.FormerNick) + 4 + len(app.s.Nick()))
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.FormerNick)
-		body.SetStyle(tcell.StyleDefault)
-		body.WriteRune('\u2192') // right arrow
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(app.s.Nick())
+		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, app.s.Nick()))
+		textStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		arrowStyle := tcell.StyleDefault
+		body.AddStyle(0, textStyle)
+		body.AddStyle(len(ev.FormerNick), arrowStyle)
+		body.AddStyle(body.Len()-len(app.s.Nick()), textStyle)
 		app.addStatusLine(ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
@@ -574,13 +571,12 @@ func (app *App) handleIRCEvent(ev interface{}) {
 		})
 	case irc.UserNickEvent:
 		var body ui.StyledStringBuilder
-		body.Grow(len(ev.FormerNick) + 4 + len(ev.User))
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.FormerNick)
-		body.SetStyle(tcell.StyleDefault)
-		body.WriteRune('\u2192') // right arrow
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.User)
+		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, ev.User))
+		textStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		arrowStyle := tcell.StyleDefault
+		body.AddStyle(0, textStyle)
+		body.AddStyle(len(ev.FormerNick), arrowStyle)
+		body.AddStyle(body.Len()-len(ev.User), textStyle)
 		for _, c := range app.s.ChannelsSharedWith(ev.User) {
 			app.win.AddLine(c, ui.NotifyNone, ui.Line{
 				At:        msg.TimeOrNow(),
@@ -662,29 +658,20 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			})
 		}
 	case irc.TopicChangeEvent:
-		var body ui.StyledStringBuilder
-		body.Grow(len(ev.Topic) + 18)
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString("Topic changed to: ")
-		topic := ui.IRCString(ev.Topic)
-		body.WriteString(topic.String())
+		body := fmt.Sprintf("Topic changed to: %s", ev.Topic)
 		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
-			Body:      body.StyledString(),
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 		})
 	case irc.ModeChangeEvent:
-		var body ui.StyledStringBuilder
-		body.Grow(len(ev.Mode) + 13)
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString("Mode change: ")
-		body.WriteString(ev.Mode)
+		body := fmt.Sprintf("Mode change: %s", ev.Mode)
 		app.win.AddLine(ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
-			Body:      body.StyledString(),
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 		})
 	case irc.InviteEvent:
 		var buffer string
