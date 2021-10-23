@@ -56,6 +56,12 @@ type ModeChangeEvent struct {
 	Mode    string
 }
 
+type InviteEvent struct {
+	Inviter string
+	Invitee string
+	Channel string
+}
+
 type MessageEvent struct {
 	User            string
 	Target          string

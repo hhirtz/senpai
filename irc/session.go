@@ -863,6 +863,32 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 				Mode:    strings.Join(msg.Params[1:], " "),
 			}, nil
 		}
+	case "INVITE":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var nick, channel string
+		if err := msg.ParseParams(&nick, &channel); err != nil {
+			return nil, err
+		}
+
+		return InviteEvent{
+			Inviter: msg.Prefix.Name,
+			Invitee: nick,
+			Channel: channel,
+		}, nil
+	case rplInviting:
+		var nick, channel string
+		if err := msg.ParseParams(nil, &nick, &channel); err != nil {
+			return nil, err
+		}
+
+		return InviteEvent{
+			Inviter: s.nick,
+			Invitee: nick,
+			Channel: channel,
+		}, nil
 	case "PRIVMSG", "NOTICE":
 		if msg.Prefix == nil {
 			return nil, errMissingPrefix

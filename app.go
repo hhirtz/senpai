@@ -686,6 +686,30 @@ func (app *App) handleIRCEvent(ev interface{}) {
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 		})
+	case irc.InviteEvent:
+		var buffer string
+		var notify ui.NotifyType
+		var body string
+		if app.s.IsMe(ev.Invitee) {
+			buffer = Home
+			notify = ui.NotifyHighlight
+			body = fmt.Sprintf("%s invited you to join %s", ev.Inviter, ev.Channel)
+		} else if app.s.IsMe(ev.Inviter) {
+			buffer = ev.Channel
+			notify = ui.NotifyNone
+			body = fmt.Sprintf("You invited %s to join this channel", ev.Invitee)
+		} else {
+			buffer = ev.Channel
+			notify = ui.NotifyUnread
+			body = fmt.Sprintf("%s invited %s to join this channel", ev.Inviter, ev.Invitee)
+		}
+		app.win.AddLine(buffer, notify, ui.Line{
+			At:        msg.TimeOrNow(),
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+			Highlight: notify == ui.NotifyHighlight,
+		})
 	case irc.MessageEvent:
 		buffer, line, hlNotification := app.formatMessage(ev)
 		var notify ui.NotifyType
