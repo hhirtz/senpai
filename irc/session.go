@@ -46,22 +46,18 @@ func (auth *SASLPlain) Respond(challenge string) (res string, err error) {
 
 // SupportedCapabilities is the set of capabilities supported by this library.
 var SupportedCapabilities = map[string]struct{}{
-	"account-notify":    {},
-	"account-tag":       {},
-	"away-notify":       {},
-	"batch":             {},
-	"cap-notify":        {},
+	"away-notify":   {},
+	"batch":         {},
+	"cap-notify":    {},
+	"echo-message":  {},
+	"invite-notify": {},
+	"message-tags":  {},
+	"multi-prefix":  {},
+	"server-time":   {},
+	"sasl":          {},
+	"setname":       {},
+
 	"draft/chathistory": {},
-	"echo-message":      {},
-	"extended-join":     {},
-	"invite-notify":     {},
-	"labeled-response":  {},
-	"message-tags":      {},
-	"multi-prefix":      {},
-	"server-time":       {},
-	"sasl":              {},
-	"setname":           {},
-	"userhost-in-names": {},
 }
 
 // Values taken by the "@+typing=" client tag.  TypingUnspec means the value or
@@ -747,7 +743,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 		if c, ok := s.channels[channelCf]; ok {
 			return ModeChangeEvent{
 				Channel: c.Name,
-				Mode: strings.Join(msg.Params[1:], " "),
+				Mode:    strings.Join(msg.Params[1:], " "),
 			}
 		}
 	case "PRIVMSG", "NOTICE":
