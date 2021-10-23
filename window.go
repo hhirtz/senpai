@@ -63,19 +63,19 @@ func (app *App) setStatus() {
 
 func (app *App) setBufferNumbers() {
 	input := app.win.InputContent()
-	if len(input) < 2 || input[0] != '/' {
+	if !isCommand(input) {
 		app.win.ShowBufferNumbers(false)
 		return
 	}
 	commandEnd := len(input)
-	for i := 0; i < len(input); i++ {
+	for i := 1; i < len(input); i++ {
 		if input[i] == ' ' {
 			commandEnd = i
 			break
 		}
 	}
-	command := string(input[:commandEnd])
-	showBufferNumbers := strings.HasPrefix("/buffer", command)
+	command := string(input[1:commandEnd])
+	showBufferNumbers := len(command) != 0 && strings.HasPrefix("buffer", command)
 	app.win.ShowBufferNumbers(showBufferNumbers)
 }
 
