@@ -473,7 +473,13 @@ func (m members) Len() int {
 }
 
 func (m members) Less(i, j int) bool {
-	return strings.ToLower(m[i].Name.Name) < strings.ToLower(m[j].Name.Name)
+	if m[i].PowerLevel != "" && m[j].PowerLevel == "" {
+		return true
+	} else if m[i].PowerLevel == "" && m[j].PowerLevel != "" {
+		return false
+	} else {
+		return strings.ToLower(m[i].Name.Name) < strings.ToLower(m[j].Name.Name)
+	}
 }
 
 func (m members) Swap(i, j int) {
