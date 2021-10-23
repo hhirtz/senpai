@@ -121,6 +121,14 @@ func init() {
 			Desc:      "switch to the buffer containing a substring",
 			Handle:    commandDoBuffer,
 		},
+		"INVITE": {
+			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   2,
+			Usage:     "<name> [channel]",
+			Desc:      "invite someone to a channel",
+			Handle:    commandDoInvite,
+		},
 	}
 }
 
@@ -381,6 +389,18 @@ func commandDoTopic(app *App, args []string) (err error) {
 		app.s.ChangeTopic(app.win.CurrentBuffer(), args[0])
 	}
 	return
+}
+
+func commandDoInvite(app *App, args []string) (err error) {
+	nick := args[0]
+	channel := app.win.CurrentBuffer()
+	if len(args) == 2 {
+		channel = args[1]
+	} else if channel == Home {
+		return fmt.Errorf("cannot invite to home")
+	}
+	app.s.Invite(nick, channel)
+	return nil
 }
 
 // implemented from https://golang.org/src/strings/strings.go?s=8055:8085#L310

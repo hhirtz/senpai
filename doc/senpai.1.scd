@@ -135,7 +135,8 @@ _name_ is matched case-insensitively.  It can be one of the following:
 	Reply to the last person who sent a private message.
 
 *ME* <content>
-	Send a message prefixed with your nick (a user action).
+	Send a message prefixed with your nick (a user action).  If sent from home,
+	reply to the last person who sent a private message.
 
 *QUOTE* <raw message>
 	Send _raw message_ verbatim.
@@ -148,6 +149,9 @@ _name_ is matched case-insensitively.  It can be one of the following:
 
 *MODE* <nick/channel> <flags> [args]
 	Change channel or user modes.
+
+*INVITE* <nick> [channel]
+	Invite _nick_ to _channel_ (the current channel if not given).
 
 # SEE ALSO
 

@@ -449,6 +449,10 @@ func (s *Session) NewHistoryRequest(target string) *HistoryRequest {
 	}
 }
 
+func (s *Session) Invite(nick, channel string) {
+	s.out <- NewMessage("INVITE", nick, channel)
+}
+
 func (s *Session) HandleMessage(msg Message) (Event, error) {
 	if s.registered {
 		return s.handleRegistered(msg)
