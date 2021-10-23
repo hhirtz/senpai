@@ -3,7 +3,6 @@ package irc
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 )
@@ -155,6 +154,7 @@ func parseTags(s string) (tags map[string]string) {
 var (
 	errEmptyMessage      = errors.New("empty message")
 	errIncompleteMessage = errors.New("message is incomplete")
+	errMissingPrefix     = errors.New("missing message prefix")
 )
 
 type Prefix struct {
@@ -345,65 +345,20 @@ func (msg *Message) String() string {
 	return sb.String()
 }
 
-// IsValid reports whether the message is correctly formed.
-func (msg *Message) IsValid() bool {
-	switch msg.Command {
-	case "AUTHENTICATE", "PING", "PONG":
-		return 1 <= len(msg.Params)
-	case rplEndofnames, rplLoggedout, rplMotd, errNicknameinuse, rplNotopic, rplWelcome, rplYourhost:
-		return 2 <= len(msg.Params)
-	case rplIsupport, rplLoggedin, rplTopic, "FAIL", "WARN", "NOTE":
-		return 3 <= len(msg.Params)
-	case rplNamreply:
-		return 4 <= len(msg.Params)
-	case rplWhoreply:
-		return 8 <= len(msg.Params)
-	case "JOIN", "NICK", "PART", "TAGMSG":
-		return 1 <= len(msg.Params) && msg.Prefix != nil
-	case "KICK", "PRIVMSG", "NOTICE", "TOPIC":
-		return 2 <= len(msg.Params) && msg.Prefix != nil
-	case "QUIT":
-		return msg.Prefix != nil
-	case "CAP":
-		return 3 <= len(msg.Params) &&
-			(msg.Params[1] == "LS" ||
-				msg.Params[1] == "LIST" ||
-				msg.Params[1] == "ACK" ||
-				msg.Params[1] == "NAK" ||
-				msg.Params[1] == "NEW" ||
-				msg.Params[1] == "DEL")
-	case rplTopicwhotime:
-		if len(msg.Params) < 4 {
-			return false
-		}
-		_, err := strconv.ParseInt(msg.Params[3], 10, 64)
-		return err == nil
-	case "BATCH":
-		if len(msg.Params) < 1 {
-			return false
-		}
-		if len(msg.Params[0]) < 2 {
-			return false
-		}
-		if msg.Params[0][0] == '+' {
-			if len(msg.Params) < 2 {
-				return false
-			}
-			switch msg.Params[1] {
-			case "chathistory":
-				return 3 <= len(msg.Params)
-			default:
-				return false
-			}
-		}
-		return msg.Params[0][0] == '-'
-	default:
-		if len(msg.Command) != 3 || len(msg.Params) < 2 {
-			return false
-		}
-		_, err := strconv.Atoi(msg.Command)
-		return err == nil
+func (msg *Message) errNotEnoughParams(expected int) error {
+	return fmt.Errorf("expected at least %d params, got %d", expected, len(msg.Params))
+}
+
+func (msg *Message) ParseParams(out ...*string) error {
+	if len(msg.Params) < len(out) {
+		return msg.errNotEnoughParams(len(out))
 	}
+	for i := range out {
+		if out[i] != nil {
+			*out[i] = msg.Params[i]
+		}
+	}
+	return nil
 }
 
 // Time returns the time when the message has been sent, if present.

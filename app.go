@@ -527,7 +527,15 @@ func (app *App) handleIRCEvent(ev interface{}) {
 	msg := ev.(irc.Message)
 
 	// Mutate IRC state
-	ev = app.s.HandleMessage(msg)
+	ev, err := app.s.HandleMessage(msg)
+	if err != nil {
+		app.win.AddLine(Home, ui.NotifyUnread, ui.Line{
+			Head:      "!!",
+			HeadColor: tcell.ColorRed,
+			Body:      ui.PlainSprintf("Received corrupt message %q: %s", msg.String(), err),
+		})
+		return
+	}
 
 	// Mutate UI state
 	switch ev := ev.(type) {

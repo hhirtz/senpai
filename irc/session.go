@@ -82,7 +82,6 @@ type Channel struct {
 	Topic     string           // the topic of the channel, or "" if absent.
 	TopicWho  *Prefix          // the name of the last user who set the topic.
 	TopicTime time.Time        // the last time the topic has been changed.
-	Secret    bool             // whether the channel is on the server channel list.
 
 	complete bool // whether this structure is fully initialized.
 }
@@ -450,7 +449,7 @@ func (s *Session) NewHistoryRequest(target string) *HistoryRequest {
 	}
 }
 
-func (s *Session) HandleMessage(msg Message) Event {
+func (s *Session) HandleMessage(msg Message) (Event, error) {
 	if s.registered {
 		return s.handleRegistered(msg)
 	} else {
@@ -458,35 +457,53 @@ func (s *Session) HandleMessage(msg Message) Event {
 	}
 }
 
-func (s *Session) handleUnregistered(msg Message) Event {
+func (s *Session) handleUnregistered(msg Message) (Event, error) {
 	switch msg.Command {
 	case "AUTHENTICATE":
-		if s.auth != nil {
-			res, err := s.auth.Respond(msg.Params[0])
-			if err != nil {
-				s.out <- NewMessage("AUTHENTICATE", "*")
-			} else {
-				s.out <- NewMessage("AUTHENTICATE", res)
-			}
+		if s.auth == nil {
+			break
+		}
+
+		var payload string
+		if err := msg.ParseParams(&payload); err != nil {
+			return nil, err
+		}
+
+		res, err := s.auth.Respond(payload)
+		if err != nil {
+			s.out <- NewMessage("AUTHENTICATE", "*")
+		} else {
+			s.out <- NewMessage("AUTHENTICATE", res)
 		}
 	case rplLoggedin:
+		var userhost string
+		if err := msg.ParseParams(nil, &userhost, &s.acct); err != nil {
+			return nil, err
+		}
+
 		s.out <- NewMessage("CAP", "END")
-		s.acct = msg.Params[2]
-		s.host = ParsePrefix(msg.Params[1]).Host
+		s.host = ParsePrefix(userhost).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
 		s.out <- NewMessage("CAP", "END")
 	case "CAP":
-		switch msg.Params[1] {
-		case "LS":
-			var willContinue bool
-			var ls string
+		var subcommand string
+		if err := msg.ParseParams(nil, &subcommand); err != nil {
+			return nil, err
+		}
 
-			if msg.Params[2] == "*" {
+		switch subcommand {
+		case "LS":
+			var ls string
+			if err := msg.ParseParams(nil, nil, &ls); err != nil {
+				return nil, err
+			}
+
+			willContinue := false
+			if ls == "*" {
+				if err := msg.ParseParams(nil, nil, nil, &ls); err != nil {
+					return nil, err
+				}
 				willContinue = true
-				ls = msg.Params[3]
-			} else {
-				willContinue = false
-				ls = msg.Params[2]
 			}
 
 			for _, c := range ParseCaps(ls) {
@@ -510,30 +527,41 @@ func (s *Session) handleUnregistered(msg Message) Event {
 			return s.handleRegistered(msg)
 		}
 	case errNicknameinuse:
-		s.out <- NewMessage("NICK", msg.Params[1]+"_")
+		var nick string
+		if err := msg.ParseParams(nil, &nick); err != nil {
+			return nil, err
+		}
+
+		s.out <- NewMessage("NICK", nick+"_")
 	case rplSaslsuccess:
 		// do nothing
 	default:
 		return s.handleRegistered(msg)
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Session) handleRegistered(msg Message) Event {
+func (s *Session) handleRegistered(msg Message) (Event, error) {
 	if id, ok := msg.Tags["batch"]; ok {
 		if b, ok := s.chBatches[id]; ok {
-			ev := s.newMessageEvent(msg)
+			ev, err := s.newMessageEvent(msg)
+			if err != nil {
+				return nil, err
+			}
 			s.chBatches[id] = HistoryEvent{
 				Target:   b.Target,
 				Messages: append(b.Messages, ev),
 			}
-			return nil
+			return nil, nil
 		}
 	}
 
 	switch msg.Command {
 	case rplWelcome:
-		s.nick = msg.Params[0]
+		if err := msg.ParseParams(&s.nick); err != nil {
+			return nil, err
+		}
+
 		s.nickCf = s.Casemap(s.nick)
 		s.registered = true
 		s.users[s.nickCf] = &User{Name: &Prefix{
@@ -542,17 +570,30 @@ func (s *Session) handleRegistered(msg Message) Event {
 		if s.host == "" {
 			s.out <- NewMessage("WHO", s.nick)
 		}
-		return RegisteredEvent{}
+		return RegisteredEvent{}, nil
 	case rplIsupport:
+		if len(msg.Params) < 3 {
+			return nil, msg.errNotEnoughParams(3)
+		}
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
 	case rplWhoreply:
-		if s.nickCf == s.Casemap(msg.Params[5]) {
-			s.host = msg.Params[3]
+		var nick, host string
+		if err := msg.ParseParams(nil, nil, nil, &host, nil, &nick); err != nil {
+			return nil, err
+		}
+
+		if s.nickCf == s.Casemap(nick) {
+			s.host = host
 		}
 	case "CAP":
-		switch msg.Params[1] {
+		var subcommand, caps string
+		if err := msg.ParseParams(nil, &subcommand, &caps); err != nil {
+			return nil, err
+		}
+
+		switch subcommand {
 		case "ACK":
-			for _, c := range ParseCaps(msg.Params[2]) {
+			for _, c := range ParseCaps(caps) {
 				if c.Enable {
 					s.enabledCaps[c.Name] = struct{}{}
 				} else {
@@ -572,7 +613,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 		case "NAK":
 			// do nothing
 		case "NEW":
-			for _, c := range ParseCaps(msg.Params[2]) {
+			for _, c := range ParseCaps(caps) {
 				s.availableCaps[c.Name] = c.Value
 				_, ok := SupportedCapabilities[c.Name]
 				if !ok {
@@ -586,15 +627,25 @@ func (s *Session) handleRegistered(msg Message) Event {
 				// TODO authenticate
 			}
 		case "DEL":
-			for _, c := range ParseCaps(msg.Params[2]) {
+			for _, c := range ParseCaps(caps) {
 				delete(s.availableCaps, c.Name)
 				delete(s.enabledCaps, c.Name)
 			}
 		}
 	case "JOIN":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var channel string
+		if err := msg.ParseParams(&channel); err != nil {
+			return nil, err
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
-		channelCf := s.Casemap(msg.Params[0])
-		if s.IsMe(msg.Prefix.Name) {
+		channelCf := s.Casemap(channel)
+
+		if s.IsMe(nickCf) {
 			s.channels[channelCf] = Channel{
 				Name:    msg.Params[0],
 				Members: map[*User]string{},
@@ -607,12 +658,22 @@ func (s *Session) handleRegistered(msg Message) Event {
 			return UserJoinEvent{
 				User:    msg.Prefix.Name,
 				Channel: c.Name,
-			}
+			}, nil
 		}
 	case "PART":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var channel string
+		if err := msg.ParseParams(&channel); err != nil {
+			return nil, err
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
-		channelCf := s.Casemap(msg.Params[0])
-		if s.IsMe(msg.Prefix.Name) {
+		channelCf := s.Casemap(channel)
+
+		if s.IsMe(nickCf) {
 			if c, ok := s.channels[channelCf]; ok {
 				delete(s.channels, channelCf)
 				for u := range c.Members {
@@ -620,7 +681,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 				}
 				return SelfPartEvent{
 					Channel: c.Name,
-				}
+				}, nil
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if u, ok := s.users[nickCf]; ok {
@@ -630,13 +691,19 @@ func (s *Session) handleRegistered(msg Message) Event {
 				return UserPartEvent{
 					User:    u.Name.Name,
 					Channel: c.Name,
-				}
+				}, nil
 			}
 		}
 	case "KICK":
-		nickCf := s.Casemap(msg.Params[1])
-		channelCf := s.Casemap(msg.Params[0])
-		if s.IsMe(msg.Prefix.Name) {
+		var channel, nick string
+		if err := msg.ParseParams(&channel, &nick); err != nil {
+			return nil, err
+		}
+
+		nickCf := s.Casemap(nick)
+		channelCf := s.Casemap(channel)
+
+		if s.IsMe(nickCf) {
 			if c, ok := s.channels[channelCf]; ok {
 				delete(s.channels, channelCf)
 				for u := range c.Members {
@@ -644,7 +711,7 @@ func (s *Session) handleRegistered(msg Message) Event {
 				}
 				return SelfPartEvent{
 					Channel: c.Name,
-				}
+				}, nil
 			}
 		} else if c, ok := s.channels[channelCf]; ok {
 			if u, ok := s.users[nickCf]; ok {
@@ -652,12 +719,16 @@ func (s *Session) handleRegistered(msg Message) Event {
 				s.cleanUser(u)
 				s.typings.Done(channelCf, nickCf)
 				return UserPartEvent{
-					User:    u.Name.Name,
+					User:    nick,
 					Channel: c.Name,
-				}
+				}, nil
 			}
 		}
 	case "QUIT":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
 
 		if u, ok := s.users[nickCf]; ok {
@@ -673,15 +744,19 @@ func (s *Session) handleRegistered(msg Message) Event {
 			return UserQuitEvent{
 				User:     u.Name.Name,
 				Channels: channels,
-			}
+			}, nil
 		}
 	case rplNamreply:
-		channelCf := s.Casemap(msg.Params[2])
+		var channel, names string
+		if err := msg.ParseParams(nil, nil, &channel, &names); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
 
 		if c, ok := s.channels[channelCf]; ok {
-			c.Secret = msg.Params[1] == "@"
 
-			for _, name := range ParseNameReply(msg.Params[3], s.prefixSymbols) {
+			for _, name := range ParseNameReply(names, s.prefixSymbols) {
 				nickCf := s.Casemap(name.Name.Name)
 
 				if _, ok := s.users[nickCf]; !ok {
@@ -693,7 +768,13 @@ func (s *Session) handleRegistered(msg Message) Event {
 			s.channels[channelCf] = c
 		}
 	case rplEndofnames:
-		channelCf := s.Casemap(msg.Params[1])
+		var channel string
+		if err := msg.ParseParams(nil, &channel); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
 		if c, ok := s.channels[channelCf]; ok && !c.complete {
 			c.complete = true
 			s.channels[channelCf] = c
@@ -701,59 +782,114 @@ func (s *Session) handleRegistered(msg Message) Event {
 				Channel: c.Name,
 				Topic:   c.Topic,
 			}
-			if stamp, ok := s.pendingChannels[channelCf]; ok && time.Now().Sub(stamp) < 5*time.Second {
+			if stamp, ok := s.pendingChannels[channelCf]; ok && time.Since(stamp) < 5*time.Second {
 				ev.Requested = true
 			}
-			return ev
+			return ev, nil
 		}
 	case rplTopic:
-		channelCf := s.Casemap(msg.Params[1])
+		var channel, topic string
+		if err := msg.ParseParams(nil, &channel, &topic); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
 		if c, ok := s.channels[channelCf]; ok {
-			c.Topic = msg.Params[2]
+			c.Topic = topic
 			s.channels[channelCf] = c
 		}
 	case rplTopicwhotime:
-		channelCf := s.Casemap(msg.Params[1])
-		t, _ := strconv.ParseInt(msg.Params[3], 10, 64)
+		var channel, topicWho, topicTime string
+		if err := msg.ParseParams(nil, &channel, &topicWho, &topicTime); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
+		// ignore the error, we still have topicWho
+		t, _ := strconv.ParseInt(topicTime, 10, 64)
+
 		if c, ok := s.channels[channelCf]; ok {
-			c.TopicWho = ParsePrefix(msg.Params[2])
+			c.TopicWho = ParsePrefix(topicWho)
 			c.TopicTime = time.Unix(t, 0)
 			s.channels[channelCf] = c
 		}
 	case rplNotopic:
-		channelCf := s.Casemap(msg.Params[1])
+		var channel string
+		if err := msg.ParseParams(nil, &channel); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
 		if c, ok := s.channels[channelCf]; ok {
 			c.Topic = ""
 			s.channels[channelCf] = c
 		}
 	case "TOPIC":
-		channelCf := s.Casemap(msg.Params[0])
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var channel, topic string
+		if err := msg.ParseParams(&channel, &topic); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
 		if c, ok := s.channels[channelCf]; ok {
-			c.Topic = msg.Params[1]
+			c.Topic = topic
 			c.TopicWho = msg.Prefix.Copy()
 			c.TopicTime = msg.TimeOrNow()
 			s.channels[channelCf] = c
 			return TopicChangeEvent{
 				Channel: c.Name,
 				Topic:   c.Topic,
-			}
+			}, nil
 		}
 	case "MODE":
-		channelCf := s.Casemap(msg.Params[0])
+		var channel string
+		if err := msg.ParseParams(&channel); err != nil {
+			return nil, err
+		}
+
+		channelCf := s.Casemap(channel)
+
 		if c, ok := s.channels[channelCf]; ok {
 			return ModeChangeEvent{
 				Channel: c.Name,
 				Mode:    strings.Join(msg.Params[1:], " "),
-			}
+			}, nil
 		}
 	case "PRIVMSG", "NOTICE":
-		targetCf := s.casemap(msg.Params[0])
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var target string
+		if err := msg.ParseParams(&target); err != nil {
+			return nil, err
+		}
+
+		targetCf := s.casemap(target)
 		nickCf := s.casemap(msg.Prefix.Name)
 		s.typings.Done(targetCf, nickCf)
+
 		return s.newMessageEvent(msg)
 	case "TAGMSG":
-		nickCf := s.Casemap(msg.Prefix.Name)
-		targetCf := s.Casemap(msg.Params[0])
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var target string
+		if err := msg.ParseParams(&target); err != nil {
+			return nil, err
+		}
+
+		targetCf := s.casemap(target)
+		nickCf := s.casemap(msg.Prefix.Name)
 
 		if s.IsMe(msg.Prefix.Name) {
 			// TAGMSG from self
@@ -770,19 +906,46 @@ func (s *Session) handleRegistered(msg Message) Event {
 			}
 		}
 	case "BATCH":
-		batchStart := msg.Params[0][0] == '+'
-		id := msg.Params[0][1:]
+		var id string
+		if err := msg.ParseParams(&id); err != nil {
+			return nil, err
+		}
 
-		if batchStart && msg.Params[1] == "chathistory" {
-			s.chBatches[id] = HistoryEvent{Target: msg.Params[2]}
+		batchStart := id[0] == '+' // id is not empty since it's not a trailing param
+		id = id[1:]
+
+		if batchStart {
+			var name string
+			if err := msg.ParseParams(nil, &name); err != nil {
+				return nil, err
+			}
+
+			switch name {
+			case "chathistory":
+				var target string
+				if err := msg.ParseParams(nil, nil, &target); err != nil {
+					return nil, err
+				}
+
+				s.chBatches[id] = HistoryEvent{Target: target}
+			}
 		} else if b, ok := s.chBatches[id]; ok {
 			delete(s.chBatches, id)
 			delete(s.chReqs, s.Casemap(b.Target))
-			return b
+			return b, nil
 		}
 	case "NICK":
+		if msg.Prefix == nil {
+			return nil, errMissingPrefix
+		}
+
+		var nick string
+		if err := msg.ParseParams(&nick); err != nil {
+			return nil, err
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
-		newNick := msg.Params[0]
+		newNick := nick
 		newNickCf := s.Casemap(newNick)
 
 		if formerUser, ok := s.users[nickCf]; ok {
@@ -798,61 +961,83 @@ func (s *Session) handleRegistered(msg Message) Event {
 			s.nickCf = newNickCf
 			return SelfNickEvent{
 				FormerNick: msg.Prefix.Name,
-			}
+			}, nil
 		} else {
 			return UserNickEvent{
-				User:       msg.Params[0],
+				User:       nick,
 				FormerNick: msg.Prefix.Name,
-			}
+			}, nil
 		}
 	case "PING":
-		s.out <- NewMessage("PONG", msg.Params[0])
+		var payload string
+		if err := msg.ParseParams(&payload); err != nil {
+			return nil, err
+		}
+
+		s.out <- NewMessage("PONG", payload)
 	case "ERROR":
 		s.Close()
-	case "FAIL":
-		return ErrorEvent{
-			Severity: SeverityFail,
-			Code:     msg.Params[1],
-			Message:  strings.Join(msg.Params[2:], " "),
+	case "FAIL", "WARN", "NOTE":
+		var severity Severity
+		var code string
+		if err := msg.ParseParams(nil, &code); err != nil {
+			return nil, err
 		}
-	case "WARN":
-		return ErrorEvent{
-			Severity: SeverityWarn,
-			Code:     msg.Params[1],
-			Message:  strings.Join(msg.Params[2:], " "),
+
+		switch msg.Command {
+		case "FAIL":
+			severity = SeverityFail
+		case "WARN":
+			severity = SeverityWarn
+		case "NOTE":
+			severity = SeverityNote
 		}
-	case "NOTE":
+
 		return ErrorEvent{
-			Severity: SeverityNote,
-			Code:     msg.Params[1],
+			Severity: severity,
+			Code:     code,
 			Message:  strings.Join(msg.Params[2:], " "),
-		}
+		}, nil
 	default:
 		if msg.IsReply() {
+			if len(msg.Params) < 2 {
+				return nil, msg.errNotEnoughParams(2)
+			}
 			return ErrorEvent{
 				Severity: ReplySeverity(msg.Command),
 				Code:     msg.Command,
 				Message:  strings.Join(msg.Params[1:], " "),
-			}
+			}, nil
 		}
 	}
-	return nil
+	return nil, nil
 }
 
-func (s *Session) newMessageEvent(msg Message) MessageEvent {
-	targetCf := s.Casemap(msg.Params[0])
-	ev := MessageEvent{
+func (s *Session) newMessageEvent(msg Message) (ev MessageEvent, err error) {
+	if msg.Prefix == nil {
+		return ev, errMissingPrefix
+	}
+
+	var target, content string
+	if err := msg.ParseParams(&target, &content); err != nil {
+		return ev, err
+	}
+
+	ev = MessageEvent{
 		User:    msg.Prefix.Name, // TODO correctly casemap
-		Target:  msg.Params[0],   // TODO correctly casemap
+		Target:  target,          // TODO correctly casemap
 		Command: msg.Command,
-		Content: msg.Params[1],
+		Content: content,
 		Time:    msg.TimeOrNow(),
 	}
+
+	targetCf := s.Casemap(target)
 	if c, ok := s.channels[targetCf]; ok {
 		ev.Target = c.Name
 		ev.TargetIsChannel = true
 	}
-	return ev
+
+	return ev, nil
 }
 
 func (s *Session) cleanUser(parted *User) {
