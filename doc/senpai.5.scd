@@ -52,7 +52,7 @@ Some settings are required, the others are optional.
 *on-highlight*
 	A command to be executed via _sh_ when you are highlighted.  The following
 	environment variables are set with repect to the highlight, THEY MUST APPEAR
-	QUOTED IN THE SETTING, OR YOU WILL BE OPEN TO ATTACKS.
+	QUOTED IN THE SETTING, OR YOU WILL BE OPEN TO SHELL INJECTION ATTACKS.
 
 [[ *Environment variable*
 :< *Description*
