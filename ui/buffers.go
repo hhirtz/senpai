@@ -490,11 +490,7 @@ func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, widt
 }
 
 func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int) {
-	for x := x0; x < x0+bs.tlInnerWidth+nickColWidth+9; x++ {
-		for y := y0; y < y0+bs.tlHeight; y++ {
-			screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
-		}
-	}
+	clearArea(screen, x0, y0, bs.tlInnerWidth+nickColWidth+9, bs.tlHeight)
 
 	b := &bs.list[bs.current]
 	yi := b.scrollAmt + y0 + bs.tlHeight
@@ -536,7 +532,7 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 				x = x1
 				y++
 				nls = nls[1:]
-				if bs.tlHeight < y {
+				if bs.tlHeight <= y {
 					break
 				}
 			}
