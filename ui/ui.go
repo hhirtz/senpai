@@ -132,6 +132,14 @@ func (ui *UI) ScrollDownBy(n int) {
 	ui.bs.ScrollDown(n)
 }
 
+func (ui *UI) ScrollUpHighlight() bool {
+	return ui.bs.ScrollUpHighlight()
+}
+
+func (ui *UI) ScrollDownHighlight() bool {
+	return ui.bs.ScrollDownHighlight()
+}
+
 func (ui *UI) ScrollMemberUpBy(n int) {
 	ui.memberOffset -= n
 	if ui.memberOffset < 0 {

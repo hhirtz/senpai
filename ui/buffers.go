@@ -374,6 +374,36 @@ func (bs *BufferList) ScrollDown(n int) {
 	}
 }
 
+func (bs *BufferList) ScrollUpHighlight() bool {
+	b := &bs.list[bs.current]
+	ymin := b.scrollAmt + bs.tlHeight
+	y := 0
+	for i := len(b.lines) - 1; 0 <= i; i-- {
+		line := &b.lines[i]
+		if ymin <= y && line.Highlight {
+			b.scrollAmt = y - bs.tlHeight + 1
+			return true
+		}
+		y += len(line.NewLines(bs.tlInnerWidth)) + 1
+	}
+	return false
+}
+
+func (bs *BufferList) ScrollDownHighlight() bool {
+	b := &bs.list[bs.current]
+	yLastHighlight := 0
+	y := 0
+	for i := len(b.lines) - 1; 0 <= i && y < b.scrollAmt; i-- {
+		line := &b.lines[i]
+		if line.Highlight {
+			yLastHighlight = y
+		}
+		y += len(line.NewLines(bs.tlInnerWidth)) + 1
+	}
+	b.scrollAmt = yLastHighlight
+	return b.scrollAmt != 0
+}
+
 func (bs *BufferList) IsAtTop() bool {
 	b := &bs.list[bs.current]
 	return b.isAtTop

@@ -86,6 +86,13 @@ of messages are in the timeline:
 *ALT-END*
 	Go to the last buffer.
 
+*ALT-P*
+	Go to the previous highlight
+
+*ALT-N*
+	Go to the next highlight, or to the (most recent) end of the timeline if
+	there is none.
+
 *UP*, *DOWN*, *LEFT*, *RIGHT*, *HOME*, *END*, *BACKSPACE*, *DELETE*
 	Edit the text in the input field.
 

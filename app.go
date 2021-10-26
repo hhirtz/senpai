@@ -489,8 +489,17 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 			})
 		}
 	case tcell.KeyRune:
-		app.win.InputRune(ev.Rune())
-		app.typing()
+		if ev.Modifiers() == tcell.ModAlt {
+			switch ev.Rune() {
+			case 'n':
+				app.win.ScrollDownHighlight()
+			case 'p':
+				app.win.ScrollUpHighlight()
+			}
+		} else {
+			app.win.InputRune(ev.Rune())
+			app.typing()
+		}
 	default:
 		return
 	}
