@@ -333,13 +333,7 @@ func (ui *UI) Draw(members []irc.Member) {
 }
 
 func (ui *UI) drawStatusBar(x0, y, width int) {
-	width--
-
-	st := tcell.StyleDefault.Dim(true)
-
-	for x := x0; x < x0+width; x++ {
-		ui.screen.SetContent(x, y, ' ', nil, st)
-	}
+	clearArea(ui.screen, x0, y, width, 1)
 
 	if ui.status == "" {
 		return
