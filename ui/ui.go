@@ -295,6 +295,7 @@ func (ui *UI) Resize() {
 	} else {
 		ui.bs.ResizeTimeline(innerWidth, h-2)
 	}
+	ui.screen.Sync()
 }
 
 func (ui *UI) Size() (int, int) {
