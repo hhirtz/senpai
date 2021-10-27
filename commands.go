@@ -2,6 +2,7 @@ package senpai
 
 import (
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -180,65 +181,70 @@ func commandDoBuffer(app *App, args []string) error {
 func commandDoHelp(app *App, args []string) (err error) {
 	t := time.Now()
 	netID, buffer := app.win.CurrentBuffer()
+
+	addLineCommand := func(sb *ui.StyledStringBuilder, name string, cmd *command) {
+		sb.Reset()
+		sb.Grow(len(name) + 1 + len(cmd.Usage))
+		sb.SetStyle(tcell.StyleDefault.Bold(true))
+		sb.WriteString(name)
+		sb.SetStyle(tcell.StyleDefault)
+		sb.WriteByte(' ')
+		sb.WriteString(cmd.Usage)
+		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
+			At:   t,
+			Body: sb.StyledString(),
+		})
+		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
+			At:   t,
+			Body: ui.PlainSprintf("  %s", cmd.Desc),
+		})
+		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
+			At: t,
+		})
+	}
+
+	addLineCommands := func(names []string) {
+		sort.Strings(names)
+		var sb ui.StyledStringBuilder
+		for _, name := range names {
+			addLineCommand(&sb, name, commands[name])
+		}
+	}
+
 	if len(args) == 0 {
 		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainString("Available commands:"),
 		})
-		for cmdName, cmd := range commands {
-			if cmd.Desc == "" {
-				continue
-			}
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At:   t,
-				Body: ui.PlainSprintf("  \x02%s\x02 %s", cmdName, cmd.Usage),
-			})
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At:   t,
-				Body: ui.PlainSprintf("    %s", cmd.Desc),
-			})
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At: t,
-			})
+
+		cmdNames := make([]string, 0, len(commands))
+		for cmdName := range commands {
+			cmdNames = append(cmdNames, cmdName)
 		}
+		addLineCommands(cmdNames)
 	} else {
 		search := strings.ToUpper(args[0])
-		found := false
 		app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 			At:   t,
 			Head: "--",
 			Body: ui.PlainSprintf("Commands that match \"%s\":", search),
 		})
-		for cmdName, cmd := range commands {
+
+		cmdNames := make([]string, 0, len(commands))
+		for cmdName := range commands {
 			if !strings.Contains(cmdName, search) {
 				continue
 			}
-			var usage ui.StyledStringBuilder
-			usage.Grow(len(cmdName) + 1 + len(cmd.Usage))
-			usage.SetStyle(tcell.StyleDefault.Bold(true))
-			usage.WriteString(cmdName)
-			usage.SetStyle(tcell.StyleDefault)
-			usage.WriteByte(' ')
-			usage.WriteString(cmd.Usage)
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At:   t,
-				Body: usage.StyledString(),
-			})
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At:   t,
-				Body: ui.PlainSprintf("  %s", cmd.Desc),
-			})
-			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
-				At: t,
-			})
-			found = true
+			cmdNames = append(cmdNames, cmdName)
 		}
-		if !found {
+		if len(cmdNames) == 0 {
 			app.win.AddLine(netID, buffer, ui.NotifyNone, ui.Line{
 				At:   t,
 				Body: ui.PlainSprintf("  no command matches %q", args[0]),
 			})
+		} else {
+			addLineCommands(cmdNames)
 		}
 	}
 	return nil
