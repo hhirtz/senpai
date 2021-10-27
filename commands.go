@@ -564,10 +564,10 @@ func (app *App) handleInput(buffer, content string) error {
 	}
 
 	if len(args) < cmd.MinArgs {
-		return fmt.Errorf("usage: %s %s", cmdName, cmd.Usage)
+		return fmt.Errorf("usage: %s %s", chosenCMDName, cmd.Usage)
 	}
 	if buffer == "" && !cmd.AllowHome {
-		return fmt.Errorf("command %q cannot be executed from a server buffer", cmdName)
+		return fmt.Errorf("command %s cannot be executed from a server buffer", chosenCMDName)
 	}
 
 	return cmd.Handle(app, args)
