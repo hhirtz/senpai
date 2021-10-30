@@ -62,6 +62,11 @@ func (b *bound) Update(line *ui.Line) {
 	}
 }
 
+// IsZero reports whether the bound is empty.
+func (b *bound) IsZero() bool {
+	return b.first.IsZero()
+}
+
 type event struct {
 	src     string // "*" if UI, netID otherwise
 	content interface{}
@@ -775,7 +780,9 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			bounds.Update(&linesAfter[0])
 			bounds.Update(&linesAfter[len(linesAfter)-1])
 		}
-		app.messageBounds[ev.Target] = bounds
+		if !bounds.IsZero() {
+			app.messageBounds[ev.Target] = bounds
+		}
 	case irc.BouncerNetworkEvent:
 		_, added := app.win.AddBuffer(ev.ID, ev.Name, "")
 		if added {
