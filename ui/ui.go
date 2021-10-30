@@ -28,7 +28,8 @@ type UI struct {
 	prompt StyledString
 	status string
 
-	memberOffset int
+	channelOffset int
+	memberOffset  int
 }
 
 func New(config Config) (ui *UI, err error) {
@@ -138,6 +139,21 @@ func (ui *UI) ScrollUpHighlight() bool {
 
 func (ui *UI) ScrollDownHighlight() bool {
 	return ui.bs.ScrollDownHighlight()
+}
+
+func (ui *UI) ScrollChannelUpBy(n int) {
+	ui.channelOffset -= n
+	if ui.channelOffset < 0 {
+		ui.channelOffset = 0
+	}
+}
+
+func (ui *UI) ScrollChannelDownBy(n int) {
+	ui.channelOffset += n
+}
+
+func (ui *UI) ChannelOffset() int {
+	return ui.channelOffset
 }
 
 func (ui *UI) ScrollMemberUpBy(n int) {
@@ -315,7 +331,7 @@ func (ui *UI) Draw(members []irc.Member) {
 	if ui.config.ChanColWidth == 0 {
 		ui.bs.DrawHorizontalBufferList(ui.screen, 0, h-1, w-ui.config.MemberColWidth)
 	} else {
-		ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h)
+		ui.bs.DrawVerticalBufferList(ui.screen, 0, 0, ui.config.ChanColWidth, h, &ui.channelOffset)
 	}
 	if ui.config.MemberColWidth != 0 {
 		drawVerticalMemberList(ui.screen, w-ui.config.MemberColWidth, 0, ui.config.MemberColWidth, h, members, &ui.memberOffset)

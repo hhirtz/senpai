@@ -363,7 +363,7 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	w, _ := app.win.Size()
 	if ev.Buttons()&tcell.WheelUp != 0 {
 		if x < app.cfg.ChanColWidth {
-			// TODO scroll chan list
+			app.win.ScrollChannelUpBy(4)
 		} else if x > w-app.cfg.MemberColWidth {
 			app.win.ScrollMemberUpBy(4)
 		} else {
@@ -373,7 +373,7 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 	}
 	if ev.Buttons()&tcell.WheelDown != 0 {
 		if x < app.cfg.ChanColWidth {
-			// TODO scroll chan list
+			app.win.ScrollChannelDownBy(4)
 		} else if x > w-app.cfg.MemberColWidth {
 			app.win.ScrollMemberDownBy(4)
 		} else {
@@ -381,11 +381,13 @@ func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
 		}
 	}
 	if ev.Buttons()&tcell.ButtonPrimary != 0 && x < app.cfg.ChanColWidth {
-		app.win.ClickBuffer(y)
+		app.win.ClickBuffer(y + app.win.ChannelOffset())
 	}
 	if ev.Buttons() == 0 {
-		if y == app.win.ClickedBuffer() && x < app.cfg.ChanColWidth {
-			app.win.GoToBufferNo(y)
+		if x < app.cfg.ChanColWidth {
+			if i := y + app.win.ChannelOffset(); i == app.win.ClickedBuffer() {
+				app.win.GoToBufferNo(i)
+			}
 		}
 		app.win.ClickBuffer(-1)
 	}
