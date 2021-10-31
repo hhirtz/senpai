@@ -76,9 +76,9 @@ func init() {
 		},
 		"MODE": {
 			AllowHome: true,
-			MinArgs:   2,
+			MinArgs:   1,
 			MaxArgs:   5, // <channel> <flags> <limit> <user> <ban mask>
-			Usage:     "<nick/channel> <flags> [args]",
+			Usage:     "[<nick/channel>] <flags> [args]",
 			Desc:      "change channel or user modes",
 			Handle:    commandDoMode,
 		},
@@ -359,6 +359,11 @@ func commandDoNick(app *App, args []string) (err error) {
 }
 
 func commandDoMode(app *App, args []string) (err error) {
+	if strings.HasPrefix(args[0], "+") || strings.HasPrefix(args[0], "-") {
+		// if we do eg /MODE +P, automatically insert the current channel: /MODE #<current-chan> +P
+		_, channel := app.win.CurrentBuffer()
+		args = append([]string{channel}, args...)
+	}
 	channel := args[0]
 	flags := args[1]
 	modeArgs := args[2:]
