@@ -179,6 +179,7 @@ type buffer struct {
 	unread     bool
 
 	lines []Line
+	topic string
 
 	scrollAmt int
 	isAtTop   bool
@@ -206,7 +207,7 @@ func NewBufferList() BufferList {
 
 func (bs *BufferList) ResizeTimeline(tlInnerWidth, tlHeight int) {
 	bs.tlInnerWidth = tlInnerWidth
-	bs.tlHeight = tlHeight
+	bs.tlHeight = tlHeight - 2
 }
 
 func (bs *BufferList) To(i int) bool {
@@ -356,6 +357,15 @@ func (bs *BufferList) AddLines(netID, title string, before, after []Line) {
 	if len(after) != 0 {
 		b.lines = append(b.lines, after...)
 	}
+}
+
+func (bs *BufferList) SetTopic(netID, title string, topic string) {
+	idx := bs.idx(netID, title)
+	if idx < 0 {
+		return
+	}
+	b := &bs.list[idx]
+	b.topic = topic
 }
 
 func (bs *BufferList) Current() (netID, title string) {
@@ -534,12 +544,22 @@ func (bs *BufferList) DrawHorizontalBufferList(screen tcell.Screen, x0, y0, widt
 }
 
 func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int) {
-	clearArea(screen, x0, y0, bs.tlInnerWidth+nickColWidth+9, bs.tlHeight)
+	clearArea(screen, x0, y0, bs.tlInnerWidth+nickColWidth+9, bs.tlHeight+2)
 
 	b := &bs.list[bs.current]
+
+	xTopic := x0
+	printString(screen, &xTopic, y0, Styled(b.topic, tcell.StyleDefault))
+	y0++
+	for x := x0; x < x0+bs.tlInnerWidth+nickColWidth+9; x++ {
+		st := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		screen.SetContent(x, y0, 0x2500, nil, st)
+	}
+	y0++
+
 	yi := b.scrollAmt + y0 + bs.tlHeight
 	for i := len(b.lines) - 1; 0 <= i; i-- {
-		if yi < 0 {
+		if yi < y0 {
 			break
 		}
 
@@ -552,15 +572,17 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 			continue
 		}
 
-		if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
-			st := tcell.StyleDefault.Bold(true)
-			printTime(screen, x0, yi, st, line.At.Local())
-		}
+		if yi >= y0 {
+			if i == 0 || b.lines[i-1].At.Truncate(time.Minute) != line.At.Truncate(time.Minute) {
+				st := tcell.StyleDefault.Bold(true)
+				printTime(screen, x0, yi, st, line.At.Local())
+			}
 
-		identSt := tcell.StyleDefault.
-			Foreground(line.HeadColor).
-			Reverse(line.Highlight)
-		printIdent(screen, x0+7, yi, nickColWidth, Styled(line.Head, identSt))
+			identSt := tcell.StyleDefault.
+				Foreground(line.HeadColor).
+				Reverse(line.Highlight)
+			printIdent(screen, x0+7, yi, nickColWidth, Styled(line.Head, identSt))
+		}
 
 		x := x1
 		y := yi
@@ -585,7 +607,9 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 				continue
 			}
 
-			screen.SetContent(x, y, r, nil, style)
+			if yi >= y0 {
+				screen.SetContent(x, y, r, nil, style)
+			}
 			x += runeWidth(r)
 		}
 	}
