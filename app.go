@@ -733,15 +733,9 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			Highlight: notify == ui.NotifyHighlight,
 		})
 	case irc.MessageEvent:
-		buffer, line, hlNotification := app.formatMessage(s, ev)
-		var notify ui.NotifyType
-		if hlNotification {
-			notify = ui.NotifyHighlight
-		} else {
-			notify = ui.NotifyUnread
-		}
-		app.win.AddLine(netID, buffer, notify, line)
-		if hlNotification {
+		buffer, line, notification := app.formatMessage(s, ev)
+		app.win.AddLine(netID, buffer, notification, line)
+		if notification == ui.NotifyHighlight {
 			app.notifyHighlight(buffer, ev.User, line.Body.String())
 		}
 		if !s.IsChannel(msg.Params[0]) && !s.IsMe(ev.User) {
@@ -925,8 +919,8 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 // It computes three things:
 // - which buffer the message must be added to,
 // - the UI line,
-// - whether senpai must trigger the "on-highlight" command.
-func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer string, line ui.Line, hlNotification bool) {
+// - what kind of notification senpai should send.
+func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer string, line ui.Line, notification ui.NotifyType) {
 	isFromSelf := s.IsMe(ev.User)
 	isHighlight := app.isHighlight(s, ev.Content)
 	isAction := strings.HasPrefix(ev.Content, "\x01ACTION")
@@ -947,7 +941,13 @@ func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer strin
 	}
 
 	hlLine := ev.TargetIsChannel && isHighlight && !isFromSelf
-	hlNotification = (isHighlight || isQuery) && !isFromSelf
+	if isFromSelf {
+		notification = ui.NotifyNone
+	} else if isHighlight || isQuery {
+		notification = ui.NotifyHighlight
+	} else {
+		notification = ui.NotifyUnread
+	}
 
 	head := ev.User
 	headColor := tcell.ColorWhite
