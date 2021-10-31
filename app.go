@@ -767,7 +767,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 						linesAfter = append(linesAfter, line)
 					}
 				} else {
-					linesAfter = append(linesAfter, line)
+					linesBefore = append(linesBefore, line)
 				}
 			}
 		}
