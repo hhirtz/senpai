@@ -302,6 +302,10 @@ func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line)
 	n := len(b.lines)
 	line.At = line.At.UTC()
 
+	if !line.Mergeable {
+		line.Body = line.Body.ParseURLs()
+	}
+
 	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
 		newBody := new(StyledStringBuilder)
@@ -338,9 +342,11 @@ func (bs *BufferList) AddLines(netID, title string, before, after []Line) {
 	b := &bs.list[idx]
 
 	for i := 0; i < len(before); i++ {
+		before[i].Body = before[i].Body.ParseURLs()
 		before[i].computeSplitPoints()
 	}
 	for i := 0; i < len(after); i++ {
+		after[i].Body = after[i].Body.ParseURLs()
 		after[i].computeSplitPoints()
 	}
 

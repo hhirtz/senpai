@@ -6,6 +6,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"mvdan.cc/xurls/v2"
+
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
 )
@@ -113,6 +115,69 @@ func (s StyledString) Truncate(w int, tail StyledString) StyledString {
 	}
 	sb.WriteStyledString(tail)
 	return sb.StyledString()
+}
+
+var urlRegex = xurls.Relaxed()
+
+func (s StyledString) ParseURLs() StyledString {
+	styles := make([]rangedStyle, 0, len(s.styles))
+
+	urls := urlRegex.FindAllStringIndex(s.string, -1)
+	j := 0
+	lastStyle := rangedStyle{
+		Start: -1,
+		Style: tcell.StyleDefault,
+	}
+	for i := 0; i < len(urls); i++ {
+		u := urls[i]
+		ub, ue := u[0], u[1]
+		link := s.string[u[0]:u[1]] + "?a=b"
+		// find last style starting before or at url begin
+		for ; j < len(s.styles); j++ {
+			st := s.styles[j]
+			if st.Start > ub {
+				break
+			}
+			if st.Start == ub {
+				// a style already starts at this position, edit it
+				lastStyle.Style = lastStyle.Style.Hyperlink(link)
+			}
+			lastStyle = st
+			styles = append(styles, st)
+		}
+		if lastStyle.Start != ub {
+			// no style existed at this position, add one from the last style
+			styles = append(styles, rangedStyle{
+				Start: ub,
+				Style: lastStyle.Style.Hyperlink(link),
+			})
+		}
+		// find last style starting before or at url end
+		for ; j < len(s.styles); j++ {
+			st := s.styles[j]
+			if st.Start > ue {
+				break
+			}
+			if st.Start < ue {
+				st.Style = st.Style.Hyperlink(link)
+			}
+			lastStyle = st
+			styles = append(styles, st)
+		}
+		if lastStyle.Start != ue {
+			// no style existed at this position, add one from the last style without the hyperlink
+			styles = append(styles, rangedStyle{
+				Start: ue,
+				Style: lastStyle.Style.Hyperlink(""),
+			})
+		}
+	}
+	styles = append(styles, s.styles[j:]...)
+
+	return StyledString{
+		string: s.string,
+		styles: styles,
+	}
 }
 
 func isDigit(c byte) bool {
