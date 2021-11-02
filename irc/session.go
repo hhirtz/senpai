@@ -973,8 +973,11 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		if err := msg.ParseParams(&id); err != nil {
 			return nil, err
 		}
+		if len(id) == 0 {
+			return nil, fmt.Errorf("empty batch id")
+		}
 
-		batchStart := id[0] == '+' // id is not empty since it's not a trailing param
+		batchStart := id[0] == '+'
 		id = id[1:]
 
 		if batchStart {
