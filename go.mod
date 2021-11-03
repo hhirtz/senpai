@@ -1,6 +1,6 @@
 module git.sr.ht/~taiite/senpai
 
-go 1.14
+go 1.16
 
 require (
 	github.com/gdamore/tcell/v2 v2.3.11
