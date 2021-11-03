@@ -693,7 +693,8 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			})
 		}
 	case irc.TopicChangeEvent:
-		body := fmt.Sprintf("Topic changed to: %s", ev.Topic)
+		topic := ui.IRCString(ev.Topic).String()
+		body := fmt.Sprintf("Topic changed to: %s", topic)
 		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",
@@ -1024,6 +1025,7 @@ func (app *App) printTopic(netID, buffer string) (ok bool) {
 		return false
 	}
 	topic, who, at := s.Topic(buffer)
+	topic = ui.IRCString(topic).String()
 	if who == nil {
 		body = fmt.Sprintf("Topic: %s", topic)
 	} else {
