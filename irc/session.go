@@ -117,6 +117,7 @@ type Session struct {
 
 	// ISUPPORT features
 	casemap       func(string) string
+	chanmodes     [4]string
 	chantypes     string
 	linelen       int
 	historyLimit  int
@@ -877,14 +878,44 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			}, nil
 		}
 	case "MODE":
-		var channel string
-		if err := msg.ParseParams(&channel); err != nil {
+		var channel, mode string
+		if err := msg.ParseParams(&channel, &mode); err != nil {
 			return nil, err
 		}
 
 		channelCf := s.Casemap(channel)
 
 		if c, ok := s.channels[channelCf]; ok {
+			modeChanges, err := ParseChannelMode(mode, msg.Params[2:], s.chanmodes, s.prefixModes)
+			if err != nil {
+				return nil, err
+			}
+			for _, change := range modeChanges {
+				i := strings.IndexByte(s.prefixModes, change.Mode)
+				if i < 0 {
+					continue
+				}
+				nickCf := s.Casemap(change.Param)
+				user := s.users[nickCf]
+				membership, ok := c.Members[user]
+				if !ok {
+					continue
+				}
+				var newMembership []byte
+				if change.Enable {
+					newMembership = append([]byte(membership), s.prefixSymbols[i])
+					sort.Slice(newMembership, func(i, j int) bool {
+						i = strings.IndexByte(s.prefixSymbols, newMembership[i])
+						j = strings.IndexByte(s.prefixSymbols, newMembership[j])
+						return i < j
+					})
+				} else if j := strings.IndexByte(membership, s.prefixSymbols[i]); j >= 0 {
+					newMembership = []byte(membership)
+					newMembership = append(newMembership[:j], newMembership[j+1:]...)
+				}
+				c.Members[user] = string(newMembership)
+			}
+			s.channels[channelCf] = c
 			return ModeChangeEvent{
 				Channel: c.Name,
 				Mode:    strings.Join(msg.Params[1:], " "),
@@ -1168,6 +1199,12 @@ func (s *Session) updateFeatures(features []string) {
 				s.casemap = CasemapASCII
 			default:
 				s.casemap = CasemapRFC1459
+			}
+		case "CHANMODES":
+			// We only care about the first four params
+			types := strings.SplitN(value, ",", 5)
+			for i := 0; i < len(types) && i < len(s.chanmodes); i++ {
+				s.chanmodes[i] = types[i]
 			}
 		case "CHANTYPES":
 			s.chantypes = value

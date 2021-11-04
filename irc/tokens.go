@@ -502,3 +502,62 @@ func ParseNameReply(trailing string, prefixes string) (names []Member) {
 
 	return
 }
+
+// Mode types available in the CHANMODES 005 token.
+const (
+	ModeTypeA int = iota
+	ModeTypeB
+	ModeTypeC
+	ModeTypeD
+)
+
+type ModeChange struct {
+	Enable bool
+	Mode   byte
+	Param  string
+}
+
+// ParseChannelMode parses a MODE message for a channel, according to the
+// CHANMODES of the server.
+func ParseChannelMode(mode string, params []string, chanmodes [4]string, membershipModes string) ([]ModeChange, error) {
+	var changes []ModeChange
+	enable := true
+	paramIdx := 0
+	for i := 0; i < len(mode); i++ {
+		m := mode[i]
+		if m == '+' || m == '-' {
+			enable = m == '+'
+			continue
+		}
+		modeType := -1
+		for t := 0; t < 4; t++ {
+			if 0 <= strings.IndexByte(chanmodes[t], m) {
+				modeType = t
+				break
+			}
+		}
+		if 0 <= strings.IndexByte(membershipModes, m) {
+			modeType = ModeTypeB
+		} else if modeType == -1 {
+			return nil, fmt.Errorf("unknown mode %c", m)
+		}
+		// ref: https://modern.ircdocs.horse/#mode-message
+		if modeType == ModeTypeA || modeType == ModeTypeB || (enable && modeType == ModeTypeC) {
+			if len(params) <= paramIdx {
+				return nil, fmt.Errorf("missing mode params")
+			}
+			changes = append(changes, ModeChange{
+				Enable: enable,
+				Mode:   m,
+				Param:  params[paramIdx],
+			})
+			paramIdx++
+		} else {
+			changes = append(changes, ModeChange{
+				Enable: enable,
+				Mode:   m,
+			})
+		}
+	}
+	return changes, nil
+}
