@@ -4,7 +4,18 @@ import (
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 )
+
+func insertRune(s []rune, r rune, i int) []rune {
+	if i == len(s) {
+		return append(s, r)
+	}
+	s = append(s, 0)
+	copy(s[i+1:], s[i:])
+	s[i] = r
+	return s
+}
 
 type Completion struct {
 	Text      []rune
@@ -13,25 +24,24 @@ type Completion struct {
 
 // Editor is the text field where the user writes messages and commands.
 type Editor struct {
-	// text contains the written runes. An empty slice means no text is written.
+	// text is a slice of lines, which are slices of runes.
 	text [][]rune
 
 	lineIdx int
 
-	// textWidth[i] contains the width of string(text[:i]). Therefore
-	// len(textWidth) is always strictly greater than 0 and textWidth[0] is
-	// always 0.
-	textWidth []int
+	// runeQueue contains the runes that are to be inserted in text[lineIdx]
+	runeQueue []rune
 
-	// cursorIdx is the index in text of the placement of the cursor, or is
-	// equal to len(text) if the cursor is at the end.
+	// cursorIdx is the index in text[lineIdx] of the placement of the
+	// cursor, or is equal to len(text[lineIdx]) if the cursor is at the
+	// end.
 	cursorIdx int
 
-	// offsetIdx is the number of elements of text that are skipped when
-	// rendering.
-	offsetIdx int
+	// offsetWidth is the number of elements of text[lineIdx] that are skipped
+	// when rendering.
+	offsetWidth int
 
-	// width is the width of the screen.
+	// width is the width of the text field.
 	width int
 
 	autoComplete func(cursorIdx int, text []rune) []Completion
@@ -48,7 +58,6 @@ type Editor struct {
 func NewEditor(autoComplete func(cursorIdx int, text []rune) []Completion) Editor {
 	return Editor{
 		text:         [][]rune{{}},
-		textWidth:    []int{0},
 		autoComplete: autoComplete,
 	}
 }
@@ -56,7 +65,7 @@ func NewEditor(autoComplete func(cursorIdx int, text []rune) []Completion) Edito
 func (e *Editor) Resize(width int) {
 	if width < e.width {
 		e.cursorIdx = 0
-		e.offsetIdx = 0
+		e.offsetWidth = 0
 		e.autoCache = nil
 		e.backsearchEnd()
 	}
@@ -101,16 +110,7 @@ func (e *Editor) PutRune(r rune) {
 }
 
 func (e *Editor) putRune(r rune) {
-	e.text[e.lineIdx] = append(e.text[e.lineIdx], ' ')
-	copy(e.text[e.lineIdx][e.cursorIdx+1:], e.text[e.lineIdx][e.cursorIdx:])
-	e.text[e.lineIdx][e.cursorIdx] = r
-
-	rw := runeWidth(r)
-	tw := e.textWidth[len(e.textWidth)-1]
-	e.textWidth = append(e.textWidth, tw+rw)
-	for i := e.cursorIdx + 1; i < len(e.textWidth); i++ {
-		e.textWidth[i] = rw + e.textWidth[i-1]
-	}
+	e.text[e.lineIdx] = insertRune(e.text[e.lineIdx], r, e.cursorIdx)
 }
 
 func (e *Editor) RemRune() (ok bool) {
@@ -144,14 +144,6 @@ func (e *Editor) RemRuneForward() (ok bool) {
 }
 
 func (e *Editor) remRuneAt(idx int) {
-	// TODO avoid looping twice
-	rw := e.textWidth[idx+1] - e.textWidth[idx]
-	for i := idx + 1; i < len(e.textWidth); i++ {
-		e.textWidth[i] -= rw
-	}
-	copy(e.textWidth[idx+1:], e.textWidth[idx+2:])
-	e.textWidth = e.textWidth[:len(e.textWidth)-1]
-
 	copy(e.text[e.lineIdx][idx:], e.text[e.lineIdx][idx+1:])
 	e.text[e.lineIdx] = e.text[e.lineIdx][:len(e.text[e.lineIdx])-1]
 }
@@ -194,9 +186,8 @@ func (e *Editor) Flush() (content string) {
 		e.lineIdx = len(e.text)
 		e.text = append(e.text, []rune{})
 	}
-	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
-	e.offsetIdx = 0
+	e.offsetWidth = 0
 	e.autoCache = nil
 	e.backsearchEnd()
 	return
@@ -207,9 +198,8 @@ func (e *Editor) Clear() bool {
 		return false
 	}
 	e.text[e.lineIdx] = []rune{}
-	e.textWidth = e.textWidth[:1]
 	e.cursorIdx = 0
-	e.offsetIdx = 0
+	e.offsetWidth = 0
 	e.autoCache = nil
 	return true
 }
@@ -221,16 +211,9 @@ func (e *Editor) Right() {
 }
 
 func (e *Editor) right() {
-	if e.cursorIdx == len(e.text[e.lineIdx]) {
-		return
-	}
-	e.cursorIdx++
-	if e.width <= e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx] {
-		e.offsetIdx += 16
-		max := len(e.text[e.lineIdx]) - 1
-		if max < e.offsetIdx {
-			e.offsetIdx = max
-		}
+	g := uniseg.NewGraphemes(string(e.text[e.lineIdx][e.cursorIdx:]))
+	if g.Next() {
+		e.cursorIdx += len(g.Runes())
 	}
 }
 
@@ -255,16 +238,15 @@ func (e *Editor) Left() {
 }
 
 func (e *Editor) left() {
-	if e.cursorIdx == 0 {
+	var clusterLens []int
+	g := uniseg.NewGraphemes(string(e.text[e.lineIdx][:e.cursorIdx]))
+	for g.Next() {
+		clusterLens = append(clusterLens, len(g.Runes()))
+	}
+	if len(clusterLens) == 0 {
 		return
 	}
-	e.cursorIdx--
-	if e.cursorIdx <= e.offsetIdx {
-		e.offsetIdx -= 16
-		if e.offsetIdx < 0 {
-			e.offsetIdx = 0
-		}
-	}
+	e.cursorIdx -= clusterLens[len(clusterLens)-1]
 }
 
 func (e *Editor) LeftWord() {
@@ -290,7 +272,7 @@ func (e *Editor) Home() {
 		return
 	}
 	e.cursorIdx = 0
-	e.offsetIdx = 0
+	e.offsetWidth = 0
 	e.autoCache = nil
 	e.backsearchEnd()
 }
@@ -300,9 +282,6 @@ func (e *Editor) End() {
 		return
 	}
 	e.cursorIdx = len(e.text[e.lineIdx])
-	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
-		e.offsetIdx++
-	}
 	e.autoCache = nil
 	e.backsearchEnd()
 }
@@ -312,9 +291,8 @@ func (e *Editor) Up() {
 		return
 	}
 	e.lineIdx--
-	e.computeTextWidth()
 	e.cursorIdx = 0
-	e.offsetIdx = 0
+	e.offsetWidth = 0
 	e.autoCache = nil
 	e.backsearchEnd()
 	e.End()
@@ -329,9 +307,8 @@ func (e *Editor) Down() {
 		return
 	}
 	e.lineIdx++
-	e.computeTextWidth()
 	e.cursorIdx = 0
-	e.offsetIdx = 0
+	e.offsetWidth = 0
 	e.autoCache = nil
 	e.backsearchEnd()
 	e.End()
@@ -351,13 +328,6 @@ func (e *Editor) AutoComplete(offset int) (ok bool) {
 
 	e.text[e.lineIdx] = e.autoCache[e.autoCacheIdx].Text
 	e.cursorIdx = e.autoCache[e.autoCacheIdx].CursorIdx
-	e.computeTextWidth()
-	if len(e.textWidth) <= e.offsetIdx {
-		e.offsetIdx = 0
-	}
-	for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
-		e.offsetIdx++
-	}
 
 	e.backsearchEnd()
 	return true
@@ -384,12 +354,8 @@ func (e *Editor) backsearchUpdate(start int) {
 	for i := start; i >= 0; i-- {
 		if match := strings.Index(strings.ToLower(string(e.text[i])), pattern); match >= 0 {
 			e.lineIdx = i
-			e.computeTextWidth()
 			e.cursorIdx = runeOffset(string(e.text[i]), match) + len(e.backsearchPattern)
-			e.offsetIdx = 0
-			for e.width < e.textWidth[e.cursorIdx]-e.textWidth[e.offsetIdx]+16 {
-				e.offsetIdx++
-			}
+			e.offsetWidth = 0
 			e.autoCache = nil
 			break
 		}
@@ -400,39 +366,67 @@ func (e *Editor) backsearchEnd() {
 	e.backsearch = false
 }
 
-func (e *Editor) computeTextWidth() {
-	e.textWidth = e.textWidth[:1]
-	rw := 0
-	for _, r := range e.text[e.lineIdx] {
-		rw += runeWidth(r)
-		e.textWidth = append(e.textWidth, rw)
-	}
-}
-
 func (e *Editor) Draw(screen tcell.Screen, x0, y int) {
-	st := tcell.StyleDefault
+	type cluster struct {
+		Start int // index in e.text[e.lineIdx] of the start of the cluster
+		Width int
+	}
+
+	var clusters []cluster
+	g := uniseg.NewGraphemes(string(e.text[e.lineIdx]))
+	for start := 0; g.Next(); start += len(g.Runes()) {
+		clusters = append(clusters, cluster{
+			Start: start,
+			Width: stringWidth(g.Str()),
+		})
+	}
+
+	accWidth := 0
+	for _, cluster := range clusters {
+		if accWidth < e.offsetWidth && e.cursorIdx <= cluster.Start {
+			e.offsetWidth = accWidth - 16
+			if e.offsetWidth < 0 {
+				e.offsetWidth = 0
+			}
+			break
+		}
+		if e.width-accWidth+e.offsetWidth <= 0 {
+			e.offsetWidth = accWidth - e.width + 16
+			break
+		}
+		accWidth += cluster.Width
+	}
 
 	x := x0
-	i := e.offsetIdx
-
-	for i < len(e.text[e.lineIdx]) && x < x0+e.width {
-		r := e.text[e.lineIdx][i]
-		s := st
+	for i, cluster := range clusters {
+		if x0+e.width <= x {
+			break
+		}
+		clusterEnd := len(e.text[e.lineIdx])
+		if i+1 < len(clusters) {
+			clusterEnd = clusters[i+1].Start
+		}
+		runes := e.text[e.lineIdx][cluster.Start:clusterEnd]
+		if len(runes) == 0 {
+			continue
+		}
+		s := tcell.StyleDefault
 		if e.backsearch && i < e.cursorIdx && i >= e.cursorIdx-len(e.backsearchPattern) {
 			s = s.Underline(true)
 		}
-		screen.SetContent(x, y, r, nil, s)
-		x += runeWidth(r)
-		i++
+		screen.SetContent(x, y, runes[0], runes[1:], s)
+		if cluster.Start <= e.cursorIdx && e.cursorIdx < clusterEnd {
+			screen.ShowCursor(x, y)
+		}
+		x += cluster.Width
 	}
-
+	if e.cursorIdx == len(e.text[e.lineIdx]) {
+		screen.ShowCursor(x, y)
+	}
 	for x < x0+e.width {
-		screen.SetContent(x, y, ' ', nil, st)
+		screen.SetContent(x, y, ' ', nil, tcell.StyleDefault)
 		x++
 	}
-
-	cursorX := x0 + e.textWidth[e.cursorIdx] - e.textWidth[e.offsetIdx]
-	screen.ShowCursor(cursorX, y)
 }
 
 // runeOffset returns the lowercase version of a rune

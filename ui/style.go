@@ -10,20 +10,45 @@ import (
 
 	"github.com/gdamore/tcell/v2"
 	"github.com/mattn/go-runewidth"
+	"github.com/rivo/uniseg"
 )
 
-var condition = runewidth.Condition{}
-
-func runeWidth(r rune) int {
-	return condition.RuneWidth(r)
+func clusterWidth(cluster []rune) int {
+	width := 0
+	for _, r := range cluster {
+		width += runewidth.RuneWidth(r)
+	}
+	return width
 }
 
 func stringWidth(s string) int {
-	return condition.StringWidth(s)
+	width := 0
+	for _, r := range s {
+		width += runewidth.RuneWidth(r)
+	}
+	return width
 }
 
 func truncate(s string, w int, tail string) string {
-	return condition.Truncate(s, w, tail)
+	width := stringWidth(s)
+	if width <= w {
+		return s
+	}
+	w -= stringWidth(tail)
+	end := len(s)
+	for i, r := range s {
+		if w < 0 {
+			end = i
+			break
+		}
+		w -= runewidth.RuneWidth(r)
+	}
+	return s[:end] + tail
+}
+
+func clusterSize(g *uniseg.Graphemes) int {
+	start, end := g.Positions()
+	return end - start
 }
 
 // Taken from <https://modern.ircdocs.horse/formatting.html>
