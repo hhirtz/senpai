@@ -6,8 +6,10 @@ import (
 	"io/ioutil"
 	"math/rand"
 	"os"
+	"os/signal"
 	"path"
 	"strings"
+	"syscall"
 	"time"
 
 	"git.sr.ht/~taiite/senpai"
@@ -51,16 +53,17 @@ func main() {
 	lastNetID, lastBuffer := getLastBuffer()
 	app.SwitchToBuffer(lastNetID, lastBuffer)
 
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+
+	go func() {
+		<-sigCh
+		app.Close()
+	}()
+
 	app.Run()
 	app.Close()
-
-	// Write last buffer on close
-	lastBufferPath := getLastBufferPath()
-	lastNetID, lastBuffer = app.CurrentBuffer()
-	err = os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
-	}
+	writeLastBuffer(app)
 }
 
 func getLastBufferPath() string {
@@ -90,4 +93,13 @@ func getLastBuffer() (netID, buffer string) {
 	}
 
 	return fields[0], fields[1]
+}
+
+func writeLastBuffer(app *senpai.App) {
+	lastBufferPath := getLastBufferPath()
+	lastNetID, lastBuffer := app.CurrentBuffer()
+	err := os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
+	}
 }
