@@ -72,6 +72,11 @@ type event struct {
 	content interface{}
 }
 
+type boundKey struct {
+	netID  string
+	target string
+}
+
 type App struct {
 	win      *ui.UI
 	sessions map[string]*irc.Session
@@ -83,7 +88,7 @@ type App struct {
 
 	lastQuery     string
 	lastQueryNet  string
-	messageBounds map[string]bound
+	messageBounds map[boundKey]bound
 	lastNetID     string
 	lastBuffer    string
 }
@@ -93,7 +98,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		sessions:      map[string]*irc.Session{},
 		events:        make(chan event, eventChanSize),
 		cfg:           cfg,
-		messageBounds: map[string]bound{},
+		messageBounds: map[boundKey]bound{},
 	}
 
 	if cfg.Highlights != nil {
@@ -522,7 +527,7 @@ func (app *App) requestHistory() {
 	}
 	if app.win.IsAtTop() && buffer != "" {
 		t := time.Now()
-		if bound, ok := app.messageBounds[buffer]; ok {
+		if bound, ok := app.messageBounds[boundKey{netID, buffer}]; ok {
 			t = bound.first
 		}
 		s.NewHistoryRequest(buffer).
@@ -622,7 +627,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		}
 	case irc.SelfJoinEvent:
 		i, added := app.win.AddBuffer(netID, "", ev.Channel)
-		bounds, ok := app.messageBounds[ev.Channel]
+		bounds, ok := app.messageBounds[boundKey{netID, ev.Channel}]
 		if added || !ok {
 			s.NewHistoryRequest(ev.Channel).
 				WithLimit(200).
@@ -661,7 +666,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		})
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(ev.Channel)
-		delete(app.messageBounds, ev.Channel)
+		delete(app.messageBounds, boundKey{netID, ev.Channel})
 	case irc.UserPartEvent:
 		var body ui.StyledStringBuilder
 		body.Grow(len(ev.User) + 1)
@@ -743,13 +748,13 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			app.lastQuery = msg.Prefix.Name
 			app.lastQueryNet = netID
 		}
-		bounds := app.messageBounds[ev.Target]
+		bounds := app.messageBounds[boundKey{netID, ev.Target}]
 		bounds.Update(&line)
-		app.messageBounds[ev.Target] = bounds
+		app.messageBounds[boundKey{netID, ev.Target}] = bounds
 	case irc.HistoryEvent:
 		var linesBefore []ui.Line
 		var linesAfter []ui.Line
-		bounds, hasBounds := app.messageBounds[ev.Target]
+		bounds, hasBounds := app.messageBounds[boundKey{netID, ev.Target}]
 		for _, m := range ev.Messages {
 			switch ev := m.(type) {
 			case irc.MessageEvent:
@@ -776,7 +781,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			bounds.Update(&linesAfter[len(linesAfter)-1])
 		}
 		if !bounds.IsZero() {
-			app.messageBounds[ev.Target] = bounds
+			app.messageBounds[boundKey{netID, ev.Target}] = bounds
 		}
 	case irc.BouncerNetworkEvent:
 		_, added := app.win.AddBuffer(ev.ID, ev.Name, "")
