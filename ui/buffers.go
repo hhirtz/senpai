@@ -7,10 +7,15 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 )
 
 func IsSplitRune(r rune) bool {
 	return r == ' ' || r == '\t'
+}
+
+func IsSplitCluster(cluster []rune) bool {
+	return len(cluster) == 1 && IsSplitRune(cluster[0])
 }
 
 type point struct {
@@ -47,9 +52,9 @@ func (l *Line) computeSplitPoints() {
 	width := 0
 	lastWasSplit := false
 	l.splitPoints = l.splitPoints[:0]
-
-	for i, r := range l.Body.string {
-		curIsSplit := IsSplitRune(r)
+	g := uniseg.NewGraphemes(l.Body.string)
+	for i := 0; g.Next(); i += clusterSize(g) {
+		curIsSplit := IsSplitCluster(g.Runes())
 
 		if i == 0 || lastWasSplit != curIsSplit {
 			l.splitPoints = append(l.splitPoints, point{
@@ -60,7 +65,7 @@ func (l *Line) computeSplitPoints() {
 		}
 
 		lastWasSplit = curIsSplit
-		width += runeWidth(r)
+		width += clusterWidth(g.Runes())
 	}
 
 	if !lastWasSplit {
@@ -132,13 +137,13 @@ func (l *Line) NewLines(width int) []int {
 			// terminal.  In this case, no newline is placed before (like in the
 			// 2nd if-else branch).  The for loop is used to place newlines in
 			// the word.
-			// TODO handle multi-codepoint graphemes?? :(
 			wordWidth := 0
 			h := 1
-			for j, r := range l.Body.string[sp1.I:sp2.I] {
-				wordWidth += runeWidth(r)
+			g := uniseg.NewGraphemes(l.Body.string[sp1.I:sp2.I])
+			for j := sp1.I; g.Next(); j += clusterSize(g) {
+				wordWidth += clusterWidth(g.Runes())
 				if h*width < x+wordWidth {
-					l.newLines = append(l.newLines, sp1.I+j)
+					l.newLines = append(l.newLines, j)
 					h++
 				}
 			}
@@ -567,7 +572,8 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 		style := tcell.StyleDefault
 		nextStyles := line.Body.styles
 
-		for i, r := range line.Body.string {
+		g := uniseg.NewGraphemes(line.Body.string)
+		for i := 0; g.Next(); i += clusterSize(g) {
 			if 0 < len(nextStyles) && nextStyles[0].Start == i {
 				style = nextStyles[0].Style
 				nextStyles = nextStyles[1:]
@@ -581,12 +587,16 @@ func (bs *BufferList) DrawTimeline(screen tcell.Screen, x0, y0, nickColWidth int
 				}
 			}
 
-			if y != yi && x == x1 && IsSplitRune(r) {
+			cluster := g.Runes()
+			if len(cluster) == 0 {
+				continue
+			}
+			if y != yi && x == x1 && IsSplitCluster(cluster) {
 				continue
 			}
 
-			screen.SetContent(x, y, r, nil, style)
-			x += runeWidth(r)
+			screen.SetContent(x, y, cluster[0], cluster[1:], style)
+			x += clusterWidth(g.Runes())
 		}
 	}
 

@@ -5,18 +5,24 @@ import (
 	"time"
 
 	"github.com/gdamore/tcell/v2"
+	"github.com/rivo/uniseg"
 )
 
 func printString(screen tcell.Screen, x *int, y int, s StyledString) {
 	style := tcell.StyleDefault
 	nextStyles := s.styles
-	for i, r := range s.string {
+	g := uniseg.NewGraphemes(s.string)
+	for i := 0; g.Next(); i += clusterSize(g) {
 		if 0 < len(nextStyles) && nextStyles[0].Start == i {
 			style = nextStyles[0].Style
 			nextStyles = nextStyles[1:]
 		}
-		screen.SetContent(*x, y, r, nil, style)
-		*x += runeWidth(r)
+		cluster := g.Runes()
+		if len(cluster) == 0 {
+			continue
+		}
+		screen.SetContent(*x, y, cluster[0], cluster[1:], style)
+		*x += stringWidth(g.Str())
 	}
 }
 
