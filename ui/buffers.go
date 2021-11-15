@@ -277,19 +277,17 @@ func (bs *BufferList) Add(netID, netName, title string) (i int, added bool) {
 	return len(bs.list) - 1, true
 }
 
-func (bs *BufferList) Remove(title string) (ok bool) {
-	lTitle := strings.ToLower(title)
-	for i, b := range bs.list {
-		if strings.ToLower(b.title) == lTitle {
-			ok = true
-			bs.list = append(bs.list[:i], bs.list[i+1:]...)
-			if len(bs.list) <= bs.current {
-				bs.current--
-			}
-			return
-		}
+func (bs *BufferList) Remove(netID, title string) bool {
+	idx := bs.idx(netID, title)
+	if idx < 0 {
+		return false
 	}
-	return
+
+	bs.list = append(bs.list[:idx], bs.list[idx+1:]...)
+	if len(bs.list) <= bs.current {
+		bs.current--
+	}
+	return true
 }
 
 func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line) {

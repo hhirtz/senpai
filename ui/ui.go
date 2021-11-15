@@ -181,8 +181,8 @@ func (ui *UI) AddBuffer(netID, netName, title string) (i int, added bool) {
 	return ui.bs.Add(netID, netName, title)
 }
 
-func (ui *UI) RemoveBuffer(title string) {
-	_ = ui.bs.Remove(title)
+func (ui *UI) RemoveBuffer(netID, title string) {
+	_ = ui.bs.Remove(netID, title)
 	ui.memberOffset = 0
 }
 

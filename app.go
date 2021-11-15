@@ -673,7 +673,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			Mergeable: true,
 		})
 	case irc.SelfPartEvent:
-		app.win.RemoveBuffer(ev.Channel)
+		app.win.RemoveBuffer(netID, ev.Channel)
 		delete(app.messageBounds, boundKey{netID, ev.Channel})
 	case irc.UserPartEvent:
 		var body ui.StyledStringBuilder
