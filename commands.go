@@ -89,6 +89,14 @@ func init() {
 			Desc:      "part a channel",
 			Handle:    commandDoPart,
 		},
+		"QUERY": {
+			AllowHome: true,
+			MinArgs:   1,
+			MaxArgs:   1,
+			Usage:     "[nick]",
+			Desc:      "opens a buffer to a user",
+			Handle:    commandDoQuery,
+		},
 		"QUIT": {
 			AllowHome: true,
 			MaxArgs:   1,
@@ -407,6 +415,18 @@ func commandDoPart(app *App, args []string) (err error) {
 	} else {
 		app.win.RemoveBuffer(netID, channel)
 	}
+	return nil
+}
+
+func commandDoQuery(app *App, args []string) (err error) {
+	netID, _ := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	target := args[0]
+	if s.IsChannel(target) {
+		return fmt.Errorf("cannot query a channel, use JOIN instead")
+	}
+	i, _ := app.win.AddBuffer(netID, "", target)
+	app.win.JumpBufferIndex(i)
 	return nil
 }
 
