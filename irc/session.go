@@ -476,34 +476,6 @@ func (s *Session) HandleMessage(msg Message) (Event, error) {
 
 func (s *Session) handleUnregistered(msg Message) (Event, error) {
 	switch msg.Command {
-	case "AUTHENTICATE":
-		if s.auth == nil {
-			break
-		}
-
-		var payload string
-		if err := msg.ParseParams(&payload); err != nil {
-			return nil, err
-		}
-
-		res, err := s.auth.Respond(payload)
-		if err != nil {
-			s.out <- NewMessage("AUTHENTICATE", "*")
-		} else {
-			s.out <- NewMessage("AUTHENTICATE", res)
-		}
-	case rplLoggedin:
-		var nuh string
-		if err := msg.ParseParams(nil, &nuh, &s.acct); err != nil {
-			return nil, err
-		}
-
-		s.endRegistration()
-		prefix := ParsePrefix(nuh)
-		s.user = prefix.User
-		s.host = prefix.Host
-	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
-		s.endRegistration()
 	case errNicknameinuse:
 		var nick string
 		if err := msg.ParseParams(nil, &nick); err != nil {
@@ -535,6 +507,39 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 	}
 
 	switch msg.Command {
+	case "AUTHENTICATE":
+		if s.auth == nil {
+			break
+		}
+
+		var payload string
+		if err := msg.ParseParams(&payload); err != nil {
+			return nil, err
+		}
+
+		res, err := s.auth.Respond(payload)
+		if err != nil {
+			s.out <- NewMessage("AUTHENTICATE", "*")
+		} else {
+			s.out <- NewMessage("AUTHENTICATE", res)
+		}
+	case rplLoggedin:
+		var nuh string
+		if err := msg.ParseParams(nil, &nuh, &s.acct); err != nil {
+			return nil, err
+		}
+
+		s.endRegistration()
+		prefix := ParsePrefix(nuh)
+		s.user = prefix.User
+		s.host = prefix.Host
+	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
+		s.endRegistration()
+		return ErrorEvent{
+			Severity: SeverityFail,
+			Code:     msg.Command,
+			Message:  fmt.Sprintf("Registration failed: %s", strings.Join(msg.Params[1:], " ")),
+		}, nil
 	case rplWelcome:
 		if err := msg.ParseParams(&s.nick); err != nil {
 			return nil, err
@@ -608,11 +613,6 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 					continue
 				}
 				s.out <- NewMessage("CAP", "REQ", c.Name)
-			}
-
-			_, ok := s.availableCaps["sasl"]
-			if s.acct == "" && ok {
-				// TODO authenticate
 			}
 		case "DEL":
 			for _, c := range ParseCaps(caps) {
@@ -1204,6 +1204,9 @@ func (s *Session) updateFeatures(features []string) {
 }
 
 func (s *Session) endRegistration() {
+	if s.registered {
+		return
+	}
 	if _, ok := s.enabledCaps["soju.im/bouncer-networks"]; !ok {
 		s.out <- NewMessage("CAP", "END")
 	} else if s.netID == "" {
