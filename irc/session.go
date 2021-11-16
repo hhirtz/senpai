@@ -159,6 +159,9 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 	}
 
 	s.out <- NewMessage("CAP", "LS", "302")
+	for capability := range SupportedCapabilities {
+		s.out <- NewMessage("CAP", "REQ", capability)
+	}
 	s.out <- NewMessage("NICK", s.nick)
 	s.out <- NewMessage("USER", s.user, "0", "*", s.real)
 
@@ -499,47 +502,6 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 		s.host = ParsePrefix(userhost).Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
 		s.endRegistration()
-	case "CAP":
-		var subcommand string
-		if err := msg.ParseParams(nil, &subcommand); err != nil {
-			return nil, err
-		}
-
-		switch subcommand {
-		case "LS":
-			var ls string
-			if err := msg.ParseParams(nil, nil, &ls); err != nil {
-				return nil, err
-			}
-
-			willContinue := false
-			if ls == "*" {
-				if err := msg.ParseParams(nil, nil, nil, &ls); err != nil {
-					return nil, err
-				}
-				willContinue = true
-			}
-
-			for _, c := range ParseCaps(ls) {
-				s.availableCaps[c.Name] = c.Value
-			}
-
-			if !willContinue {
-				for c := range s.availableCaps {
-					if _, ok := SupportedCapabilities[c]; !ok {
-						continue
-					}
-					s.out <- NewMessage("CAP", "REQ", c)
-				}
-
-				_, ok := s.availableCaps["sasl"]
-				if s.auth == nil || !ok {
-					s.endRegistration()
-				}
-			}
-		default:
-			return s.handleRegistered(msg)
-		}
 	case errNicknameinuse:
 		var nick string
 		if err := msg.ParseParams(nil, &nick); err != nil {
@@ -992,11 +954,10 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		}
 
 		if t, ok := msg.Tags["+typing"]; ok {
-			if t == "active" {
+			switch t {
+			case "active":
 				s.typings.Active(targetCf, nickCf)
-			} else if t == "paused" {
-				s.typings.Done(targetCf, nickCf)
-			} else if t == "done" {
+			case "paused", "done":
 				s.typings.Done(targetCf, nickCf)
 			}
 		}
