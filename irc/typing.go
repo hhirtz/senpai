@@ -16,6 +16,7 @@ type Typing struct {
 // Typings keeps track of typing notification timeouts.
 type Typings struct {
 	l        sync.Mutex
+	closed   bool                 // whether Close has been called
 	targets  map[Typing]time.Time // @+typing TAGMSG timestamps.
 	timeouts chan Typing          // transmits unfiltered timeout notifications.
 	stops    chan Typing          // transmits filtered timeout notifications.
@@ -45,10 +46,14 @@ func NewTypings() *Typings {
 	return ts
 }
 
-// Stop cleanly closes all channels and stops all coroutines.
-func (ts *Typings) Stop() {
+// Close cleanly closes all channels and stops all goroutines.
+func (ts *Typings) Close() {
+	ts.l.Lock()
+	defer ts.l.Unlock()
+
 	close(ts.timeouts)
 	close(ts.stops)
+	ts.closed = true
 }
 
 // Stops is a channel that transmits typing timeouts.
@@ -65,7 +70,13 @@ func (ts *Typings) Active(target, name string) {
 
 	go func() {
 		time.Sleep(6 * time.Second)
-		ts.timeouts <- t
+
+		ts.l.Lock()
+		defer ts.l.Unlock()
+
+		if !ts.closed {
+			ts.timeouts <- t
+		}
 	}()
 }
 

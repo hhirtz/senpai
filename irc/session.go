@@ -170,6 +170,7 @@ func (s *Session) Close() {
 		return
 	}
 	s.closed = true
+	s.typings.Close()
 	close(s.out)
 }
 

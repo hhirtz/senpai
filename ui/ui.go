@@ -60,8 +60,14 @@ func New(config Config) (ui *UI, err error) {
 	ui.Events = make(chan tcell.Event, 128)
 	go func() {
 		for !ui.ShouldExit() {
-			ui.Events <- ui.screen.PollEvent()
+			ev := ui.screen.PollEvent()
+			if ev == nil {
+				ui.Exit()
+				break
+			}
+			ui.Events <- ev
 		}
+		close(ui.Events)
 	}()
 
 	ui.bs = NewBufferList()

@@ -137,7 +137,11 @@ func NewApp(cfg Config) (app *App, err error) {
 }
 
 func (app *App) Close() {
-	app.win.Close()
+	app.win.Exit()       // tell all instances of app.ircLoop to stop when possible
+	app.events <- event{ // tell app.eventLoop to stop
+		src:     "*",
+		content: nil,
+	}
 	for _, session := range app.sessions {
 		session.Close()
 	}
@@ -166,6 +170,8 @@ func (app *App) CurrentBuffer() (netID, buffer string) {
 // eventLoop retrieves events (in batches) from the event channel and handle
 // them, then draws the interface after each batch is handled.
 func (app *App) eventLoop() {
+	defer app.win.Close()
+
 	evs := make([]event, 0, eventChanSize)
 	for !app.win.ShouldExit() {
 		ev := <-app.events
@@ -181,7 +187,17 @@ func (app *App) eventLoop() {
 			}
 		}
 
-		app.handleEvents(evs)
+		for _, ev := range evs {
+			if ev.src == "*" {
+				if ev.content == nil {
+					return
+				}
+				app.handleUIEvent(ev.content)
+			} else {
+				app.handleIRCEvent(ev.src, ev.content)
+			}
+		}
+
 		if !app.pasting {
 			app.setStatus()
 			app.updatePrompt()
@@ -255,6 +271,9 @@ func (app *App) ircLoop(netID string) {
 			HeadColor: tcell.ColorRed,
 			Body:      ui.PlainString("Connection lost"),
 		})
+		if app.win.ShouldExit() {
+			break
+		}
 		time.Sleep(10 * time.Second)
 	}
 }
@@ -336,17 +355,6 @@ func (app *App) uiLoop() {
 		app.events <- event{
 			src:     "*",
 			content: ev,
-		}
-	}
-}
-
-// handleEvents handles a batch of events.
-func (app *App) handleEvents(evs []event) {
-	for _, ev := range evs {
-		if ev.src == "*" {
-			app.handleUIEvent(ev.content)
-		} else {
-			app.handleIRCEvent(ev.src, ev.content)
 		}
 	}
 }
