@@ -152,7 +152,7 @@ func noCommand(app *App, content string) error {
 		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
 			User:            s.Nick(),
 			Target:          buffer,
-			TargetIsChannel: true,
+			TargetIsChannel: s.IsChannel(buffer),
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
@@ -280,7 +280,7 @@ func commandDoMe(app *App, args []string) (err error) {
 		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
 			User:            s.Nick(),
 			Target:          buffer,
-			TargetIsChannel: true,
+			TargetIsChannel: s.IsChannel(buffer),
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
@@ -303,11 +303,15 @@ func commandDoMsg(app *App, args []string) (err error) {
 		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
 			User:            s.Nick(),
 			Target:          target,
-			TargetIsChannel: true,
+			TargetIsChannel: s.IsChannel(target),
 			Command:         "PRIVMSG",
 			Content:         content,
 			Time:            time.Now(),
 		})
+		if buffer != "" && !s.IsChannel(target) {
+			app.win.AddBuffer(netID, "", buffer)
+		}
+
 		app.win.AddLine(netID, buffer, ui.NotifyNone, line)
 	}
 	return nil
@@ -397,7 +401,12 @@ func commandDoPart(app *App, args []string) (err error) {
 	if channel == "" {
 		return fmt.Errorf("cannot part this buffer")
 	}
-	s.Part(channel, reason)
+
+	if s.IsChannel(channel) {
+		s.Part(channel, reason)
+	} else {
+		app.win.RemoveBuffer(netID, channel)
+	}
 	return nil
 }
 
@@ -432,7 +441,7 @@ func commandDoR(app *App, args []string) (err error) {
 		buffer, line, _ := app.formatMessage(s, irc.MessageEvent{
 			User:            s.Nick(),
 			Target:          app.lastQuery,
-			TargetIsChannel: true,
+			TargetIsChannel: s.IsChannel(app.lastQuery),
 			Command:         "PRIVMSG",
 			Content:         args[0],
 			Time:            time.Now(),

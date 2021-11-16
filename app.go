@@ -748,6 +748,9 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		})
 	case irc.MessageEvent:
 		buffer, line, notification := app.formatMessage(s, ev)
+		if buffer != "" && !s.IsChannel(buffer) {
+			app.win.AddBuffer(netID, "", buffer)
+		}
 		app.win.AddLine(netID, buffer, notification, line)
 		if notification == ui.NotifyHighlight {
 			app.notifyHighlight(buffer, ev.User, line.Body.String())
@@ -936,6 +939,7 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 // - what kind of notification senpai should send.
 func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer string, line ui.Line, notification ui.NotifyType) {
 	isFromSelf := s.IsMe(ev.User)
+	isToSelf := s.IsMe(ev.Target)
 	isHighlight := app.isHighlight(s, ev.Content)
 	isAction := strings.HasPrefix(ev.Content, "\x01ACTION")
 	isQuery := !ev.TargetIsChannel && ev.Command == "PRIVMSG"
@@ -948,8 +952,8 @@ func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer strin
 		} else {
 			isHighlight = true
 		}
-	} else if !ev.TargetIsChannel {
-		buffer = ""
+	} else if isToSelf {
+		buffer = ev.User
 	} else {
 		buffer = ev.Target
 	}
@@ -965,10 +969,7 @@ func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer strin
 
 	head := ev.User
 	headColor := tcell.ColorWhite
-	if isFromSelf && isQuery {
-		head = "\u2192 " + ev.Target
-		headColor = identColor(ev.Target)
-	} else if isAction || isNotice {
+	if isAction || isNotice {
 		head = "*"
 	} else {
 		headColor = identColor(head)

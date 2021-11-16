@@ -218,20 +218,32 @@ func (s *Session) Users() []string {
 	return users
 }
 
-// Names returns the list of users in the given channel, or nil if this channel
-// is not known by the session.
+// Names returns the list of users in the given target, or nil if the target
+// is not a known channel or nick in the session.
 // The list is sorted according to member name.
-func (s *Session) Names(channel string) []Member {
+func (s *Session) Names(target string) []Member {
 	var names []Member
-	if c, ok := s.channels[s.Casemap(channel)]; ok {
-		names = make([]Member, 0, len(c.Members))
-		for u, pl := range c.Members {
-			names = append(names, Member{
-				PowerLevel: pl,
-				Name:       u.Name.Copy(),
-				Away:       u.Away,
-			})
+	if s.IsChannel(target) {
+		if c, ok := s.channels[s.Casemap(target)]; ok {
+			names = make([]Member, 0, len(c.Members))
+			for u, pl := range c.Members {
+				names = append(names, Member{
+					PowerLevel:   pl,
+					Name:         u.Name.Copy(),
+					Away:         u.Away,
+				})
+			}
 		}
+	} else if u, ok := s.users[s.Casemap(target)]; ok {
+		names = append(names, Member{
+			Name:         u.Name.Copy(),
+			Away:         u.Away,
+		})
+		names = append(names, Member{
+			Name: &Prefix{
+				Name: s.nick,
+			},
+		})
 	}
 	sort.Sort(members(names))
 	return names
