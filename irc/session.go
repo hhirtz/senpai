@@ -493,13 +493,15 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 			s.out <- NewMessage("AUTHENTICATE", res)
 		}
 	case rplLoggedin:
-		var userhost string
-		if err := msg.ParseParams(nil, &userhost, &s.acct); err != nil {
+		var nuh string
+		if err := msg.ParseParams(nil, &nuh, &s.acct); err != nil {
 			return nil, err
 		}
 
 		s.endRegistration()
-		s.host = ParsePrefix(userhost).Host
+		prefix := ParsePrefix(nuh)
+		s.user = prefix.User
+		s.host = prefix.Host
 	case errNicklocked, errSaslfail, errSasltoolong, errSaslaborted, errSaslalready, rplSaslmechs:
 		s.endRegistration()
 	case errNicknameinuse:
@@ -553,15 +555,16 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		}
 		s.updateFeatures(msg.Params[1 : len(msg.Params)-1])
 	case rplWhoreply:
-		var nick, host, stats string
-		if err := msg.ParseParams(nil, nil, nil, &host, nil, &nick, &stats, nil); err != nil {
+		var nick, host, flags, username string
+		if err := msg.ParseParams(nil, nil, &username, &host, nil, &nick, &flags, nil); err != nil {
 			return nil, err
 		}
 
 		nickCf := s.Casemap(nick)
-		away := stats[0] == 'G' // stats is not empty because it's not the trailing parameter
+		away := flags[0] == 'G' // flags is not empty because it's not the trailing parameter
 
 		if s.nickCf == nickCf {
+			s.user = username
 			s.host = host
 		}
 
@@ -1203,9 +1206,7 @@ func (s *Session) updateFeatures(features []string) {
 func (s *Session) endRegistration() {
 	if _, ok := s.enabledCaps["soju.im/bouncer-networks"]; !ok {
 		s.out <- NewMessage("CAP", "END")
-		return
-	}
-	if s.netID == "" {
+	} else if s.netID == "" {
 		s.out <- NewMessage("CAP", "END")
 		s.out <- NewMessage("BOUNCER", "LISTNETWORKS")
 	} else {
