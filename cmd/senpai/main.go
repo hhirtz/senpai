@@ -60,26 +60,16 @@ func main() {
 	go func() {
 		for sig := range sigCh {
 			switch sig {
-			case syscall.SIGHUP:
+			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
 				app.Close()
-				fmt.Println("SIGHUP")
-				lastBufferPath := getLastBufferPath()
-				lastNetID, lastBuffer = app.CurrentBuffer()
-				err = os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
-				if err != nil {
-					fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
-				}
-			case syscall.SIGINT, syscall.SIGTERM:
-				app.Close()
-				fmt.Println("SIGTERM")
-				return
+				writeLastBuffer(app)
 			}
 		}
 	}()
 
 	app.Run()
 	app.Close()
-	fmt.Println("close")
+	writeLastBuffer(app)
 }
 
 func getLastBufferPath() string {
@@ -109,4 +99,13 @@ func getLastBuffer() (netID, buffer string) {
 	}
 
 	return fields[0], fields[1]
+}
+
+func writeLastBuffer(app *senpai.App) {
+	lastBufferPath := getLastBufferPath()
+	lastNetID, lastBuffer := app.CurrentBuffer()
+	err := os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
+	}
 }
