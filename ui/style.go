@@ -131,7 +131,7 @@ func (s StyledString) ParseURLs() StyledString {
 	for i := 0; i < len(urls); i++ {
 		u := urls[i]
 		ub, ue := u[0], u[1]
-		link := s.string[u[0]:u[1]] + "?a=b"
+		link := s.string[u[0]:u[1]]
 		// find last style starting before or at url begin
 		for ; j < len(s.styles); j++ {
 			st := s.styles[j]
