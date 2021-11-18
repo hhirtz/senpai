@@ -192,7 +192,9 @@ func (app *App) eventLoop() {
 				if ev.content == nil {
 					return
 				}
-				app.handleUIEvent(ev.content)
+				if !app.handleUIEvent(ev.content) {
+					return
+				}
 			} else {
 				app.handleIRCEvent(ev.src, ev.content)
 			}
@@ -359,7 +361,7 @@ func (app *App) uiLoop() {
 	}
 }
 
-func (app *App) handleUIEvent(ev interface{}) {
+func (app *App) handleUIEvent(ev interface{}) bool {
 	switch ev := ev.(type) {
 	case *tcell.EventResize:
 		app.win.Resize()
@@ -369,11 +371,15 @@ func (app *App) handleUIEvent(ev interface{}) {
 		app.handleMouseEvent(ev)
 	case *tcell.EventKey:
 		app.handleKeyEvent(ev)
+	case *tcell.EventError:
+		// happens when the terminal is closing: in which case, exit
+		return false
 	case statusLine:
 		app.addStatusLine(ev.netID, ev.line)
 	default:
 		panic("unreachable")
 	}
+	return true
 }
 
 func (app *App) handleMouseEvent(ev *tcell.EventMouse) {
