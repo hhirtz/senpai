@@ -53,18 +53,12 @@ func main() {
 	lastNetID, lastBuffer := getLastBuffer()
 	app.SwitchToBuffer(lastNetID, lastBuffer)
 
-	// Write last buffer on close
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
 	go func() {
-		for sig := range sigCh {
-			switch sig {
-			case syscall.SIGHUP, syscall.SIGINT, syscall.SIGTERM:
-				app.Close()
-				writeLastBuffer(app)
-			}
-		}
+		<-sigCh
+		app.Close()
 	}()
 
 	app.Run()
