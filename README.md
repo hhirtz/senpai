@@ -2,25 +2,29 @@
 
 Welcome home, desune~
 
-![a screenshot of your senpai!](https://ellidri.org/senpai/screen.png)
+![a screenshot of your senpai feat. simon!](https://taiite.srht.site/senpai.png)
 
-Works best with soju!
+senpai is an IRC client that works best with bouncers:
 
-## ... How?
+- no logs are kept,
+- history is fetched from the server via [CHATHISTORY],
+- networks are fetched from the server via [bouncer-networks].
+
+## How do I use this?
 
 ```shell
 mkdir -p ~/.config/senpai
 cat <<EOF >~/.config/senpai/senpai.yaml
-addr: irc.libera.chat
+addr: chat.sr.ht
 nick: senpai
-password: "my password can't be this cute"
+password: "my password can't be this cute (2010)"
 # alternatively, specify a command to fetch your password:
 # password-cmd: "gopass show irc/<username>"
 EOF
 go run ./cmd/senpai
 ```
 
-Then, type `/join #senpai` and have a chat!
+Then, type `/join #senpai` on [Libera.Chat] and have a... chat!
 
 See `doc/senpai.1.scd` for more information and `doc/senpai.5.scd` for more
 configuration options!
@@ -40,9 +44,6 @@ things out with an IRC server, then you have two options:
 Contributions are accepted as patches to [the mailing list][ml] and as pull
 requests on [Github].
 
-[ml]: mailto:~taiite/public-inbox@lists.sr.ht
-[Github]: https://github.com/hhirtz/senpai/pulls
-
 Browse tickets at <https://todo.sr.ht/~taiite/senpai>.
 
 ## License
@@ -50,3 +51,9 @@ Browse tickets at <https://todo.sr.ht/~taiite/senpai>.
 This senpai is open source! Please use it under the ISC license.
 
 Copyright (C) 2021 The senpai Contributors
+
+[bouncer-networks]: https://git.sr.ht/~emersion/soju/tree/master/item/doc/ext/bouncer-networks.md
+[CHATHISTORY]: https://ircv3.net/specs/extensions/chathistory
+[Github]: https://github.com/hhirtz/senpai/pulls
+[Libera.Chat]: https://libera.chat/
+[ml]: https://lists.sr.ht/~taiite/public-inbox
