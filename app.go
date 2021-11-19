@@ -91,6 +91,9 @@ type App struct {
 	messageBounds map[boundKey]bound
 	lastNetID     string
 	lastBuffer    string
+
+	lastMessageTime time.Time
+	lastCloseTime   time.Time
 }
 
 func NewApp(cfg Config) (app *App, err error) {
@@ -153,6 +156,9 @@ func (app *App) SwitchToBuffer(netID, buffer string) {
 }
 
 func (app *App) Run() {
+	if app.lastCloseTime.IsZero() {
+		app.lastCloseTime = time.Now()
+	}
 	go app.uiLoop()
 	go app.ircLoop("")
 	app.eventLoop()
@@ -165,6 +171,14 @@ func (app *App) CurrentSession() *irc.Session {
 
 func (app *App) CurrentBuffer() (netID, buffer string) {
 	return app.win.CurrentBuffer()
+}
+
+func (app *App) LastMessageTime() time.Time {
+	return app.lastMessageTime
+}
+
+func (app *App) SetLastClose(t time.Time) {
+	app.lastCloseTime = t
 }
 
 // eventLoop retrieves events (in batches) from the event channel and handle
@@ -589,6 +603,10 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		})
 		return
 	}
+	t := msg.TimeOrNow()
+	if t.After(app.lastMessageTime) {
+		app.lastMessageTime = t
+	}
 
 	// Mutate UI state
 	switch ev := ev.(type) {
@@ -598,6 +616,9 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			// TODO: support autojoining channels with keys
 			s.Join(channel, "")
 		}
+		s.NewHistoryRequest("").
+			WithLimit(1000).
+			Targets(app.lastCloseTime, msg.TimeOrNow())
 		body := "Connected to the server"
 		if s.Nick() != app.cfg.Nick {
 			body = fmt.Sprintf("Connected to the server as %s", s.Nick())
@@ -768,6 +789,19 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		bounds := app.messageBounds[boundKey{netID, ev.Target}]
 		bounds.Update(&line)
 		app.messageBounds[boundKey{netID, ev.Target}] = bounds
+	case irc.HistoryTargetsEvent:
+		for target, last := range ev.Targets {
+			if s.IsChannel(target) {
+				continue
+			}
+			app.win.AddBuffer(netID, "", target)
+			// CHATHISTORY BEFORE excludes its bound, so add 1ms
+			// (precision of the time tag) to include that last message.
+			last = last.Add(1 * time.Millisecond)
+			s.NewHistoryRequest(target).
+				WithLimit(200).
+				Before(last)
+		}
 	case irc.HistoryEvent:
 		var linesBefore []ui.Line
 		var linesAfter []ui.Line

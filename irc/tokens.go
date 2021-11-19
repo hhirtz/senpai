@@ -360,26 +360,26 @@ func (msg *Message) ParseParams(out ...*string) error {
 	return nil
 }
 
-// Time returns the time when the message has been sent, if present.
-func (msg *Message) Time() (t time.Time, ok bool) {
-	var tag string
+func parseTimestamp(timestamp string) (time.Time, bool) {
 	var year, month, day, hour, minute, second, millis int
 
-	tag, ok = msg.Tags["time"]
-	if !ok {
-		return
-	}
+	timestamp = strings.TrimSuffix(timestamp, "Z")
 
-	tag = strings.TrimSuffix(tag, "Z")
-
-	_, err := fmt.Sscanf(tag, "%4d-%2d-%2dT%2d:%2d:%2d.%3d", &year, &month, &day, &hour, &minute, &second, &millis)
+	_, err := fmt.Sscanf(timestamp, "%4d-%2d-%2dT%2d:%2d:%2d.%3d", &year, &month, &day, &hour, &minute, &second, &millis)
 	if err != nil || month < 1 || 12 < month {
-		ok = false
-		return
+		return time.Time{}, false
 	}
 
-	t = time.Date(year, time.Month(month), day, hour, minute, second, millis*1e6, time.UTC)
-	return
+	return time.Date(year, time.Month(month), day, hour, minute, second, millis*1e6, time.UTC), true
+}
+
+// Time returns the time when the message has been sent, if present.
+func (msg *Message) Time() (t time.Time, ok bool) {
+	tag, ok := msg.Tags["time"]
+	if !ok {
+		return time.Time{}, false
+	}
+	return parseTimestamp(tag)
 }
 
 // TimeOrNow returns the time when the message has been sent, or time.Now() if

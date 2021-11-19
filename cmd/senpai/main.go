@@ -52,6 +52,7 @@ func main() {
 
 	lastNetID, lastBuffer := getLastBuffer()
 	app.SwitchToBuffer(lastNetID, lastBuffer)
+	app.SetLastClose(getLastStamp())
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
@@ -64,25 +65,28 @@ func main() {
 	app.Run()
 	app.Close()
 	writeLastBuffer(app)
+	writeLastStamp(app)
 }
 
-func getLastBufferPath() string {
+func cachePath() string {
 	cacheDir, err := os.UserCacheDir()
 	if err != nil {
 		panic(err)
 	}
-	cachePath := path.Join(cacheDir, "senpai")
-	err = os.MkdirAll(cachePath, 0755)
+	cache := path.Join(cacheDir, "senpai")
+	err = os.MkdirAll(cache, 0755)
 	if err != nil {
 		panic(err)
 	}
+	return cache
+}
 
-	lastBufferPath := path.Join(cachePath, "lastbuffer.txt")
-	return lastBufferPath
+func lastBufferPath() string {
+	return path.Join(cachePath(), "lastbuffer.txt")
 }
 
 func getLastBuffer() (netID, buffer string) {
-	buf, err := ioutil.ReadFile(getLastBufferPath())
+	buf, err := ioutil.ReadFile(lastBufferPath())
 	if err != nil {
 		return "", ""
 	}
@@ -96,10 +100,39 @@ func getLastBuffer() (netID, buffer string) {
 }
 
 func writeLastBuffer(app *senpai.App) {
-	lastBufferPath := getLastBufferPath()
+	lastBufferPath := lastBufferPath()
 	lastNetID, lastBuffer := app.CurrentBuffer()
 	err := os.WriteFile(lastBufferPath, []byte(fmt.Sprintf("%s %s", lastNetID, lastBuffer)), 0666)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to write last buffer at %q: %s\n", lastBufferPath, err)
+	}
+}
+
+func lastStampPath() string {
+	return path.Join(cachePath(), "laststamp.txt")
+}
+
+func getLastStamp() time.Time {
+	buf, err := ioutil.ReadFile(lastStampPath())
+	if err != nil {
+		return time.Time{}
+	}
+
+	t, err := time.Parse(time.RFC3339Nano, string(buf))
+	if err != nil {
+		return time.Time{}
+	}
+	return t
+}
+
+func writeLastStamp(app *senpai.App) {
+	lastStampPath := lastStampPath()
+	last := app.LastMessageTime()
+	if last.IsZero() {
+		return
+	}
+	err := os.WriteFile(lastStampPath, []byte(last.Format(time.RFC3339Nano)), 0666)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to write last stamp at %q: %s\n", lastStampPath, err)
 	}
 }

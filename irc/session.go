@@ -124,10 +124,12 @@ type Session struct {
 	prefixSymbols string
 	prefixModes   string
 
-	users     map[string]*User        // known users.
-	channels  map[string]Channel      // joined channels.
-	chBatches map[string]HistoryEvent // channel history batches being processed.
-	chReqs    map[string]struct{}     // set of targets for which history is currently requested.
+	users          map[string]*User        // known users.
+	channels       map[string]Channel      // joined channels.
+	chBatches      map[string]HistoryEvent // channel history batches being processed.
+	chReqs         map[string]struct{}     // set of targets for which history is currently requested.
+	targetsBatchID string                  // ID of the channel history targets batch being processed.
+	targetsBatch   HistoryTargetsEvent     // channel history targets batch being processed.
 
 	pendingChannels map[string]time.Time // set of join requests stamps for channels.
 }
@@ -228,16 +230,16 @@ func (s *Session) Names(target string) []Member {
 			names = make([]Member, 0, len(c.Members))
 			for u, pl := range c.Members {
 				names = append(names, Member{
-					PowerLevel:   pl,
-					Name:         u.Name.Copy(),
-					Away:         u.Away,
+					PowerLevel: pl,
+					Name:       u.Name.Copy(),
+					Away:       u.Away,
 				})
 			}
 		}
 	} else if u, ok := s.users[s.Casemap(target)]; ok {
 		names = append(names, Member{
-			Name:         u.Name.Copy(),
-			Away:         u.Away,
+			Name: u.Name.Copy(),
+			Away: u.Away,
 		})
 		names = append(names, Member{
 			Name: &Prefix{
@@ -448,7 +450,9 @@ func (r *HistoryRequest) doRequest() {
 
 	args := make([]string, 0, len(r.bounds)+3)
 	args = append(args, r.command)
-	args = append(args, r.target)
+	if r.target != "" {
+		args = append(args, r.target)
+	}
 	args = append(args, r.bounds...)
 	args = append(args, strconv.Itoa(r.limit))
 	r.s.out <- NewMessage("CHATHISTORY", args...)
@@ -463,6 +467,13 @@ func (r *HistoryRequest) After(t time.Time) {
 func (r *HistoryRequest) Before(t time.Time) {
 	r.command = "BEFORE"
 	r.bounds = []string{formatTimestamp(t)}
+	r.doRequest()
+}
+
+func (r *HistoryRequest) Targets(start time.Time, end time.Time) {
+	r.command = "TARGETS"
+	r.bounds = []string{formatTimestamp(start), formatTimestamp(end)}
+	r.target = ""
 	r.doRequest()
 }
 
@@ -505,7 +516,17 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 
 func (s *Session) handleRegistered(msg Message) (Event, error) {
 	if id, ok := msg.Tags["batch"]; ok {
-		if b, ok := s.chBatches[id]; ok {
+		if id == s.targetsBatchID {
+			var target, timestamp string
+			if err := msg.ParseParams(nil, &target, &timestamp); err != nil {
+				return nil, err
+			}
+			t, ok := parseTimestamp(timestamp)
+			if !ok {
+				return nil, nil
+			}
+			s.targetsBatch.Targets[target] = t
+		} else if b, ok := s.chBatches[id]; ok {
 			ev, err := s.newMessageEvent(msg)
 			if err != nil {
 				return nil, err
@@ -1002,11 +1023,20 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 				}
 
 				s.chBatches[id] = HistoryEvent{Target: target}
+			case "draft/chathistory-targets":
+				s.targetsBatchID = id
+				s.targetsBatch = HistoryTargetsEvent{Targets: make(map[string]time.Time)}
 			}
-		} else if b, ok := s.chBatches[id]; ok {
-			delete(s.chBatches, id)
-			delete(s.chReqs, s.Casemap(b.Target))
-			return b, nil
+		} else {
+			if b, ok := s.chBatches[id]; ok {
+				delete(s.chBatches, id)
+				delete(s.chReqs, s.Casemap(b.Target))
+				return b, nil
+			} else if s.targetsBatchID == id {
+				s.targetsBatchID = ""
+				delete(s.chReqs, "")
+				return s.targetsBatch, nil
+			}
 		}
 	case "NICK":
 		if msg.Prefix == nil {

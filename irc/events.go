@@ -76,6 +76,10 @@ type HistoryEvent struct {
 	Messages []Event
 }
 
+type HistoryTargetsEvent struct {
+	Targets map[string]time.Time
+}
+
 type BouncerNetworkEvent struct {
 	ID   string
 	Name string
