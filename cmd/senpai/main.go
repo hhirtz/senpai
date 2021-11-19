@@ -54,7 +54,7 @@ func main() {
 	app.SwitchToBuffer(lastNetID, lastBuffer)
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM, syscall.SIGHUP)
 
 	go func() {
 		<-sigCh
