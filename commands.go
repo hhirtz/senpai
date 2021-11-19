@@ -554,7 +554,7 @@ func parseCommand(s string) (command, args string, isCommand bool) {
 	if s[0] != '/' {
 		return "", s, false
 	}
-	if s[1] == '/' {
+	if len(s) > 1 && s[1] == '/' {
 		// Input starts with two slashes.
 		return "", s[1:], false
 	}
