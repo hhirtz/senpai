@@ -34,7 +34,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		configPath = path.Join(configDir, "senpai", "senpai.yaml")
+		configPath = path.Join(configDir, "senpai", "senpai.scfg")
 	}
 
 	cfg, err := senpai.LoadConfigFile(configPath)

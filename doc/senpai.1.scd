@@ -31,7 +31,7 @@ extensions, such as:
 senpai needs a configuration file to start.  It searches for it in the following
 location:
 
-	$XDG_CONFIG_HOME/senpai/senpai.yaml
+	$XDG_CONFIG_HOME/senpai/senpai.scfg
 
 If unset, $XDG_CONFIG_HOME defaults to *~/.config*.
 

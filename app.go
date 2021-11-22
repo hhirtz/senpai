@@ -2,6 +2,7 @@ package senpai
 
 import (
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -111,10 +112,7 @@ func NewApp(cfg Config) (app *App, err error) {
 		}
 	}
 
-	mouse := true
-	if cfg.Mouse != nil {
-		mouse = *cfg.Mouse
-	}
+	mouse := cfg.Mouse
 
 	app.win, err = ui.New(ui.Config{
 		NickColWidth:   cfg.NickColWidth,
@@ -320,10 +318,10 @@ func (app *App) tryConnect() (conn net.Conn, err error) {
 	if colonIdx <= bracketIdx {
 		// either colonIdx < 0, or the last colon is before a ']' (end
 		// of IPv6 address. -> missing port
-		if app.cfg.NoTLS {
-			addr += ":6667"
-		} else {
+		if app.cfg.TLS {
 			addr += ":6697"
+		} else {
+			addr += ":6667"
 		}
 	}
 
@@ -332,7 +330,7 @@ func (app *App) tryConnect() (conn net.Conn, err error) {
 		return
 	}
 
-	if !app.cfg.NoTLS {
+	if app.cfg.TLS {
 		host, _, _ := net.SplitHostPort(addr) // should succeed since net.Dial did.
 		conn = tls.Client(conn, &tls.Config{
 			ServerName: host,
@@ -889,22 +887,38 @@ func (app *App) isHighlight(s *irc.Session, content string) bool {
 	return false
 }
 
-// notifyHighlight executes the "on-highlight" command according to the given
+// notifyHighlight executes the script at "on-highlight-path" according to the given
 // message context.
 func (app *App) notifyHighlight(buffer, nick, content string) {
-	if app.cfg.OnHighlight == "" {
-		return
+	path := app.cfg.OnHighlightPath
+	if path == "" {
+		defaultHighlightPath, err := DefaultHighlightPath()
+		if err != nil {
+			return
+		}
+		path = defaultHighlightPath
 	}
-	sh, err := exec.LookPath("sh")
-	if err != nil {
-		return
-	}
+
 	netID, curBuffer := app.win.CurrentBuffer()
+	if _, err := os.Stat(app.cfg.OnHighlightPath); errors.Is(err, os.ErrNotExist) {
+		// only error out if the user specified a highlight path
+		// if default path unreachable, simple bail
+		if app.cfg.OnHighlightPath != "" {
+			body := fmt.Sprintf("Unable to find on-highlight command at path: %q", app.cfg.OnHighlightPath)
+			app.addStatusLine(netID, ui.Line{
+				At:        time.Now(),
+				Head:      "!!",
+				HeadColor: tcell.ColorRed,
+				Body:      ui.PlainString(body),
+			})
+		}
+		return
+	}
 	here := "0"
 	if buffer == curBuffer { // TODO also check netID
 		here = "1"
 	}
-	cmd := exec.Command(sh, "-c", app.cfg.OnHighlight)
+	cmd := exec.Command(app.cfg.OnHighlightPath)
 	cmd.Env = append(os.Environ(),
 		fmt.Sprintf("BUFFER=%s", buffer),
 		fmt.Sprintf("HERE=%s", here),
@@ -913,7 +927,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 	)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		body := fmt.Sprintf("Failed to invoke on-highlight command: %v. Output: %q", err, string(output))
+		body := fmt.Sprintf("Failed to invoke on-highlight command at path: %v. Output: %q", err, string(output))
 		app.addStatusLine(netID, ui.Line{
 			At:        time.Now(),
 			Head:      "!!",
@@ -928,7 +942,7 @@ func (app *App) notifyHighlight(buffer, nick, content string) {
 func (app *App) typing() {
 	netID, buffer := app.win.CurrentBuffer()
 	s := app.sessions[netID]
-	if s == nil || app.cfg.NoTypings {
+	if s == nil || !app.cfg.Typings {
 		return
 	}
 	if buffer == "" {

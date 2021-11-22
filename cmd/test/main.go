@@ -108,7 +108,7 @@ func parseFlags() {
 			if err != nil {
 				panic(err)
 			}
-			configPath = path.Join(configDir, "senpai", "senpai.yaml")
+			configPath = path.Join(configDir, "senpai", "senpai.scfg")
 		}
 
 		cfg, err := senpai.LoadConfigFile(configPath)
@@ -121,6 +121,6 @@ func parseFlags() {
 		if cfg.Password != nil {
 			password = *cfg.Password
 		}
-		useTLS = !cfg.NoTLS
+		useTLS = cfg.TLS
 	}
 }

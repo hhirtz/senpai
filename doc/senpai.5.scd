@@ -6,34 +6,35 @@ senpai - Configuration file format and settings
 
 # DESCRIPTION
 
-A senpai configuration file is a YAML file.
+A senpai configuration file is a scfg file (see https://git.sr.ht/~emersion/scfg).
+The config file has one directive per line.
 
 Some settings are required, the others are optional.
 
 # SETTINGS
 
-*addr* (required)
+*address* (required)
 	The address (_host[:port]_) of the IRC server. senpai uses TLS connections
 	by default unless you specify *no-tls* option. TLS connections default to
 	port 6697, plain-text use port 6667.
 
-*nick* (required)
+*nickname* (required)
 	Your nickname, sent with a _NICK_ IRC message. It mustn't contain spaces or
 	colons (*:*).
 
-*real*
+*realname*
 	Your real name, or actually just a field that will be available to others
 	and may contain spaces and colons.  Sent with the _USER_ IRC message.  By
 	default, the value of *nick* is used.
 
-*user*
+*username*
 	Your username, sent with the _USER_ IRC message and also used for SASL
 	authentication.  By default, the value of *nick* is used.
 
 *password*
 	Your password, used for SASL authentication. See also *password-cmd*.
 
-*password-cmd*
+*password-cmd* command [arguments...]
 	Alternatively to providing your SASL authentication password directly in
 	plaintext, you can specify a command to be run to fetch the password at
 	runtime. This is useful if you store your passwords in a separate (probably
@@ -41,18 +42,31 @@ Some settings are required, the others are optional.
 	_pass_ or _gopass_. If a *password-cmd* is provided, the value of *password*
 	will be ignored and the output of *password-cmd* will be used for login.
 
-*channels*
-	A list of channel names that senpai will automatically join at startup and
-	server reconnect.
+*channel*
+	A spaced separated list of channel names that senpai will automatically join 
+	at startup and server reconnect. This directive can be specified multiple times.
 
-*highlights*
-	A list of keywords that will trigger a notification and a display indicator
-	when said by others.  By default, senpai will use your current nickname.
+*highlight*
+	A space separated list of keywords that will trigger a notification and a 
+	display indicator when said by others. This directive can be specified
+	multiple times.
 
-*on-highlight*
-	A command to be executed via _sh_ when you are highlighted.  The following
-	environment variables are set with repect to the highlight, THEY MUST APPEAR
-	QUOTED IN THE SETTING, OR YOU WILL BE OPEN TO SHELL INJECTION ATTACKS.
+	By default, senpai will use your current nickname.
+
+*on-highlight-path*
+	Alternative path to a shell script to be executed when you are highlighted. By default,
+	senpai looks for a highlight shell script at $XDG_CONFIG_HOME/senpai/highlight.
+	If no file is found at that path, and an alternate path is not provided,
+	highlight command execution is disabled.
+
+	If unset, $XDG_CONFIG_HOME defaults to *~/.config/*.
+
+	Before the highlight script is executed, the following environment
+	variables are populated:
+	
+	Shell scripts MUST ENSURE VARIABLES appear QUOTED in the script file,
+	OR YOU WILL BE OPEN TO SHELL INJECTION ATTACKS. Shell scripts must also 
+	ensure characters like '\*' and '?' are not expanded.
 
 [[ *Environment variable*
 :< *Description*
@@ -72,65 +86,80 @@ Some settings are required, the others are optional.
 	To get around this, you can double the backslash with the following snippet:
 
 ```
-on-highlight: |
-    escape() {
-        printf "%s" "$1" | sed 's#\\#\\\\#g'
-    }
-    notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
+#!/bin/sh
+escape() {
+	printf "%s" "$1" | sed 's#\\#\\\\#g'
+}
+
+notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
 ```
 
-*nick-column-width*
-	The number of cells that the column for nicknames occupies in the timeline.
-	By default, 16.
+*pane-widths* { ... }
+	Configure the width of various UI panes. 
 
-*chan-column-width*
-	Make the channel list vertical, with a width equals to the given amount of
-	cells.  By default, the channel list is horizontal.
+	Pane widths are set as sub-directives of the main *pane-widths* directive:
 
-*member-column-width*
-	Show the list of channel members on the right of the screen, with a width
-	equals to the given amount of cells.
+```
+pane-widths {
+    nicknames 16
+}
+```
 
-*no-tls*
-	Disable TLS encryption.  Defaults to false.
+	This directive supports the following sub-directives:
 
-*no-typings*
-	Prevent senpai from sending typing notifications which let others know when
-	you are typing a message.  Defaults to false.
+	*nicknames*
+		The number of cells that the column for nicknames occupies in the timeline.
+		By default, 16.
+
+	*channels*
+		Make the channel list vertical, with a width equals to the given amount of
+		cells.  By default, the channel list is horizontal.
+
+	*members*
+		Show the list of channel members on the right of the screen, with a width
+		equals to the given amount of cells.
+
+*tls*
+	Enable TLS encryption.  Defaults to true.
+
+*typings*
+	Send typing notifications which let others know when you are typing a message.
+	Defaults to true.
 
 *mouse*
 	Enable or disable mouse support.  Defaults to true.
 
-*colors*
+*colors* { ... }
 	Settings for colors of different UI elements.
 
 	Colors are represented as numbers from 0 to 255 for 256 default terminal
 	colors respectively. -1 has special meaning of default terminal color. To
 	use true colors, *#*_rrggbb_ notation is supported.
 
-	Colors are set as sub-options of the main *colors* option:
+	Colors are set as sub-directives of the main *colors* directive:
 
 ```
-colors:
-    prompt: 3 # green
+colors {
+    prompt 3 # green
+}
 ```
 
-[[ *Sub-option*
+[[ *Sub-directive*
 :< *Description*
 |  prompt
 :  color for ">"-prompt that appears in command mode
 
 *debug*
 	Dump all sent and received data to the home buffer, useful for debugging.
-	By default, false.
+	Defaults to false.
 
 # EXAMPLES
 
 A minimal configuration file to connect to Libera.Chat as "Guest123456":
 
 ```
-addr: irc.libera.chat
-nick: Guest123456
+address irc.libera.chat
+nickname Guest123456
 ```
 
 A more advanced configuration file that enables SASL authentication, fetches the
@@ -140,24 +169,30 @@ notifications on highlight and decreases the width of the nick column to 12
 need to know if the terminal emulator that runs senpai has focus):
 
 ```
-addr: irc.libera.chat
-nick: Guest123456
-user: senpai
-real: Guest von Lenon
-password-cmd: "gopass show irc/guest" # use your favorite CLI password solution here
-channels: ["#rahxephon"]
-highlights:
-	- guest
-	- senpai
-on-highlight: |
-    escape() {
-        printf "%s" "$1" | sed 's#\\#\\\\#g'
-    }
-    FOCUS=$(swaymsg -t get_tree | jq '..|objects|select(.focused==true)|.name' | grep senpai | wc -l)
-    if [ "$HERE" -eq 0 ] || [ $FOCUS -eq 0 ]; then
-        notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
-    fi
-nick-column-width: 12
+address irc.libera.chat
+nickname Guest123456
+username senpai
+realname "Guest von Lenon"
+password-cmd gopass show irc/guest # use your favorite CLI password solution here
+channel "#rahxephon"
+highlight guest senpai
+highlight lenon # don't know why you'd split it into multiple lines, but you can if you want
+pane-widths {
+	nicknames 12
+}
+```
+
+And the highlight file (*~/.config/senpai/highlight*):
+```
+#!/bin/sh
+
+escape() {
+	printf "%s" "$1" | sed 's#\\#\\\\#g'
+}
+FOCUS=$(swaymsg -t get_tree | jq '..|objects|select(.focused==true)|.name' | grep senpai | wc -l)
+if [ "$HERE" -eq 0 ] || [ $FOCUS -eq 0 ]; then
+	notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
+fi
 ```
 
 # SEE ALSO

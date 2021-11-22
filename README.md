@@ -14,12 +14,12 @@ senpai is an IRC client that works best with bouncers:
 
 ```shell
 mkdir -p ~/.config/senpai
-cat <<EOF >~/.config/senpai/senpai.yaml
-addr: chat.sr.ht
-nick: senpai
-password: "my password can't be this cute (2010)"
+cat <<EOF >~/.config/senpai/senpai.scfg
+address chat.sr.ht
+nickname senpai
+password "my password can't be this cute (2010)"
 # alternatively, specify a command to fetch your password:
-# password-cmd: "gopass show irc/<username>"
+# password-cmd  gopass show irc/<username>
 EOF
 go run ./cmd/senpai
 ```

@@ -3,21 +3,20 @@ package senpai
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"os/exec"
+	"path"
 	"strconv"
 	"strings"
 
 	"github.com/gdamore/tcell/v2"
 
-	"gopkg.in/yaml.v2"
+	"git.sr.ht/~emersion/go-scfg"
 )
 
 type Color tcell.Color
 
-func (c *Color) UnmarshalText(data []byte) error {
-	s := string(data)
-
+func parseColor(s string, c *Color) error {
 	if strings.HasPrefix(s, "#") {
 		hex, err := strconv.ParseInt(s[1:], 16, 32)
 		if err != nil {
@@ -47,34 +46,73 @@ func (c *Color) UnmarshalText(data []byte) error {
 	return nil
 }
 
+type ConfigColors struct {
+	Prompt Color
+}
+
 type Config struct {
-	Addr        string
-	Nick        string
-	Real        string
-	User        string
-	Password    *string
-	PasswordCmd string `yaml:"password-cmd"`
-	NoTLS       bool   `yaml:"no-tls"`
-	Channels    []string
+	Addr     string
+	Nick     string
+	Real     string
+	User     string
+	Password *string
+	TLS      bool
+	Channels []string
 
-	NoTypings bool `yaml:"no-typings"`
-	Mouse     *bool
+	Typings bool
+	Mouse   bool
 
-	Highlights     []string
-	OnHighlight    string `yaml:"on-highlight"`
-	NickColWidth   int    `yaml:"nick-column-width"`
-	ChanColWidth   int    `yaml:"chan-column-width"`
-	MemberColWidth int    `yaml:"member-column-width"`
+	Highlights      []string
+	OnHighlightPath string
+	NickColWidth    int
+	ChanColWidth    int
+	MemberColWidth  int
 
-	Colors struct {
-		Prompt Color
-	}
+	Colors ConfigColors
 
 	Debug bool
 }
 
-func ParseConfig(buf []byte) (cfg Config, err error) {
-	err = yaml.Unmarshal(buf, &cfg)
+func DefaultHighlightPath() (string, error) {
+	configDir, err := os.UserConfigDir()
+	if err != nil {
+		return "", err
+	}
+	return path.Join(configDir, "senpai", "highlight"), nil
+}
+
+func Defaults() (cfg Config, err error) {
+	cfg = Config{
+		Addr:            "",
+		Nick:            "",
+		Real:            "",
+		User:            "",
+		Password:        nil,
+		TLS:             true,
+		Channels:        nil,
+		Typings:         true,
+		Mouse:           true,
+		Highlights:      nil,
+		OnHighlightPath: "",
+		NickColWidth:    16,
+		ChanColWidth:    0,
+		MemberColWidth:  0,
+		Colors: ConfigColors{
+			Prompt: Color(tcell.ColorDefault),
+		},
+		Debug: false,
+	}
+
+	return
+}
+
+func ParseConfig(filename string) (cfg Config, err error) {
+	cfg, err = Defaults()
+	if err != nil {
+		return
+	}
+
+	err = unmarshal(filename, &cfg)
 	if err != nil {
 		return cfg, err
 	}
@@ -90,45 +128,165 @@ func ParseConfig(buf []byte) (cfg Config, err error) {
 	if cfg.Real == "" {
 		cfg.Real = cfg.Nick
 	}
-	if cfg.PasswordCmd != "" {
-		password, err := runPasswordCmd(cfg.PasswordCmd)
-		if err != nil {
-			return cfg, err
-		}
-		cfg.Password = &password
-	}
-	if cfg.NickColWidth <= 0 {
-		cfg.NickColWidth = 16
-	}
-	if cfg.ChanColWidth < 0 {
-		cfg.ChanColWidth = 0
-	}
-	if cfg.MemberColWidth < 0 {
-		cfg.MemberColWidth = 0
-	}
 	return
 }
 
 func LoadConfigFile(filename string) (cfg Config, err error) {
-	var buf []byte
-
-	buf, err = ioutil.ReadFile(filename)
-	if err != nil {
-		return cfg, fmt.Errorf("failed to read the file: %s", err)
-	}
-
-	cfg, err = ParseConfig(buf)
+	cfg, err = ParseConfig(filename)
 	if err != nil {
 		return cfg, fmt.Errorf("invalid content found in the file: %s", err)
 	}
 	return
 }
 
-func runPasswordCmd(command string) (password string, err error) {
-	cmd := exec.Command("sh", "-c", command)
-	stdout, err := cmd.Output()
-	if err == nil {
-		password = strings.TrimSuffix(string(stdout), "\n")
+func unmarshal(filename string, cfg *Config) (err error) {
+	directives, err := scfg.Load(filename)
+	if err != nil {
+		return fmt.Errorf("error parsing scfg: %s", err)
+	}
+
+	for _, d := range directives {
+		switch d.Name {
+		case "address":
+			if err := d.ParseParams(&cfg.Addr); err != nil {
+				return err
+			}
+		case "nickname":
+			if err := d.ParseParams(&cfg.Nick); err != nil {
+				return err
+			}
+		case "username":
+			if err := d.ParseParams(&cfg.User); err != nil {
+				return err
+			}
+		case "realname":
+			if err := d.ParseParams(&cfg.Real); err != nil {
+				return err
+			}
+		case "password":
+			// if a password-cmd is provided, don't use this value
+			if directives.Get("password-cmd") != nil {
+				continue
+			}
+
+			var password string
+			if err := d.ParseParams(&password); err != nil {
+				return err
+			}
+			cfg.Password = &password
+		case "password-cmd":
+			var cmdName string
+			if err := d.ParseParams(&cmdName); err != nil {
+				return err
+			}
+
+			cmd := exec.Command(cmdName, d.Params[1:]...)
+			var stdout []byte
+			if stdout, err = cmd.Output(); err != nil {
+				return fmt.Errorf("error running password command: %s", err)
+			}
+
+			password := strings.TrimSuffix(string(stdout), "\n")
+			cfg.Password = &password
+		case "channel":
+			// TODO: does this work with soju.im/bouncer-networks extension?
+			cfg.Channels = append(cfg.Channels, d.Params...)
+		case "highlight":
+			cfg.Highlights = append(cfg.Highlights, d.Params...)
+		case "on-highlight-path":
+			if err := d.ParseParams(&cfg.OnHighlightPath); err != nil {
+				return err
+			}
+		case "pane-widths":
+			for _, child := range d.Children {
+				switch child.Name {
+				case "nicknames":
+					var nicknames string
+					if err := child.ParseParams(&nicknames); err != nil {
+						return err
+					}
+
+					if cfg.NickColWidth, err = strconv.Atoi(nicknames); err != nil {
+						return err
+					}
+				case "channels":
+					var channels string
+					if err := child.ParseParams(&channels); err != nil {
+						return err
+					}
+
+					if cfg.ChanColWidth, err = strconv.Atoi(channels); err != nil {
+						return err
+					}
+				case "members":
+					var members string
+					if err := child.ParseParams(&members); err != nil {
+						return err
+					}
+
+					if cfg.MemberColWidth, err = strconv.Atoi(members); err != nil {
+						return err
+					}
+				default:
+					return fmt.Errorf("unknown directive %q", child.Name)
+				}
+			}
+		case "tls":
+			var tls string
+			if err := d.ParseParams(&tls); err != nil {
+				return err
+			}
+
+			if cfg.TLS, err = strconv.ParseBool(tls); err != nil {
+				return err
+			}
+		case "typings":
+			var typings string
+			if err := d.ParseParams(&typings); err != nil {
+				return err
+			}
+
+			if cfg.Typings, err = strconv.ParseBool(typings); err != nil {
+				return err
+			}
+		case "mouse":
+			var mouse string
+			if err := d.ParseParams(&mouse); err != nil {
+				return err
+			}
+
+			if cfg.Mouse, err = strconv.ParseBool(mouse); err != nil {
+				return err
+			}
+		case "colors":
+			for _, child := range d.Children {
+				switch child.Name {
+				case "prompt":
+					var prompt string
+					if err := child.ParseParams(&prompt); err != nil {
+						return err
+					}
+
+					fmt.Println(prompt)
+					if err = parseColor(prompt, &cfg.Colors.Prompt); err != nil {
+						return err
+					}
+				default:
+					return fmt.Errorf("unknown directive %q", child.Name)
+				}
+			}
+		case "debug":
+			var debug string
+			if err := d.ParseParams(&debug); err != nil {
+				return err
+			}
+
+			if cfg.Debug, err = strconv.ParseBool(debug); err != nil {
+				return err
+			}
+		default:
+			return fmt.Errorf("unknown directive %q", d.Name)
+		}
 	}
 
 	return
