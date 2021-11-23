@@ -106,7 +106,7 @@ func Defaults() (cfg Config, err error) {
 	return
 }
 
-func ParseConfig(filename string) (cfg Config, err error) {
+func LoadConfigFile(filename string) (cfg Config, err error) {
 	cfg, err = Defaults()
 	if err != nil {
 		return
@@ -127,14 +127,6 @@ func ParseConfig(filename string) (cfg Config, err error) {
 	}
 	if cfg.Real == "" {
 		cfg.Real = cfg.Nick
-	}
-	return
-}
-
-func LoadConfigFile(filename string) (cfg Config, err error) {
-	cfg, err = ParseConfig(filename)
-	if err != nil {
-		return cfg, fmt.Errorf("invalid content found in the file: %s", err)
 	}
 	return
 }

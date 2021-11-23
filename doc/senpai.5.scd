@@ -6,8 +6,8 @@ senpai - Configuration file format and settings
 
 # DESCRIPTION
 
-A senpai configuration file is a scfg file (see https://git.sr.ht/~emersion/scfg).
-The config file has one directive per line.
+A senpai configuration file is a scfg file.
+See https://git.sr.ht/~emersion/scfg.
 
 Some settings are required, the others are optional.
 
@@ -43,29 +43,30 @@ Some settings are required, the others are optional.
 	will be ignored and the output of *password-cmd* will be used for login.
 
 *channel*
-	A spaced separated list of channel names that senpai will automatically join 
-	at startup and server reconnect. This directive can be specified multiple times.
+	A spaced separated list of channel names that senpai will automatically join
+	at startup and server reconnect. This directive can be specified multiple
+	times.
 
 *highlight*
-	A space separated list of keywords that will trigger a notification and a 
+	A space separated list of keywords that will trigger a notification and a
 	display indicator when said by others. This directive can be specified
 	multiple times.
 
 	By default, senpai will use your current nickname.
 
 *on-highlight-path*
-	Alternative path to a shell script to be executed when you are highlighted. By default,
-	senpai looks for a highlight shell script at $XDG_CONFIG_HOME/senpai/highlight.
-	If no file is found at that path, and an alternate path is not provided,
-	highlight command execution is disabled.
+	Alternative path to a shell script to be executed when you are highlighted.
+	By default, senpai looks for a highlight shell script at
+	$XDG_CONFIG_HOME/senpai/highlight. If no file is found at that path, and an
+	alternate path is not provided, highlight command execution is disabled.
 
 	If unset, $XDG_CONFIG_HOME defaults to *~/.config/*.
 
 	Before the highlight script is executed, the following environment
 	variables are populated:
-	
+
 	Shell scripts MUST ENSURE VARIABLES appear QUOTED in the script file,
-	OR YOU WILL BE OPEN TO SHELL INJECTION ATTACKS. Shell scripts must also 
+	OR YOU WILL BE OPEN TO SHELL INJECTION ATTACKS. Shell scripts must also
 	ensure characters like '\*' and '?' are not expanded.
 
 [[ *Environment variable*
@@ -95,7 +96,7 @@ notify-send "[$BUFFER] $SENDER" "$(escape "$MESSAGE")"
 ```
 
 *pane-widths* { ... }
-	Configure the width of various UI panes. 
+	Configure the width of various UI panes.
 
 	Pane widths are set as sub-directives of the main *pane-widths* directive:
 
@@ -108,23 +109,23 @@ pane-widths {
 	This directive supports the following sub-directives:
 
 	*nicknames*
-		The number of cells that the column for nicknames occupies in the timeline.
-		By default, 16.
+		The number of cells that the column for nicknames occupies in the
+		timeline. By default, 16.
 
 	*channels*
-		Make the channel list vertical, with a width equals to the given amount of
-		cells.  By default, the channel list is horizontal.
+		Make the channel list vertical, with a width equals to the given amount
+		of cells.  By default, the channel list is horizontal.
 
 	*members*
-		Show the list of channel members on the right of the screen, with a width
-		equals to the given amount of cells.
+		Show the list of channel members on the right of the screen, with a
+		width equals to the given amount of cells.
 
 *tls*
 	Enable TLS encryption.  Defaults to true.
 
 *typings*
-	Send typing notifications which let others know when you are typing a message.
-	Defaults to true.
+	Send typing notifications which let others know when you are typing a
+	message. Defaults to true.
 
 *mouse*
 	Enable or disable mouse support.  Defaults to true.
