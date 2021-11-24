@@ -642,21 +642,9 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			Highlight: true,
 		})
 	case irc.UserNickEvent:
-		var body ui.StyledStringBuilder
-		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, ev.User))
-		textStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
-		arrowStyle := tcell.StyleDefault
-		body.AddStyle(0, textStyle)
-		body.AddStyle(len(ev.FormerNick), arrowStyle)
-		body.AddStyle(body.Len()-len(ev.User), textStyle)
+		line := app.formatEvent(ev)
 		for _, c := range s.ChannelsSharedWith(ev.User) {
-			app.win.AddLine(netID, c, ui.NotifyNone, ui.Line{
-				At:        msg.TimeOrNow(),
-				Head:      "--",
-				HeadColor: tcell.ColorGray,
-				Body:      body.StyledString(),
-				Mergeable: true,
-			})
+			app.win.AddLine(netID, c, ui.NotifyNone, line)
 		}
 	case irc.SelfJoinEvent:
 		i, added := app.win.AddBuffer(netID, "", ev.Channel)
@@ -685,70 +673,27 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			app.lastBuffer = ""
 		}
 	case irc.UserJoinEvent:
-		var body ui.StyledStringBuilder
-		body.Grow(len(ev.User) + 1)
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
-		body.WriteByte('+')
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.User)
-		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, ui.Line{
-			At:        msg.TimeOrNow(),
-			Head:      "--",
-			HeadColor: tcell.ColorGray,
-			Body:      body.StyledString(),
-			Mergeable: true,
-		})
+		line := app.formatEvent(ev)
+		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, line)
 	case irc.SelfPartEvent:
 		app.win.RemoveBuffer(netID, ev.Channel)
 		delete(app.messageBounds, boundKey{netID, ev.Channel})
 	case irc.UserPartEvent:
-		var body ui.StyledStringBuilder
-		body.Grow(len(ev.User) + 1)
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
-		body.WriteByte('-')
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.User)
-		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, ui.Line{
-			At:        msg.TimeOrNow(),
-			Head:      "--",
-			HeadColor: tcell.ColorGray,
-			Body:      body.StyledString(),
-			Mergeable: true,
-		})
+		line := app.formatEvent(ev)
+		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, line)
 	case irc.UserQuitEvent:
-		var body ui.StyledStringBuilder
-		body.Grow(len(ev.User) + 1)
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
-		body.WriteByte('-')
-		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
-		body.WriteString(ev.User)
+		line := app.formatEvent(ev)
 		for _, c := range ev.Channels {
-			app.win.AddLine(netID, c, ui.NotifyNone, ui.Line{
-				At:        msg.TimeOrNow(),
-				Head:      "--",
-				HeadColor: tcell.ColorGray,
-				Body:      body.StyledString(),
-				Mergeable: true,
-			})
+			app.win.AddLine(netID, c, ui.NotifyNone, line)
 		}
 	case irc.TopicChangeEvent:
+		line := app.formatEvent(ev)
+		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, line)
 		topic := ui.IRCString(ev.Topic).String()
-		body := fmt.Sprintf("Topic changed to: %s", topic)
 		app.win.SetTopic(netID, ev.Channel, topic)
-		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
-			At:        msg.TimeOrNow(),
-			Head:      "--",
-			HeadColor: tcell.ColorGray,
-			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
-		})
 	case irc.ModeChangeEvent:
-		body := fmt.Sprintf("Mode change: %s", ev.Mode)
-		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
-			At:        msg.TimeOrNow(),
-			Head:      "--",
-			HeadColor: tcell.ColorGray,
-			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
-		})
+		line := app.formatEvent(ev)
+		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, line)
 	case irc.InviteEvent:
 		var buffer string
 		var notify ui.NotifyType
@@ -807,19 +752,25 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		var linesAfter []ui.Line
 		bounds, hasBounds := app.messageBounds[boundKey{netID, ev.Target}]
 		for _, m := range ev.Messages {
+			var line ui.Line
 			switch ev := m.(type) {
 			case irc.MessageEvent:
-				_, line, _ := app.formatMessage(s, ev)
-				if hasBounds {
-					c := bounds.Compare(&line)
-					if c < 0 {
-						linesBefore = append(linesBefore, line)
-					} else if c > 0 {
-						linesAfter = append(linesAfter, line)
-					}
-				} else {
+				_, line, _ = app.formatMessage(s, ev)
+			default:
+				line = app.formatEvent(ev)
+			}
+			if line.IsZero() {
+				continue
+			}
+			if hasBounds {
+				c := bounds.Compare(&line)
+				if c < 0 {
 					linesBefore = append(linesBefore, line)
+				} else if c > 0 {
+					linesAfter = append(linesAfter, line)
 				}
+			} else {
+				linesBefore = append(linesBefore, line)
 			}
 		}
 		app.win.AddLines(netID, ev.Target, linesBefore, linesAfter)
@@ -985,6 +936,89 @@ func (app *App) completions(cursorIdx int, text []rune) []ui.Completion {
 	}
 
 	return cs
+}
+
+// formatEvent returns a formatted ui.Line for an irc.Event.
+func (app *App) formatEvent(ev irc.Event) ui.Line {
+	switch ev := ev.(type) {
+	case irc.UserNickEvent:
+		var body ui.StyledStringBuilder
+		body.WriteString(fmt.Sprintf("%s\u2192%s", ev.FormerNick, ev.User))
+		textStyle := tcell.StyleDefault.Foreground(tcell.ColorGray)
+		arrowStyle := tcell.StyleDefault
+		body.AddStyle(0, textStyle)
+		body.AddStyle(len(ev.FormerNick), arrowStyle)
+		body.AddStyle(body.Len()-len(ev.User), textStyle)
+
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
+			Mergeable: true,
+		}
+	case irc.UserJoinEvent:
+		var body ui.StyledStringBuilder
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGreen))
+		body.WriteByte('+')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
+			Mergeable: true,
+		}
+	case irc.UserPartEvent:
+		var body ui.StyledStringBuilder
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
+		body.WriteByte('-')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
+			Mergeable: true,
+		}
+	case irc.UserQuitEvent:
+		var body ui.StyledStringBuilder
+		body.Grow(len(ev.User) + 1)
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorRed))
+		body.WriteByte('-')
+		body.SetStyle(tcell.StyleDefault.Foreground(tcell.ColorGray))
+		body.WriteString(ev.User)
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      body.StyledString(),
+			Mergeable: true,
+		}
+	case irc.TopicChangeEvent:
+		topic := ui.IRCString(ev.Topic).String()
+		body := fmt.Sprintf("Topic changed to: %s", topic)
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+		}
+	case irc.ModeChangeEvent:
+		body := fmt.Sprintf("Mode change: %s", ev.Mode)
+		return ui.Line{
+			At:        ev.Time,
+			Head:      "--",
+			HeadColor: tcell.ColorGray,
+			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+		}
+	default:
+		return ui.Line{}
+	}
 }
 
 // formatMessage sets how a given message must be formatted.

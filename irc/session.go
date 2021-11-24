@@ -58,6 +58,7 @@ var SupportedCapabilities = map[string]struct{}{
 	"setname":       {},
 
 	"draft/chathistory":        {},
+	"draft/event-playback":     {},
 	"soju.im/bouncer-networks": {},
 }
 
@@ -527,18 +528,23 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			}
 			s.targetsBatch.Targets[target] = t
 		} else if b, ok := s.chBatches[id]; ok {
-			ev, err := s.newMessageEvent(msg)
+			ev, err := s.handleMessageRegistered(msg, true)
 			if err != nil {
 				return nil, err
 			}
-			s.chBatches[id] = HistoryEvent{
-				Target:   b.Target,
-				Messages: append(b.Messages, ev),
+			if ev != nil {
+				s.chBatches[id] = HistoryEvent{
+					Target:   b.Target,
+					Messages: append(b.Messages, ev),
+				}
+				return nil, nil
 			}
-			return nil, nil
 		}
 	}
+	return s.handleMessageRegistered(msg, false)
+}
 
+func (s *Session) handleMessageRegistered(msg Message, playback bool) (Event, error) {
 	switch msg.Command {
 	case "AUTHENTICATE":
 		if s.auth == nil {
@@ -663,6 +669,14 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return nil, err
 		}
 
+		if playback {
+			return UserJoinEvent{
+				User:    msg.Prefix.Name,
+				Channel: channel,
+				Time:    msg.TimeOrNow(),
+			}, nil
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
 		channelCf := s.Casemap(channel)
 
@@ -685,6 +699,7 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return UserJoinEvent{
 				User:    msg.Prefix.Name,
 				Channel: c.Name,
+				Time:    msg.TimeOrNow(),
 			}, nil
 		}
 	case "PART":
@@ -695,6 +710,14 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		var channel string
 		if err := msg.ParseParams(&channel); err != nil {
 			return nil, err
+		}
+
+		if playback {
+			return UserPartEvent{
+				User:    msg.Prefix.Name,
+				Channel: channel,
+				Time:    msg.TimeOrNow(),
+			}, nil
 		}
 
 		nickCf := s.Casemap(msg.Prefix.Name)
@@ -718,6 +741,7 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 				return UserPartEvent{
 					User:    u.Name.Name,
 					Channel: c.Name,
+					Time:    msg.TimeOrNow(),
 				}, nil
 			}
 		}
@@ -725,6 +749,14 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 		var channel, nick string
 		if err := msg.ParseParams(&channel, &nick); err != nil {
 			return nil, err
+		}
+
+		if playback {
+			return UserPartEvent{
+				User:    nick,
+				Channel: channel,
+				Time:    msg.TimeOrNow(),
+			}, nil
 		}
 
 		nickCf := s.Casemap(nick)
@@ -748,12 +780,20 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 				return UserPartEvent{
 					User:    nick,
 					Channel: c.Name,
+					Time:    msg.TimeOrNow(),
 				}, nil
 			}
 		}
 	case "QUIT":
 		if msg.Prefix == nil {
 			return nil, errMissingPrefix
+		}
+
+		if playback {
+			return UserQuitEvent{
+				User: msg.Prefix.Name,
+				Time: msg.TimeOrNow(),
+			}, nil
 		}
 
 		nickCf := s.Casemap(msg.Prefix.Name)
@@ -771,6 +811,7 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return UserQuitEvent{
 				User:     u.Name.Name,
 				Channels: channels,
+				Time:     msg.TimeOrNow(),
 			}, nil
 		}
 	case rplNamreply:
@@ -864,6 +905,14 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return nil, err
 		}
 
+		if playback {
+			return TopicChangeEvent{
+				Channel: channel,
+				Topic:   topic,
+				Time:    msg.TimeOrNow(),
+			}, nil
+		}
+
 		channelCf := s.Casemap(channel)
 
 		if c, ok := s.channels[channelCf]; ok {
@@ -874,12 +923,21 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return TopicChangeEvent{
 				Channel: c.Name,
 				Topic:   c.Topic,
+				Time:    msg.TimeOrNow(),
 			}, nil
 		}
 	case "MODE":
 		var channel, mode string
 		if err := msg.ParseParams(&channel, &mode); err != nil {
 			return nil, err
+		}
+
+		if playback {
+			return ModeChangeEvent{
+				Channel: channel,
+				Mode:    mode,
+				Time:    msg.TimeOrNow(),
+			}, nil
 		}
 
 		channelCf := s.Casemap(channel)
@@ -917,7 +975,8 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			s.channels[channelCf] = c
 			return ModeChangeEvent{
 				Channel: c.Name,
-				Mode:    strings.Join(msg.Params[1:], " "),
+				Mode:    mode,
+				Time:    msg.TimeOrNow(),
 			}, nil
 		}
 	case "INVITE":
@@ -966,12 +1025,20 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return nil, err
 		}
 
+		if playback {
+			return s.newMessageEvent(msg)
+		}
+
 		targetCf := s.casemap(target)
 		nickCf := s.casemap(msg.Prefix.Name)
 		s.typings.Done(targetCf, nickCf)
 
 		return s.newMessageEvent(msg)
 	case "TAGMSG":
+		if playback {
+			return nil, nil
+		}
+
 		if msg.Prefix == nil {
 			return nil, errMissingPrefix
 		}
@@ -1048,6 +1115,14 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return nil, err
 		}
 
+		if playback {
+			return UserNickEvent{
+				User:       nick,
+				FormerNick: msg.Prefix.Name,
+				Time:       msg.TimeOrNow(),
+			}, nil
+		}
+
 		nickCf := s.Casemap(msg.Prefix.Name)
 		newNick := nick
 		newNickCf := s.Casemap(newNick)
@@ -1070,6 +1145,7 @@ func (s *Session) handleRegistered(msg Message) (Event, error) {
 			return UserNickEvent{
 				User:       nick,
 				FormerNick: msg.Prefix.Name,
+				Time:       msg.TimeOrNow(),
 			}, nil
 		}
 	case "BOUNCER":

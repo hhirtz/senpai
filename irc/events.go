@@ -19,6 +19,7 @@ type SelfNickEvent struct {
 type UserNickEvent struct {
 	User       string
 	FormerNick string
+	Time       time.Time
 }
 
 type SelfJoinEvent struct {
@@ -30,6 +31,7 @@ type SelfJoinEvent struct {
 type UserJoinEvent struct {
 	User    string
 	Channel string
+	Time    time.Time
 }
 
 type SelfPartEvent struct {
@@ -39,21 +41,25 @@ type SelfPartEvent struct {
 type UserPartEvent struct {
 	User    string
 	Channel string
+	Time    time.Time
 }
 
 type UserQuitEvent struct {
 	User     string
 	Channels []string
+	Time     time.Time
 }
 
 type TopicChangeEvent struct {
 	Channel string
 	Topic   string
+	Time    time.Time
 }
 
 type ModeChangeEvent struct {
 	Channel string
 	Mode    string
+	Time    time.Time
 }
 
 type InviteEvent struct {

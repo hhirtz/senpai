@@ -39,6 +39,21 @@ type Line struct {
 	newLines    []int
 }
 
+func (l *Line) IsZero() bool {
+	return l.Body.string == ""
+}
+
+func (l *Line) Merge(line Line) {
+	newBody := new(StyledStringBuilder)
+	newBody.Grow(len(l.Body.string) + 2 + len(line.Body.string))
+	newBody.WriteStyledString(l.Body)
+	newBody.WriteString("  ")
+	newBody.WriteStyledString(line.Body)
+	l.Body = newBody.StyledString()
+	l.computeSplitPoints()
+	l.width = 0
+}
+
 func (l *Line) computeSplitPoints() {
 	if l.splitPoints == nil {
 		l.splitPoints = []point{}
@@ -307,14 +322,7 @@ func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line)
 
 	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
-		newBody := new(StyledStringBuilder)
-		newBody.Grow(len(l.Body.string) + 2 + len(line.Body.string))
-		newBody.WriteStyledString(l.Body)
-		newBody.WriteString("  ")
-		newBody.WriteStyledString(line.Body)
-		l.Body = newBody.StyledString()
-		l.computeSplitPoints()
-		l.width = 0
+		l.Merge(line)
 		// TODO change b.scrollAmt if it's not 0 and bs.current is idx.
 	} else {
 		line.computeSplitPoints()
@@ -340,21 +348,22 @@ func (bs *BufferList) AddLines(netID, title string, before, after []Line) {
 
 	b := &bs.list[idx]
 
-	for i := 0; i < len(before); i++ {
-		before[i].Body = before[i].Body.ParseURLs()
-		before[i].computeSplitPoints()
+	lines := make([]Line, 0, len(before)+len(b.lines)+len(after))
+	for _, buf := range []*[]Line{&before, &b.lines, &after} {
+		for _, line := range *buf {
+			if line.Mergeable && len(lines) > 0 && lines[len(lines)-1].Mergeable {
+				l := &lines[len(lines)-1]
+				l.Merge(line)
+			} else {
+				if buf != &b.lines {
+					line.Body = line.Body.ParseURLs()
+					line.computeSplitPoints()
+				}
+				lines = append(lines, line)
+			}
+		}
 	}
-	for i := 0; i < len(after); i++ {
-		after[i].Body = after[i].Body.ParseURLs()
-		after[i].computeSplitPoints()
-	}
-
-	if len(before) != 0 {
-		b.lines = append(before, b.lines...)
-	}
-	if len(after) != 0 {
-		b.lines = append(b.lines, after...)
-	}
+	b.lines = lines
 }
 
 func (bs *BufferList) SetTopic(netID, title string, topic string) {
