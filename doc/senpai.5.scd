@@ -40,7 +40,8 @@ Some settings are required, the others are optional.
 	runtime. This is useful if you store your passwords in a separate (probably
 	encrypted) file using `gpg` or a command line password manager such as
 	_pass_ or _gopass_. If a *password-cmd* is provided, the value of *password*
-	will be ignored and the output of *password-cmd* will be used for login.
+	will be ignored and the first line of the output of *password-cmd* will be
+	used for login.
 
 *channel*
 	A spaced separated list of channel names that senpai will automatically join

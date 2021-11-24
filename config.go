@@ -178,8 +178,10 @@ func unmarshal(filename string, cfg *Config) (err error) {
 				return fmt.Errorf("error running password command: %s", err)
 			}
 
-			password := strings.TrimSuffix(string(stdout), "\n")
-			cfg.Password = &password
+			passCmdOut := strings.Split(string(stdout), "\n")
+			if len(passCmdOut) >= 1 {
+				cfg.Password = &passCmdOut[0]
+			}
 		case "channel":
 			// TODO: does this work with soju.im/bouncer-networks extension?
 			cfg.Channels = append(cfg.Channels, d.Params...)
