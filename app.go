@@ -1009,12 +1009,13 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 		}
 	case irc.ModeChangeEvent:
-		body := fmt.Sprintf("Mode change: %s", ev.Mode)
+		body := fmt.Sprintf("[%s]", ev.Mode)
 		return ui.Line{
 			At:        ev.Time,
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
 			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
+			Mergeable: true,
 		}
 	default:
 		return ui.Line{}

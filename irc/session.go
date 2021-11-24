@@ -927,10 +927,11 @@ func (s *Session) handleMessageRegistered(msg Message, playback bool) (Event, er
 			}, nil
 		}
 	case "MODE":
-		var channel, mode string
-		if err := msg.ParseParams(&channel, &mode); err != nil {
+		var channel string
+		if err := msg.ParseParams(&channel, nil); err != nil {
 			return nil, err
 		}
+		mode := strings.Join(msg.Params[1:], " ")
 
 		if playback {
 			return ModeChangeEvent{
@@ -943,7 +944,7 @@ func (s *Session) handleMessageRegistered(msg Message, playback bool) (Event, er
 		channelCf := s.Casemap(channel)
 
 		if c, ok := s.channels[channelCf]; ok {
-			modeChanges, err := ParseChannelMode(mode, msg.Params[2:], s.chanmodes, s.prefixModes)
+			modeChanges, err := ParseChannelMode(msg.Params[1], msg.Params[2:], s.chanmodes, s.prefixModes)
 			if err != nil {
 				return nil, err
 			}
