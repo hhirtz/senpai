@@ -674,7 +674,8 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			app.win.JumpBufferIndex(i)
 		}
 		if ev.Topic != "" {
-			app.printTopic(netID, ev.Channel)
+			topic := ui.IRCString(ev.Topic).String()
+			app.win.SetTopic(netID, ev.Channel, topic)
 		}
 
 		// Restore last buffer
@@ -733,6 +734,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 	case irc.TopicChangeEvent:
 		topic := ui.IRCString(ev.Topic).String()
 		body := fmt.Sprintf("Topic changed to: %s", topic)
+		app.win.SetTopic(netID, ev.Channel, topic)
 		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, ui.Line{
 			At:        msg.TimeOrNow(),
 			Head:      "--",

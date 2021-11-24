@@ -231,6 +231,10 @@ func (ui *UI) JumpBufferNetwork(netID, sub string) bool {
 	return false
 }
 
+func (ui *UI) SetTopic(netID, buffer string, topic string) {
+	ui.bs.SetTopic(netID, buffer, topic)
+}
+
 func (ui *UI) SetStatus(status string) {
 	ui.status = status
 }
