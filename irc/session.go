@@ -168,6 +168,10 @@ func NewSession(out chan<- Message, params SessionParams) *Session {
 	s.out <- NewMessage("NICK", s.nick)
 	s.out <- NewMessage("USER", s.user, "0", "*", s.real)
 
+	if s.auth == nil {
+		s.endRegistration()
+	}
+
 	return s
 }
 
