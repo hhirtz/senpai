@@ -34,7 +34,7 @@ configuration options!
 If you run into errors and want to find the WHY OH WHY, or if you'd like to try
 things out with an IRC server, then you have two options:
 
-1. Run senpai with the `-debug` argument (or put `debug: true`) in your config,
+1. Run senpai with the `-debug` argument (or put `debug true`) in your config,
    it will then print in `home` all the data it sends and receives.
 2. Run the test client, that uses the same IRC library but exposes a simpler
    interface, by running `go run ./cmd/test -help`.
