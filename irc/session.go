@@ -512,7 +512,7 @@ func (s *Session) handleUnregistered(msg Message) (Event, error) {
 
 		s.out <- NewMessage("NICK", nick+"_")
 	case rplSaslsuccess:
-		// do nothing
+		s.endRegistration()
 	default:
 		return s.handleRegistered(msg)
 	}
@@ -572,7 +572,6 @@ func (s *Session) handleMessageRegistered(msg Message, playback bool) (Event, er
 			return nil, err
 		}
 
-		s.endRegistration()
 		prefix := ParsePrefix(nuh)
 		s.user = prefix.User
 		s.host = prefix.Host
