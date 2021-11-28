@@ -261,7 +261,6 @@ func unmarshal(filename string, cfg *Config) (err error) {
 						return err
 					}
 
-					fmt.Println(prompt)
 					if err = parseColor(prompt, &cfg.Colors.Prompt); err != nil {
 						return err
 					}
