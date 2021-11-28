@@ -142,7 +142,7 @@ pane-widths {
 
 ```
 colors {
-    prompt 3 # green
+    prompt 2 # green
 }
 ```
 
