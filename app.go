@@ -34,16 +34,17 @@ type bound struct {
 
 // Compare returns 0 if line is within bounds, -1 if before, 1 if after.
 func (b *bound) Compare(line *ui.Line) int {
-	if line.At.Before(b.first) {
+	at := line.At.Truncate(time.Second)
+	if at.Before(b.first) {
 		return -1
 	}
-	if line.At.After(b.last) {
+	if at.After(b.last) {
 		return 1
 	}
-	if line.At.Equal(b.first) && line.Body.String() != b.firstMessage {
+	if at.Equal(b.first) && line.Body.String() != b.firstMessage {
 		return -1
 	}
-	if line.At.Equal(b.last) && line.Body.String() != b.lastMessage {
+	if at.Equal(b.last) && line.Body.String() != b.lastMessage {
 		return -1
 	}
 	return 0
@@ -54,11 +55,12 @@ func (b *bound) Update(line *ui.Line) {
 	if line.At.IsZero() {
 		return
 	}
-	if b.first.IsZero() || line.At.Before(b.first) {
-		b.first = line.At
+	at := line.At.Truncate(time.Second)
+	if b.first.IsZero() || at.Before(b.first) {
+		b.first = at
 		b.firstMessage = line.Body.String()
-	} else if b.last.IsZero() || line.At.After(b.last) {
-		b.last = line.At
+	} else if b.last.IsZero() || at.After(b.last) {
+		b.last = at
 		b.lastMessage = line.Body.String()
 	}
 }
