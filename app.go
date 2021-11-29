@@ -721,7 +721,11 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 	case irc.MessageEvent:
 		buffer, line, notification := app.formatMessage(s, ev)
 		if buffer != "" && !s.IsChannel(buffer) {
-			app.win.AddBuffer(netID, "", buffer)
+			if _, added := app.win.AddBuffer(netID, "", buffer); added {
+				s.NewHistoryRequest(buffer).
+					WithLimit(200).
+					Before(msg.TimeOrNow())
+			}
 		}
 		app.win.AddLine(netID, buffer, notification, line)
 		if notification == ui.NotifyHighlight {
@@ -733,7 +737,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		}
 		bounds := app.messageBounds[boundKey{netID, ev.Target}]
 		bounds.Update(&line)
-		app.messageBounds[boundKey{netID, ev.Target}] = bounds
+		app.messageBounds[boundKey{netID, buffer}] = bounds
 	case irc.HistoryTargetsEvent:
 		for target, last := range ev.Targets {
 			if s.IsChannel(target) {
