@@ -650,8 +650,10 @@ func (s *Session) handleMessageRegistered(msg Message, playback bool) (Event, er
 		case "NEW":
 			for _, c := range ParseCaps(caps) {
 				s.availableCaps[c.Name] = c.Value
-				_, ok := SupportedCapabilities[c.Name]
-				if !ok {
+				if _, ok := SupportedCapabilities[c.Name]; !ok {
+					continue
+				}
+				if _, ok := s.enabledCaps[c.Name]; ok {
 					continue
 				}
 				s.out <- NewMessage("CAP", "REQ", c.Name)
