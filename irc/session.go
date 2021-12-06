@@ -494,6 +494,14 @@ func (s *Session) Invite(nick, channel string) {
 	s.out <- NewMessage("INVITE", nick, channel)
 }
 
+func (s *Session) Kick(nick, channel, comment string) {
+	if comment == "" {
+		s.out <- NewMessage("KICK", channel, nick)
+	} else {
+		s.out <- NewMessage("KICK", channel, nick, comment)
+	}
+}
+
 func (s *Session) HandleMessage(msg Message) (Event, error) {
 	if s.registered {
 		return s.handleRegistered(msg)

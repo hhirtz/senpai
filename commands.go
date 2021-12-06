@@ -142,6 +142,30 @@ func init() {
 			Desc:      "invite someone to a channel",
 			Handle:    commandDoInvite,
 		},
+		"KICK": {
+			AllowHome: false,
+			MinArgs:   1,
+			MaxArgs:   2,
+			Usage:     "<nick> [channel]",
+			Desc:      "eject someone from the channel",
+			Handle:    commandDoKick,
+		},
+		"BAN": {
+			AllowHome: false,
+			MinArgs:   1,
+			MaxArgs:   2,
+			Usage:     "<nick> [channel]",
+			Desc:      "ban someone from entering the channel",
+			Handle:    commandDoBan,
+		},
+		"UNBAN": {
+			AllowHome: false,
+			MinArgs:   1,
+			MaxArgs:   2,
+			Usage:     "<nick> [channel]",
+			Desc:      "remove effect of a ban from the user",
+			Handle:    commandDoUnban,
+		},
 	}
 }
 
@@ -503,6 +527,58 @@ func commandDoInvite(app *App, args []string) (err error) {
 		return fmt.Errorf("either send this command from a channel, or specify the channel")
 	}
 	s.Invite(nick, channel)
+	return nil
+}
+
+func commandDoKick(app *App, args []string) (err error) {
+	nick := args[0]
+	netID, channel := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
+		return errOffline
+	}
+	if len(args) >= 2 {
+		channel = args[1]
+	} else if channel == "" {
+		return fmt.Errorf("either send this command from a channel, or specify the channel")
+	}
+	comment := ""
+	if len(args) == 3 {
+		comment = args[2]
+	}
+	s.Kick(nick, channel, comment)
+	return nil
+}
+
+func commandDoBan(app *App, args []string) (err error) {
+	nick := args[0]
+	netID, channel := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
+		return errOffline
+	}
+	if len(args) == 2 {
+		channel = args[1]
+	} else if channel == "" {
+		return fmt.Errorf("either send this command from a channel, or specify the channel")
+	}
+	s.ChangeMode(channel, "+b", []string{nick})
+	return nil
+}
+
+func commandDoUnban(app *App, args []string) (err error) {
+	nick := args[0]
+	netID, channel := app.win.CurrentBuffer()
+	s := app.sessions[netID]
+	if s == nil {
+		return errOffline
+	}
+	if len(args) == 2 {
+		channel = args[1]
+	} else if channel == "" {
+		return fmt.Errorf("either send this command from a channel, or specify the channel")
+	}
+	s.ChangeMode(channel, "-b", []string{nick})
 	return nil
 }
 
