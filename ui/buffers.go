@@ -33,6 +33,7 @@ type Line struct {
 	HeadColor tcell.Color
 	Highlight bool
 	Mergeable bool
+	Data      []interface{}
 
 	splitPoints []point
 	width       int
@@ -41,17 +42,6 @@ type Line struct {
 
 func (l *Line) IsZero() bool {
 	return l.Body.string == ""
-}
-
-func (l *Line) Merge(line Line) {
-	newBody := new(StyledStringBuilder)
-	newBody.Grow(len(l.Body.string) + 2 + len(line.Body.string))
-	newBody.WriteStyledString(l.Body)
-	newBody.WriteString("  ")
-	newBody.WriteStyledString(line.Body)
-	l.Body = newBody.StyledString()
-	l.computeSplitPoints()
-	l.width = 0
 }
 
 func (l *Line) computeSplitPoints() {
@@ -209,14 +199,17 @@ type BufferList struct {
 	tlHeight     int
 
 	showBufferNumbers bool
+
+	doMergeLine func(former *Line, addition Line)
 }
 
 // NewBufferList returns a new BufferList.
 // Call Resize() once before using it.
-func NewBufferList() BufferList {
+func NewBufferList(mergeLine func(*Line, Line)) BufferList {
 	return BufferList{
-		list:    []buffer{},
-		clicked: -1,
+		list:        []buffer{},
+		clicked:     -1,
+		doMergeLine: mergeLine,
 	}
 }
 
@@ -306,6 +299,16 @@ func (bs *BufferList) Remove(netID, title string) bool {
 	return true
 }
 
+func (bs *BufferList) mergeLine(former *Line, addition Line) (keepLine bool) {
+	bs.doMergeLine(former, addition)
+	if former.Body.string == "" {
+		return false
+	}
+	former.width = 0
+	former.computeSplitPoints()
+	return true
+}
+
 func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line) {
 	idx := bs.idx(netID, title)
 	if idx < 0 {
@@ -322,7 +325,9 @@ func (bs *BufferList) AddLine(netID, title string, notify NotifyType, line Line)
 
 	if line.Mergeable && n != 0 && b.lines[n-1].Mergeable {
 		l := &b.lines[n-1]
-		l.Merge(line)
+		if !bs.mergeLine(l, line) {
+			b.lines = b.lines[:n-1]
+		}
 		// TODO change b.scrollAmt if it's not 0 and bs.current is idx.
 	} else {
 		line.computeSplitPoints()
@@ -353,7 +358,9 @@ func (bs *BufferList) AddLines(netID, title string, before, after []Line) {
 		for _, line := range *buf {
 			if line.Mergeable && len(lines) > 0 && lines[len(lines)-1].Mergeable {
 				l := &lines[len(lines)-1]
-				l.Merge(line)
+				if !bs.mergeLine(l, line) {
+					lines = lines[:len(lines)-1]
+				}
 			} else {
 				if buf != &b.lines {
 					line.Body = line.Body.ParseURLs()

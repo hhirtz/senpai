@@ -15,6 +15,7 @@ type Config struct {
 	MemberColWidth int
 	AutoComplete   func(cursorIdx int, text []rune) []Completion
 	Mouse          bool
+	MergeLine      func(former *Line, addition Line)
 }
 
 type UI struct {
@@ -70,7 +71,7 @@ func New(config Config) (ui *UI, err error) {
 		close(ui.Events)
 	}()
 
-	ui.bs = NewBufferList()
+	ui.bs = NewBufferList(ui.config.MergeLine)
 	ui.e = NewEditor(ui.config.AutoComplete)
 	ui.Resize()
 

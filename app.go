@@ -124,6 +124,9 @@ func NewApp(cfg Config) (app *App, err error) {
 			return app.completions(cursorIdx, text)
 		},
 		Mouse: mouse,
+		MergeLine: func(former *ui.Line, addition ui.Line) {
+			app.mergeLine(former, addition)
+		},
 	})
 	if err != nil {
 		return
@@ -955,13 +958,13 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 		body.AddStyle(0, textStyle)
 		body.AddStyle(len(ev.FormerNick), arrowStyle)
 		body.AddStyle(body.Len()-len(ev.User), textStyle)
-
 		return ui.Line{
 			At:        ev.Time,
 			Head:      "--",
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 			Mergeable: true,
+			Data:      []interface{}{ev},
 		}
 	case irc.UserJoinEvent:
 		var body ui.StyledStringBuilder
@@ -976,6 +979,7 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 			Mergeable: true,
+			Data:      []interface{}{ev},
 		}
 	case irc.UserPartEvent:
 		var body ui.StyledStringBuilder
@@ -990,6 +994,7 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 			Mergeable: true,
+			Data:      []interface{}{ev},
 		}
 	case irc.UserQuitEvent:
 		var body ui.StyledStringBuilder
@@ -1004,6 +1009,7 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 			HeadColor: tcell.ColorGray,
 			Body:      body.StyledString(),
 			Mergeable: true,
+			Data:      []interface{}{ev},
 		}
 	case irc.TopicChangeEvent:
 		topic := ui.IRCString(ev.Topic).String()
@@ -1022,6 +1028,7 @@ func (app *App) formatEvent(ev irc.Event) ui.Line {
 			HeadColor: tcell.ColorGray,
 			Body:      ui.Styled(body, tcell.StyleDefault.Foreground(tcell.ColorGray)),
 			Mergeable: true,
+			Data:      []interface{}{ev},
 		}
 	default:
 		return ui.Line{}
@@ -1103,6 +1110,85 @@ func (app *App) formatMessage(s *irc.Session, ev irc.MessageEvent) (buffer strin
 		Highlight: hlLine,
 	}
 	return
+}
+
+func (app *App) mergeLine(former *ui.Line, addition ui.Line) {
+	partQuitUser := func(ev interface{}) string {
+		if ev, ok := ev.(irc.UserQuitEvent); ok {
+			return ev.User
+		}
+		if ev, ok := ev.(irc.UserPartEvent); ok {
+			return ev.User
+		}
+		panic("unreachable")
+	}
+
+	changed := false
+Outer:
+	for _, addedEvent := range addition.Data {
+		switch addedEvent := addedEvent.(type) {
+		case irc.UserNickEvent:
+			for i := len(former.Data) - 1; i >= 0; i-- {
+				switch ev := former.Data[i].(type) {
+				case irc.UserNickEvent:
+					if ev.User == addedEvent.FormerNick && ev.FormerNick == addedEvent.User {
+						former.Data = append(former.Data[:i], former.Data[i+1:]...)
+						changed = true
+						continue Outer
+					}
+				}
+			}
+			former.Data = append(former.Data, addedEvent)
+		case irc.UserJoinEvent:
+			for i := len(former.Data) - 1; i >= 0; i-- {
+				switch ev := former.Data[i].(type) {
+				case irc.UserPartEvent, irc.UserQuitEvent:
+					if partQuitUser(ev) == addedEvent.User {
+						former.Data = append(former.Data[:i], former.Data[i+1:]...)
+						changed = true
+						continue Outer
+					}
+				}
+			}
+			former.Data = append(former.Data, addedEvent)
+		case irc.UserQuitEvent, irc.UserPartEvent:
+			for i := len(former.Data) - 1; i >= 0; i-- {
+				switch ev := former.Data[i].(type) {
+				case irc.UserJoinEvent:
+					if ev.User == partQuitUser(addedEvent) {
+						former.Data = append(former.Data[:i], former.Data[i+1:]...)
+						changed = true
+						continue Outer
+					}
+				}
+			}
+			former.Data = append(former.Data, addedEvent)
+		//case irc.ModeChangeEvent: //TODO
+		default:
+			former.Data = append(former.Data, addedEvent)
+		}
+	}
+	if changed {
+		if len(former.Data) == 0 {
+			former.Body = ui.PlainString("")
+			return
+		}
+		var body ui.StyledStringBuilder
+		body.Grow(len(former.Body.String()))
+		body.WriteStyledString(app.formatEvent(former.Data[0]).Body)
+		for _, ev := range former.Data[1:] {
+			body.WriteString("  ")
+			body.WriteStyledString(app.formatEvent(ev).Body)
+		}
+		former.Body = body.StyledString()
+	} else {
+		var newBody ui.StyledStringBuilder
+		newBody.Grow(len(former.Body.String()) + 2 + len(addition.Body.String()))
+		newBody.WriteStyledString(former.Body)
+		newBody.WriteString("  ")
+		newBody.WriteStyledString(addition.Body)
+		former.Body = newBody.StyledString()
+	}
 }
 
 // updatePrompt changes the prompt text according to the application context.
