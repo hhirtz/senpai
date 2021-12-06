@@ -93,6 +93,9 @@ of messages are in the timeline:
 	Go to the next highlight, or to the (most recent) end of the timeline if
 	there is none.
 
+*ALT-{1..9}*
+	Go to buffer by index.
+
 *UP*, *DOWN*, *LEFT*, *RIGHT*, *HOME*, *END*, *BACKSPACE*, *DELETE*
 	Edit the text in the input field.
 

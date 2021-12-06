@@ -538,6 +538,8 @@ func (app *App) handleKeyEvent(ev *tcell.EventKey) {
 				app.win.ScrollDownHighlight()
 			case 'p':
 				app.win.ScrollUpHighlight()
+			case '1', '2', '3', '4', '5', '6', '7', '8', '9':
+				app.win.GoToBufferNo(int(ev.Rune()-'0') - 1)
 			}
 		} else {
 			app.win.InputRune(ev.Rune())
