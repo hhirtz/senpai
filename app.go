@@ -562,7 +562,7 @@ func (app *App) requestHistory() {
 			t = bound.first
 		}
 		s.NewHistoryRequest(buffer).
-			WithLimit(100).
+			WithLimit(200).
 			Before(t)
 	}
 }
@@ -656,11 +656,11 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		bounds, ok := app.messageBounds[boundKey{netID, ev.Channel}]
 		if added || !ok {
 			s.NewHistoryRequest(ev.Channel).
-				WithLimit(200).
+				WithLimit(500).
 				Before(msg.TimeOrNow())
 		} else {
 			s.NewHistoryRequest(ev.Channel).
-				WithLimit(200).
+				WithLimit(1000).
 				After(bounds.last)
 		}
 		if ev.Requested {
@@ -728,7 +728,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		if buffer != "" && !s.IsChannel(buffer) {
 			if _, added := app.win.AddBuffer(netID, "", buffer); added {
 				s.NewHistoryRequest(buffer).
-					WithLimit(200).
+					WithLimit(500).
 					Before(msg.TimeOrNow())
 			}
 		}
@@ -753,7 +753,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 			// (precision of the time tag) to include that last message.
 			last = last.Add(1 * time.Millisecond)
 			s.NewHistoryRequest(target).
-				WithLimit(200).
+				WithLimit(500).
 				Before(last)
 		}
 	case irc.HistoryEvent:
