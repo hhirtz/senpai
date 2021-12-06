@@ -698,7 +698,7 @@ func (app *App) handleIRCEvent(netID string, ev interface{}) {
 		app.win.SetTopic(netID, ev.Channel, topic)
 	case irc.ModeChangeEvent:
 		line := app.formatEvent(ev)
-		app.win.AddLine(netID, ev.Channel, ui.NotifyUnread, line)
+		app.win.AddLine(netID, ev.Channel, ui.NotifyNone, line)
 	case irc.InviteEvent:
 		var buffer string
 		var notify ui.NotifyType
