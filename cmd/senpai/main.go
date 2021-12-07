@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"os"
 	"os/signal"
 	"path"
@@ -15,10 +14,6 @@ import (
 	"git.sr.ht/~taiite/senpai"
 	"github.com/gdamore/tcell/v2"
 )
-
-func init() {
-	rand.Seed(time.Now().Unix())
-}
 
 func main() {
 	tcell.SetEncodingFallback(tcell.EncodingFallbackASCII)
