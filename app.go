@@ -1140,7 +1140,6 @@ Outer:
 					}
 				}
 			}
-			former.Data = append(former.Data, addedEvent)
 		case irc.UserJoinEvent:
 			for i := len(former.Data) - 1; i >= 0; i-- {
 				switch ev := former.Data[i].(type) {
@@ -1152,23 +1151,28 @@ Outer:
 					}
 				}
 			}
-			former.Data = append(former.Data, addedEvent)
 		case irc.UserQuitEvent, irc.UserPartEvent:
+			user := partQuitUser(addedEvent)
+			var toRemove []int
 			for i := len(former.Data) - 1; i >= 0; i-- {
 				switch ev := former.Data[i].(type) {
+				case irc.UserNickEvent:
+					if ev.User == user {
+						user = ev.FormerNick
+						toRemove = append(toRemove, i)
+					}
 				case irc.UserJoinEvent:
-					if ev.User == partQuitUser(addedEvent) {
-						former.Data = append(former.Data[:i], former.Data[i+1:]...)
+					if ev.User == user {
+						for _, i := range append(toRemove, i) {
+							former.Data = append(former.Data[:i], former.Data[i+1:]...)
+						}
 						changed = true
 						continue Outer
 					}
 				}
 			}
-			former.Data = append(former.Data, addedEvent)
-		//case irc.ModeChangeEvent: //TODO
-		default:
-			former.Data = append(former.Data, addedEvent)
 		}
+		former.Data = append(former.Data, addedEvent)
 	}
 	if changed {
 		if len(former.Data) == 0 {
