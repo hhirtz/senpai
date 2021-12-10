@@ -469,10 +469,8 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		st := tcell.StyleDefault
 		if b.unread {
 			st = st.Bold(true)
-		} else if bi == bs.current {
-			st = st.Underline(true)
 		}
-		if bi == bs.clicked {
+		if bi == bs.current || bi == bs.clicked {
 			st = st.Reverse(true)
 		}
 		if bs.showBufferNumbers {
@@ -486,7 +484,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		if b.title == "" {
 			title = b.netName
 		} else {
-			if bi == bs.clicked {
+			if bi == bs.current || bi == bs.clicked {
 				screen.SetContent(x, y, ' ', nil, tcell.StyleDefault.Reverse(true))
 				screen.SetContent(x+1, y, ' ', nil, tcell.StyleDefault.Reverse(true))
 			}
@@ -496,7 +494,7 @@ func (bs *BufferList) DrawVerticalBufferList(screen tcell.Screen, x0, y0, width,
 		title = truncate(title, width-(x-x0), "\u2026")
 		printString(screen, &x, y, Styled(title, st))
 
-		if bi == bs.clicked {
+		if bi == bs.current || bi == bs.clicked {
 			st := tcell.StyleDefault.Reverse(true)
 			for ; x < x0+width; x++ {
 				screen.SetContent(x, y, ' ', nil, st)
