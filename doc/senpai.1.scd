@@ -66,7 +66,7 @@ of messages are in the timeline:
 # KEYBOARD SHORTCUTS
 
 *CTRL-C*
-	Quit the program.
+	Clear input line.
 
 *CTRL-U*, *PgUp*
 	Go up in the timeline.
